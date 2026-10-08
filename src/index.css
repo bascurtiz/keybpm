@@ -1,0 +1,547 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme tokens — channels consumed as `rgb(var(--x) / <alpha-value>)`
+ * by tailwind.config.js. Dark is the default (AGENTS §26); light follows
+ * `prefers-color-scheme` unless an explicit data-theme choice is stored
+ * (prototype behavior: :root:not([data-theme="dark"]) inside the media query).
+ */
+:root {
+  color-scheme: dark;
+  /* Dark surfaces ≈ supabase.com gray-dark scale (charcoal, not navy). */
+  --bg: 22 22 22; /* #161616 — gray-dark-100 */
+  --bg-card: 28 28 28; /* #1c1c1c — gray-dark-200 */
+  --bg-hover: 35 35 35; /* #232323 — gray-dark-300 */
+  --bg-subtle: 35 35 35; /* #232323 */
+  --line: 46 46 46; /* #2e2e2e — gray-dark-500 */
+  --line-hover: 62 62 62; /* #3e3e3e — gray-dark-700 */
+  --text: 237 237 237; /* #ededed — gray-dark-1200 */
+  --text-muted: 160 160 160; /* #a0a0a0 — gray-dark-1100 */
+  --text-dim: 126 126 126; /* #7e7e7e — gray-dark-1000 */
+  --accent: 52 211 153; /* #34d399 — mockup green (links, icons, rings) */
+  --accent-hover: 52 211 153; /* #34d399 */
+  --accent-soft: 16 185 129; /* #10b981 */
+  --accent-solid: 16 185 129; /* #10b981 — solid buttons/avatars (mockup) */
+  --accent-ink: 4 32 26; /* #04201a — text on solid accent */
+  --ok: 56 211 159; /* #38d39f */
+  --warn: 242 180 77; /* #f2b44d */
+  --bad: 255 93 108; /* #ff5d6c */
+  --on-cam: 22 22 22; /* text on a solid camelot chip */
+  /* key-tool-online wheel palette — one color per Camelot code.
+     A ring = pale minor tint, B ring = vivid major (D:/key-tool-online). */
+  --cam-1a: 109 244 223;
+  --cam-1b: 10 237 202;
+  --cam-2a: 139 244 178;
+  --cam-2b: 63 237 128;
+  --cam-3a: 184 247 148;
+  --cam-3b: 136 242 78;
+  --cam-4a: 255 223 144;
+  --cam-4b: 255 203 70;
+  --cam-5a: 254 198 175;
+  --cam-5b: 255 160 124;
+  --cam-6a: 254 183 190;
+  --cam-6b: 255 136 148;
+  --cam-7a: 255 179 210;
+  --cam-7b: 255 128 180;
+  --cam-8a: 244 180 232;
+  --cam-8b: 238 131 218;
+  --cam-9a: 225 186 255;
+  --cam-9b: 204 143 255;
+  --cam-10a: 197 211 255;
+  --cam-10b: 159 183 255;
+  --cam-11a: 154 232 251;
+  --cam-11b: 87 217 249;
+  --cam-12a: 106 243 242;
+  --cam-12b: 11 235 235;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --bg: 243 245 252; /* #f3f5fc */
+    --bg-card: 255 255 255; /* #fff */
+    --bg-hover: 238 241 251; /* #eef1fb */
+    --bg-subtle: 238 241 251; /* #eef1fb */
+    --line: 216 221 240; /* #d8ddf0 */
+    --line-hover: 178 186 216; /* #b2bad8 */
+    --text: 21 26 51; /* #151a33 */
+    --text-muted: 93 103 136; /* #5d6788 */
+    --text-dim: 101 110 145; /* #656e91 */
+    --accent: 52 211 153; /* #34d399 — same brand green as dark, per request */
+    --accent-hover: 52 211 153;
+    --accent-soft: 16 185 129;
+    --accent-solid: 16 185 129;
+    --accent-ink: 255 255 255; /* white button text in light mode, per request */
+    --ok: 13 138 95; /* #0d8a5f */
+    --warn: 168 106 10; /* #a86a0a */
+    --bad: 217 59 78; /* #d93b4e */
+    /* Same Camelot chip colors + dark ink as dark mode (inherited --cam-*). */
+    --on-cam: 22 22 22;
+  }
+}
+
+/* Explicit user choice beats the system query in both directions. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: 243 245 252;
+  --bg-card: 255 255 255;
+  --bg-hover: 238 241 251;
+  --bg-subtle: 238 241 251;
+  --line: 216 221 240;
+  --line-hover: 178 186 216;
+  --text: 21 26 51;
+  --text-muted: 93 103 136;
+  --text-dim: 101 110 145;
+  --accent: 52 211 153;
+  --accent-hover: 52 211 153;
+  --accent-soft: 16 185 129;
+  --accent-solid: 16 185 129;
+  --accent-ink: 255 255 255;
+  --ok: 13 138 95;
+  --warn: 168 106 10;
+  --bad: 217 59 78;
+  /* Same Camelot chip colors + dark ink as dark mode (inherited --cam-*). */
+  --on-cam: 22 22 22;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--line));
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* Short and long pages keep the same width, so the layout never jumps. */
+    scrollbar-gutter: stable;
+    scrollbar-color: rgb(var(--line)) rgb(var(--bg));
+  }
+
+  body {
+    @apply bg-bg text-text antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Custom scrollbar — thicker horizontal bar; vertical stays compact */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 14px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-bg;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-line rounded-md;
+    border: 2px solid rgb(var(--bg));
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-line-hover;
+  }
+
+  /* Focus states */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-bg;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .surface {
+    @apply bg-bg-card border border-line rounded-card;
+  }
+
+  .surface-hover {
+    @apply transition-colors duration-150 hover:border-line-hover hover:bg-bg-hover;
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm
+           transition-all duration-150 cursor-pointer select-none;
+  }
+
+  .btn:hover {
+    filter: brightness(1.1);
+  }
+
+  .btn-primary {
+    @apply btn;
+    background-color: rgb(var(--accent-solid));
+    color: rgb(var(--accent-ink));
+  }
+
+  /* Solid accent surface (toast, avatar) with readable ink — mockup's
+     #10b981 background + #04201a text in dark, deep green + white in light. */
+  .bg-accent-solid {
+    background-color: rgb(var(--accent-solid));
+    color: rgb(var(--accent-ink));
+  }
+
+  .btn-ghost {
+    @apply btn bg-bg-hover text-text border border-line hover:border-line-hover;
+  }
+
+  .input {
+    @apply bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text
+           placeholder:text-text-dim transition-colors duration-150
+           focus:border-accent focus:ring-1 focus:ring-accent;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium font-mono;
+  }
+
+  /* Prototype-style pill chip (tags, genres, reason chips). */
+  .tag {
+    @apply inline-flex items-center rounded-full border border-line bg-bg-hover
+           px-2.5 py-0.5 text-xs text-text-muted;
+  }
+
+  /* Prototype-style status pill: .pill .ok / .pill .warn */
+  .pill {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium;
+  }
+  .pill-ok {
+    @apply pill border-ok text-ok;
+  }
+  .pill-warn {
+    @apply pill border-warn text-warn;
+  }
+
+  /* Dual-range slider: two overlaid native ranges; thumbs stay clickable. */
+  .dual-range input[type='range'] {
+    @apply pointer-events-none absolute inset-0 h-5 w-full appearance-none bg-transparent;
+  }
+  .dual-range input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    height: 14px;
+    width: 14px;
+    border-radius: 9999px;
+    background: rgb(var(--accent));
+    border: 2px solid rgb(var(--bg));
+    box-shadow: 0 0 0 1px rgb(var(--accent));
+    cursor: grab;
+  }
+  .dual-range input[type='range']::-moz-range-thumb {
+    pointer-events: auto;
+    height: 14px;
+    width: 14px;
+    border-radius: 9999px;
+    background: rgb(var(--accent));
+    border: 2px solid rgb(var(--bg));
+    box-shadow: 0 0 0 1px rgb(var(--accent));
+    cursor: grab;
+  }
+  .dual-range input[type='range']:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid rgb(var(--accent-hover));
+    outline-offset: 2px;
+  }
+
+  /* search input: hide the browser clear button, keep layout stable */
+  input[type='search']::-webkit-search-decoration,
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+
+  /* Reserve the bold width so the active (font-medium) link doesn't push its neighbours. */
+  .nav-link {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .nav-link::after {
+    content: attr(data-label);
+    font-weight: 500;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    user-select: none;
+    pointer-events: none;
+  }
+  /* No focus ring on primary nav — active state is text weight/color only. */
+  .nav-link:focus,
+  .nav-link:focus-visible {
+    outline: none;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-ring-offset-shadow: 0 0 #0000;
+  }
+
+  /* Prototype logo: one accent bar + box-shadow bars (equalizer mark). */
+  .logo-bars {
+    display: inline-block;
+    width: 4px;
+    height: 18px;
+    background: rgb(var(--accent));
+    border-radius: 2px;
+    box-shadow:
+      8px -4px 0 rgb(var(--accent-hover)),
+      16px 3px 0 rgb(var(--accent)),
+      -8px 3px 0 rgb(var(--accent-hover));
+  }
+
+  /* Handwritten "Community powered" note (public/community-powered.svg),
+     rendered as an alpha mask so the color is a one-line theme tweak — it
+     currently paints the artwork's own #d9d9d9, matching the approved mock. */
+  .community-note {
+    background-color: #d9d9d9;
+    -webkit-mask: url('/community-powered.svg') no-repeat center / contain;
+    mask: url('/community-powered.svg') no-repeat center / contain;
+  }
+
+  /* Key Tool piano / drone keyboard (key-tool-online style, dark surfaces). */
+  .kt-piano {
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    padding: 0.25rem 0 0.5rem;
+  }
+  .kt-piano-inner {
+    display: flex;
+    position: relative;
+    min-width: max-content;
+  }
+  .kt-key {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 3rem;
+    height: 6.5rem;
+    border-radius: 0 0 4px 4px;
+    border: 1px solid rgb(var(--line));
+    background: rgb(var(--bg-subtle));
+    color: rgb(var(--text-muted));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 0.5rem;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    font-size: 0.65rem;
+    font-weight: 600;
+    font-family: ui-monospace, monospace;
+    user-select: none;
+    transition: background 0.1s, transform 0.1s;
+  }
+  .kt-key.black {
+    flex: 0.7 1 0;
+    max-width: 2.1rem;
+    height: 4.1rem;
+    background: rgb(var(--bg));
+    border-color: rgb(var(--line));
+    margin-left: -0.55rem;
+    margin-right: -0.45rem;
+    z-index: 2;
+    color: rgb(var(--text-dim));
+    font-size: 0.55rem;
+  }
+  .kt-piano-full .kt-piano {
+    overflow-x: visible;
+    width: 100%;
+  }
+  .kt-piano-full .kt-piano-inner {
+    width: 100%;
+    min-width: 0;
+  }
+  .kt-piano-full .kt-key {
+    max-width: none;
+  }
+  .kt-piano-full .kt-key.black {
+    max-width: none;
+  }
+  .kt-key:hover {
+    filter: brightness(1.15);
+  }
+  .kt-key.in-scale .kt-key-dot {
+    opacity: 0.9;
+  }
+  .kt-key.playing,
+  .kt-key.active {
+    background: var(--note-color, rgb(var(--accent))) !important;
+    color: #111 !important;
+    border-color: var(--note-color, rgb(var(--accent))) !important;
+    box-shadow: 0 0 14px var(--note-color, rgb(var(--accent)));
+    transform: translateY(1px);
+  }
+  .kt-key-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    opacity: 0;
+    position: absolute;
+    bottom: 1.35rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--note-color, rgb(var(--accent)));
+  }
+  /* Explicit width: flex-basis alone doesn't feed the inner's max-content size,
+     so the keyboard spilled out and showed a scrollbar in narrower cards. */
+  .kt-drone .kt-key {
+    flex: 0 0 2.5rem;
+    width: 2.5rem;
+    max-width: 2.5rem;
+    height: 5.5rem;
+  }
+  .kt-drone .kt-key.black {
+    flex: 0 0 1.75rem;
+    width: 1.75rem;
+    max-width: 1.75rem;
+    height: 3.5rem;
+  }
+
+  /* Key Tool — fit tools + piano comfortably in 1080p viewport without clipping. */
+  .kt-page {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 1400px;
+    margin-inline: auto;
+    padding: 0.5rem 0.75rem 0.75rem;
+    min-height: calc(100dvh - var(--header-h, 64px));
+    box-sizing: border-box;
+  }
+  .kt-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+  /* Scale Finder card wraps its content naturally without tall empty dead space */
+  .kt-card-scale {
+    align-self: flex-start;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  /* Transpose card + Browse/Mix Finder links stacked in one column. */
+  .kt-transpose-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  @media (min-width: 1024px) {
+    .kt-tools {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    /* Let cards retain content height instead of stretching with empty dead space */
+    .kt-tools > .kt-card-side {
+      align-self: flex-start;
+    }
+    .kt-card {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    /* Pin Instructions + Metronome so Guided Mode doesn't change their width. */
+    .kt-card-side {
+      flex: 1 1 0;
+      max-width: 260px;
+    }
+    .kt-card-scale {
+      flex: 2 1 0;
+      align-self: flex-start;
+    }
+    /* Same width as Scale Finder (row − sides − gaps − Transpose). */
+    .kt-card-guided {
+      flex: 2 1 0;
+      max-width: calc(100% - 724px);
+      /* Keep Instructions + Metronome pinned left when Guided Mode is on. */
+      margin-right: auto;
+    }
+    .kt-card-transpose {
+      flex: 0.85 1 0;
+      max-width: 180px;
+    }
+    /* The wrapper carries the share; reset the card's own flex inside it. */
+    .kt-transpose-col {
+      flex: 0.85 1 0;
+      max-width: 180px;
+      align-self: flex-start;
+    }
+    .kt-transpose-col > .kt-card-transpose {
+      flex: none;
+      max-width: none;
+      width: 100%;
+    }
+  }
+  .kt-piano-full {
+    flex: 0 0 auto;
+    padding: 0.5rem 0.75rem !important;
+  }
+  .kt-piano-full .kt-key {
+    height: 5.5rem;
+    font-size: 0.55rem;
+    padding-bottom: 0.4rem;
+  }
+  .kt-piano-full .kt-key.black {
+    height: 3.3rem;
+  }
+  .kt-piano-full .kt-key-dot {
+    bottom: 1.25rem;
+    width: 5px;
+    height: 5px;
+  }
+
+  .kt-transpose-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    max-width: 3.25rem;
+    margin-inline: auto;
+    padding: 0.35rem 0.4rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.15s, outline 0.15s;
+    color: #1d181e;
+  }
+  .kt-transpose-btn:hover {
+    transform: translateY(-2px);
+  }
+  .kt-transpose-btn.current {
+    outline: 2px solid #fff;
+  }
+  .kt-transpose-btn:disabled {
+    cursor: default;
+    transform: none;
+  }
+  .kt-transpose-label {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .kt-transpose-key {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-family: ui-monospace, monospace;
+    color: #1d181e;
+  }
+}

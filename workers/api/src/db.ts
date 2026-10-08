@@ -1,0 +1,141 @@
+import type { Env, Role, SubmissionRow, UserRow } from './types'
+
+export async function getUser(env: Env, discordId: string): Promise<UserRow | null> {
+  return env.DB.prepare('SELECT * FROM users WHERE discord_id = ?')
+    .bind(discordId)
+    .first<UserRow>()
+}
+
+export async function upsertUser(
+  env: Env,
+  discordId: string,
+  username: string,
+  avatar: string | null,
+): Promise<UserRow> {
+  const mods = new Set(
+    (env.MOD_DISCORD_IDS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
+  )
+  const existing = await getUser(env, discordId)
+  if (existing) {
+    await env.DB.prepare('UPDATE users SET username = ?, avatar = ? WHERE discord_id = ?')
+      .bind(username, avatar, discordId)
+      .run()
+    return { ...existing, username, avatar }
+  }
+  const role: Role = mods.has(discordId) ? 'mod' : 'user'
+  await env.DB.prepare(
+    'INSERT INTO users (discord_id, username, avatar, role) VALUES (?, ?, ?, ?)',
+  )
+    .bind(discordId, username, avatar, role)
+    .run()
+  const row = await getUser(env, discordId)
+  if (!row) throw new Error('Failed to create user')
+  return row
+}
+
+export async function setRole(env: Env, discordId: string, role: Role): Promise<UserRow | null> {
+  await env.DB.prepare('UPDATE users SET role = ? WHERE discord_id = ?').bind(role, discordId).run()
+  return getUser(env, discordId)
+}
+
+export function newId(): string {
+  return crypto.randomUUID()
+}
+
+export async function insertSubmission(
+  env: Env,
+  row: {
+    discordId: string
+    kind: 'add' | 'correct'
+    trackId: string | null
+    payload: unknown
+  },
+): Promise<SubmissionRow> {
+  const id = newId()
+  await env.DB.prepare(
+    `INSERT INTO submissions (id, discord_id, kind, track_id, payload, status)
+     VALUES (?, ?, ?, ?, ?, 'pending')`,
+  )
+    .bind(id, row.discordId, row.kind, row.trackId, JSON.stringify(row.payload))
+    .run()
+  const created = await env.DB.prepare('SELECT * FROM submissions WHERE id = ?')
+    .bind(id)
+    .first<SubmissionRow>()
+  if (!created) throw new Error('Failed to create submission')
+  return created
+}
+
+export async function listSubmissions(
+  env: Env,
+  opts: { status?: string; discordId?: string; limit?: number },
+): Promise<SubmissionRow[]> {
+  const limit = Math.min(opts.limit ?? 100, 200)
+  if (opts.status && opts.discordId) {
+    const { results } = await env.DB.prepare(
+      'SELECT * FROM submissions WHERE status = ? AND discord_id = ? ORDER BY created_at DESC LIMIT ?',
+    )
+      .bind(opts.status, opts.discordId, limit)
+      .all<SubmissionRow>()
+    return results ?? []
+  }
+  if (opts.status) {
+    const { results } = await env.DB.prepare(
+      'SELECT * FROM submissions WHERE status = ? ORDER BY created_at DESC LIMIT ?',
+    )
+      .bind(opts.status, limit)
+      .all<SubmissionRow>()
+    return results ?? []
+  }
+  if (opts.discordId) {
+    const { results } = await env.DB.prepare(
+      'SELECT * FROM submissions WHERE discord_id = ? ORDER BY created_at DESC LIMIT ?',
+    )
+      .bind(opts.discordId, limit)
+      .all<SubmissionRow>()
+    return results ?? []
+  }
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM submissions ORDER BY created_at DESC LIMIT ?',
+  )
+    .bind(limit)
+    .all<SubmissionRow>()
+  return results ?? []
+}
+
+export async function getSubmission(env: Env, id: string): Promise<SubmissionRow | null> {
+  return env.DB.prepare('SELECT * FROM submissions WHERE id = ?').bind(id).first<SubmissionRow>()
+}
+
+export async function reviewSubmission(
+  env: Env,
+  id: string,
+  status: 'approved' | 'rejected',
+  reviewerId: string,
+  rejectNote?: string,
+): Promise<SubmissionRow | null> {
+  await env.DB.prepare(
+    `UPDATE submissions
+     SET status = ?, reviewer_id = ?, reject_note = ?, reviewed_at = datetime('now')
+     WHERE id = ? AND status = 'pending'`,
+  )
+    .bind(status, reviewerId, rejectNote ?? null, id)
+    .run()
+  return getSubmission(env, id)
+}
+
+export async function markApplied(env: Env, ids: string[]): Promise<number> {
+  if (!ids.length) return 0
+  let n = 0
+  for (const id of ids) {
+    const r = await env.DB.prepare(
+      `UPDATE submissions SET status = 'applied' WHERE id = ? AND status = 'approved'`,
+    )
+      .bind(id)
+      .run()
+    n += r.meta.changes ?? 0
+  }
+  return n
+}

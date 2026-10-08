@@ -1,0 +1,46 @@
+{
+  "name": "keybpm",
+  "version": "1.0.0",
+  "description": "The open music Key & BPM database — a fast, DJ-friendly music metadata explorer.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "data:import": "node scripts/import_duuzu.mjs && node scripts/export_csv.mjs",
+    "data:seed": "node scripts/seed_data.mjs",
+    "data:csv": "node scripts/export_csv.mjs",
+    "data:soundiiz": "node scripts/export_soundiiz.mjs",
+    "data:youtube": "node scripts/import_soundiiz.mjs && node scripts/export_csv.mjs",
+    "data:youtube:reset": "node scripts/import_soundiiz.mjs --reset && node scripts/export_csv.mjs",
+    "data:apply-queue": "node scripts/apply_submissions.mjs",
+    "api:dev": "npm run dev --prefix workers/api",
+    "api:deploy": "npm run deploy --prefix workers/api"
+  },
+  "keywords": [
+    "music",
+    "bpm",
+    "key",
+    "camelot",
+    "dj",
+    "database"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.13",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.45",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  }
+}

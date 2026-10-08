@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.local
+.DS_Store
+.vscode/
+.idea/
+npm-debug.log*
+workers/api/.dev.vars
+.wrangler/

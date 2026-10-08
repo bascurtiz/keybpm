@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KeyBPM – Green</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#0a0f1e}
+.k{background:#0f1a2c;border:1px solid #1f2d46;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;color:#e8edf7;text-decoration:none}
+.k:hover{border-color:#10b981}
+.k b{font-size:15px}.k span{font-size:12px;color:#8e9bb5}
+.nav a{color:#c3cde0;text-decoration:none;font-size:14px}.nav a:hover{color:#34d399}
+</style>
+</helmet>
+<div style="min-height:1130px;background:#0a0f1e;color:#e8edf7;font-family:'Plus Jakarta Sans',system-ui,sans-serif">
+<header style="display:flex;align-items:center;gap:28px;padding:14px 24px;border-bottom:1px solid #1a2540;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px">
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="6" stroke="#1f2d46"></rect><path d="M8 9v10M12 6v16M16 11v6M20 8v12"></path></svg>
+<span>Key<span style="color:#34d399">BPM</span></span></div>
+<nav class="nav" style="display:flex;gap:20px;flex:1"><a href="#">Browse</a><a href="#">Contribute</a><a href="#">Mix Finder</a><a href="#">Key Wheel</a><a href="#">About</a></nav>
+<label style="display:block"><span style="position:absolute;left:-9999px">Search</span><input placeholder="Search artists, tracks, BPM, key…" style="width:300px;height:38px;box-sizing:border-box;background:#0f1a2c;border:1px solid #1f2d46;border-radius:8px;padding:0 14px;color:#e8edf7;font:inherit;font-size:13px"></label>
+<button aria-label="Toggle theme" style="width:44px;height:44px;border-radius:8px;background:#0f1a2c;border:1px solid #1f2d46;color:#c3cde0;cursor:pointer">☼</button>
+<button style="height:44px;padding:0 16px;border:0;border-radius:8px;background:#10b981;color:#04201a;font:700 13px 'Plus Jakarta Sans',sans-serif;cursor:pointer">Login with Discord</button>
+</header>
+<main style="max-width:1060px;margin:32px auto;padding:0 24px;box-sizing:border-box">
+<section style="background:#0d1626;border:1px solid #1f2d46;border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap">
+<div style="max-width:700px">
+<h1 style="margin:0 0 14px;font-size:40px;line-height:1.1;font-weight:800">The open music <span style="color:#34d399">key &amp; BPM database.</span></h1>
+<p style="margin:0;color:#a3b0c8;line-height:1.6">Search, filter and mix by BPM, musical key and Camelot notation.<br>Built for DJs, producers and music researchers.</p></div>
+<div style="font-family:'JetBrains Mono',monospace;color:#c3cde0;font-size:22px;transform:rotate(-6deg);align-self:flex-start">Community<br>powered ↴</div></div>
+<label style="display:block;max-width:672px"><span style="position:absolute;left:-9999px">Search</span><input placeholder="Search artist, title, BPM, key, Camelot…" style="width:100%;height:54px;box-sizing:border-box;background:#0a1220;border:1px solid #1f2d46;border-radius:10px;padding:0 16px;color:#e8edf7;font:inherit;font-size:15px"></label>
+<div style="font:12px 'JetBrains Mono',monospace;color:#8e9bb5">Try <span style="color:#34d399">128 11A</span>, <span style="color:#34d399">F#m 125-130</span>, or <span style="color:#34d399">house 2023</span></div>
+<div style="display:flex;gap:12px;flex-wrap:wrap">
+<button style="height:44px;padding:0 16px;border:0;border-radius:8px;background:#10b981;color:#04201a;font:700 14px 'Plus Jakarta Sans',sans-serif">Browse Tracks</button>
+<button style="height:44px;padding:0 16px;border:1px solid #1f2d46;border-radius:8px;background:#0f1a2c;color:#e8edf7;font:700 14px 'Plus Jakarta Sans',sans-serif">Mix Finder</button>
+<button style="height:44px;padding:0 16px;border:1px solid #1f2d46;border-radius:8px;background:#0f1a2c;color:#e8edf7;font:700 14px 'Plus Jakarta Sans',sans-serif">Key Wheel</button></div>
+<div style="border-top:1px solid #1f2d46;padding-top:22px;display:flex;gap:80px;flex-wrap:wrap">
+<div><div style="font-size:28px;font-weight:800">96</div><div style="font-size:12px;color:#8e9bb5">tracks</div></div>
+<div><div style="font-size:28px;font-weight:800">17</div><div style="font-size:12px;color:#8e9bb5">artists</div></div>
+<div><div style="font-size:28px;font-weight:800">10</div><div style="font-size:12px;color:#8e9bb5">labels</div></div></div>
+</section>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:40px 0 14px"><h2 style="margin:0;font-size:18px">Browse by key</h2><a href="#" style="color:#34d399;font-size:12px;text-decoration:none">View all keys →</a></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+<a class="k" href="#"><b>Ab minor</b><span>Abm · 4 tracks</span></a>
+<a class="k" href="#"><b>B major</b><span>B · 4 tracks</span></a>
+<a class="k" href="#"><b>Eb minor</b><span>Ebm · 4 tracks</span></a>
+<a class="k" href="#"><b>F# major</b><span>F# · 4 tracks</span></a>
+<a class="k" href="#"><b>Bb minor</b><span>Bbm · 4 tracks</span></a>
+<a class="k" href="#"><b>Db major</b><span>Db · 4 tracks</span></a>
+<a class="k" href="#"><b>F minor</b><span>Fm · 4 tracks</span></a>
+<a class="k" href="#"><b>Ab major</b><span>Ab · 4 tracks</span></a>
+<a class="k" href="#"><b>C minor</b><span>Cm · 4 tracks</span></a>
+<a class="k" href="#"><b>Eb major</b><span>Eb · 4 tracks</span></a></div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:40px 0 14px"><h2 style="margin:0;font-size:18px">Recently added</h2><a href="#" style="color:#34d399;font-size:12px;text-decoration:none">View all →</a></div>
+<div style="background:#0f1a2c;border:1px solid #1f2d46;border-radius:8px">
+<div style="display:flex;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid #1f2d46"><div style="width:44px;height:44px;border-radius:8px;background:#10b981;color:#04201a;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center">H</div><div style="flex:1"><div style="font-size:14px;font-weight:500">Halcyon Bloc – Solar Bloom</div><div style="font-size:12px;color:#8e9bb5;margin-top:3px">G major • 124 BPM • 9B<br>by MusicalKeyCNN · Melodic Techno</div></div><div style="font-size:12px;color:#8e9bb5">2025</div></div>
+<div style="display:flex;align-items:center;gap:16px;padding:14px 16px"><div style="width:44px;height:44px;border-radius:8px;background:#f59e0b;color:#2a1a02;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center">D</div><div style="flex:1"><div style="font-size:14px;font-weight:500">Dune Motorik – Kern False</div></div><div style="font-size:12px;color:#8e9bb5">2025</div></div></div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1130}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+name = "keybpm-api"
+main = "src/index.ts"
+compatibility_date = "2024-10-01"
+
+# Create with: wrangler d1 create keybpm
+# Then paste the database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "keybpm"
+database_id = "9c9e3da1-7471-40a3-96ec-ad30e616f538"
+migrations_dir = "migrations"
+
+[vars]
+# Same as Discord Application ID / Client ID (public).
+DISCORD_CLIENT_ID = "1557691079057219594"
+# Comma-separated Discord snowflake IDs that boot as mod on first login.
+MOD_DISCORD_IDS = "390110399048974337"
+# Public origin of the SPA (used for OAuth redirect + cookie redirects).
+APP_ORIGIN = "http://localhost:5173"
+
+# Secrets — never commit these. Local: workers/api/.dev.vars
+# Production: wrangler secret put …
+#   DISCORD_CLIENT_SECRET
+#   SESSION_SECRET
+#   APPLY_TOKEN   (optional bearer for data:apply-queue)

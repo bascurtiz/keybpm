@@ -1,0 +1,7 @@
+# Copy to .dev.vars (gitignored) and fill in. Never commit real secrets.
+# Client ID can also live in wrangler.toml [vars]; secret must be here or via wrangler secret put.
+
+DISCORD_CLIENT_ID=1557691079057219594
+DISCORD_CLIENT_SECRET=paste-from-discord-oauth2-reset-secret
+SESSION_SECRET=generate-a-long-random-string
+APPLY_TOKEN=optional-token-for-data-apply-queue
