@@ -167,6 +167,16 @@ export function Review() {
                         YouTube
                       </a>
                     )}
+                    {typeof s.payload.soundcloud === 'string' && s.payload.soundcloud && (
+                      <a
+                        href={s.payload.soundcloud}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-block text-xs text-accent hover:text-accent-hover"
+                      >
+                        SoundCloud
+                      </a>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button

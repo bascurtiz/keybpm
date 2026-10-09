@@ -3,6 +3,7 @@ import { CAMELOT_TO_KEY, KEY_TO_CAMELOT } from '@/types/track'
 import rawTracks from '../../data/tracks.json'
 import { DATA_CHANGED, mergeContributions } from '@/lib/contributions'
 import { canonicalYoutube } from '@/lib/youtube'
+import { canonicalSoundcloud } from '@/lib/soundcloud'
 import { apiOverlay, type Submission } from '@/lib/api'
 
 /**
@@ -71,6 +72,8 @@ function normalizeTrack(raw: unknown): Track | null {
   if (notes) track.notes = notes
   const youtube = canonicalYoutube(str(r.youtube) ?? str(r.sourceUrl))
   if (youtube) track.youtube = youtube
+  const soundcloud = canonicalSoundcloud(str(r.soundcloud) ?? str(r.sourceUrl))
+  if (soundcloud) track.soundcloud = soundcloud
   const submittedBy = str(r.submittedBy)
   if (submittedBy) track.submittedBy = submittedBy
   const submittedByDiscordId = str(r.submittedByDiscordId)

@@ -200,6 +200,7 @@ export function About() {
   "tags": ["instrumental"],// optional: instrumental | acapella | percussive
   "notes": "some Dmin",    // optional
   "youtube": "https://www.youtube.com/watch?v=…", // optional: thumbnail + link
+  "soundcloud": "https://soundcloud.com/…/…",    // optional: artwork thumbnail + link
   "genre": null, "label": null, "release": null, "year": null,
   "source": "duuzu's key & bpm database v10",
   "lastVerified": "2025-06-15"

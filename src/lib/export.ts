@@ -4,7 +4,7 @@ import type { Track } from '@/types/track'
 const COLUMNS: (keyof Track)[] = [
   'id', 'artist', 'title', 'bpm', 'bpmRaw', 'key', 'camelot', 'mode', 'keyRaw', 'tuning',
   'tags', 'genre', 'label', 'release', 'year', 'duration', 'source', 'confidence',
-  'lastVerified', 'notes', 'youtube', 'submittedBy', 'submittedByDiscordId',
+  'lastVerified', 'notes', 'youtube', 'soundcloud', 'submittedBy', 'submittedByDiscordId',
 ]
 
 const esc = (v: unknown): string => {

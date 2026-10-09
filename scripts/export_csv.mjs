@@ -13,7 +13,7 @@ const tracks = JSON.parse(readFileSync(join(ROOT, 'data', 'tracks.json'), 'utf8'
 const COLUMNS = [
   'id', 'artist', 'title', 'bpm', 'bpmRaw', 'key', 'camelot', 'mode', 'keyRaw', 'tuning',
   'tags', 'genre', 'label', 'release', 'year', 'duration', 'source', 'confidence',
-  'lastVerified', 'notes', 'youtube', 'submittedBy', 'submittedByDiscordId',
+  'lastVerified', 'notes', 'youtube', 'soundcloud', 'submittedBy', 'submittedByDiscordId',
 ]
 
 const esc = (v) => {

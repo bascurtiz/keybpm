@@ -56,6 +56,16 @@ export function YoutubeIcon(props: IconProps) {
   )
 }
 
+/** Cloud — SoundCloud. */
+export function SoundcloudIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M17.5 19H6.5a3.5 3.5 0 0 1-.6-6.96A5.5 5.5 0 0 1 16.7 9.6 4 4 0 0 1 17.5 19Z" />
+      <path d="M6.5 15.5v-2M9 15.5v-3.5M12 15.5v-4.5M15 15.5V12" />
+    </svg>
+  )
+}
+
 /** Pencil — suggest an edit. */
 export function PencilIcon(props: IconProps) {
   return (

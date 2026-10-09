@@ -8,7 +8,7 @@ import { CAMELOT_TO_KEY } from '@/types/track'
 import { BpmBadge, CamelotBadge, KeyBadge } from '@/components/badges'
 import { ArtTile } from '@/components/ArtTile'
 import { EmptyState } from '@/components/EmptyState'
-import { CopyIcon, PencilIcon, SearchIcon, YoutubeIcon } from '@/components/icons'
+import { CopyIcon, PencilIcon, SearchIcon, SoundcloudIcon, YoutubeIcon } from '@/components/icons'
 import { formatBpm, formatConfidence, formatDate, formatDelta, formatDuration, shortKey, trackName } from '@/lib/format'
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -172,6 +172,16 @@ export function TrackDetail() {
             className="btn-ghost px-3 py-1.5 text-xs"
           >
             <YoutubeIcon /> YouTube
+          </a>
+        )}
+        {track.soundcloud && (
+          <a
+            href={track.soundcloud}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-ghost px-3 py-1.5 text-xs"
+          >
+            <SoundcloudIcon /> SoundCloud
           </a>
         )}
         <Link to={`/contribute?correct=${track.id}`} className="btn-ghost px-3 py-1.5 text-xs">

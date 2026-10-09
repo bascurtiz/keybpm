@@ -4,6 +4,7 @@ import { getTrack } from '@/lib/data'
 import { CAMELOT_WHEEL, KEY_TO_CAMELOT } from '@/types/track'
 import { slugId } from '@/lib/contributions'
 import { canonicalYoutube } from '@/lib/youtube'
+import { canonicalSoundcloud } from '@/lib/soundcloud'
 import { toast } from '@/components/Toast'
 import { CamelotBadge } from '@/components/badges'
 import type { Track } from '@/types/track'
@@ -60,6 +61,7 @@ export function Contribute() {
   const [tuning, setTuning] = useState('')
   const [notes, setNotes] = useState('')
   const [youtube, setYoutube] = useState('')
+  const [soundcloud, setSoundcloud] = useState('')
 
   useEffect(() => {
     if (original) {
@@ -72,6 +74,7 @@ export function Contribute() {
       )
       setNotes(original.notes ?? '')
       setYoutube(original.youtube ?? '')
+      setSoundcloud(original.soundcloud ?? '')
     }
   }, [original])
 
@@ -114,8 +117,9 @@ export function Contribute() {
       lastVerified: original?.lastVerified ?? null,
       notes: notes.trim() || undefined,
       youtube: canonicalYoutube(youtube) ?? undefined,
+      soundcloud: canonicalSoundcloud(soundcloud) ?? undefined,
     }
-  }, [canSubmit, camelot, artist, title, bpm, keyName, tuningValue, notes, youtube, original])
+  }, [canSubmit, camelot, artist, title, bpm, keyName, tuningValue, notes, youtube, soundcloud, original])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -170,8 +174,8 @@ export function Contribute() {
           <h2 className="text-sm font-semibold">How can you contribute?</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-text-muted marker:text-text-dim">
             <li>
-              Found a track missing a YouTube link (those that don&apos;t show a YouTube thumbnail) or a wrong
-              video.
+              Found a track missing a link (those that don&apos;t show a YouTube or SoundCloud thumbnail) or a
+              wrong video.
             </li>
             <li>
               Found wrong or missing info on a track (compared to what&apos;s stated in the{' '}
@@ -276,6 +280,16 @@ export function Contribute() {
               value={youtube}
               onChange={e => setYoutube(e.target.value)}
               placeholder="https://www.youtube.com/watch?v=…"
+              inputMode="url"
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="SoundCloud URL">
+            <input
+              className="input w-full"
+              value={soundcloud}
+              onChange={e => setSoundcloud(e.target.value)}
+              placeholder="https://soundcloud.com/…/…"
               inputMode="url"
               autoComplete="off"
             />

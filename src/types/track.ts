@@ -30,6 +30,8 @@ export interface Track {
   notes?: string
   /** YouTube watch URL (`https://www.youtube.com/watch?v=…`). Thumbnail is derived from the id. */
   youtube?: string
+  /** SoundCloud track URL (`https://soundcloud.com/user/track`). Artwork thumbnail resolved via oEmbed. */
+  soundcloud?: string
   /** Discord display name when submitted via the queue. */
   submittedBy?: string
   /** Discord snowflake of the submitter. */
