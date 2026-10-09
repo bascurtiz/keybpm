@@ -32,7 +32,8 @@ export function About() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 lg:px-8">
-      <h1 className="text-2xl font-bold tracking-tight">
+      {/* Same heading scale as every other page h1 (text-lg font-semibold). */}
+      <h1 className="text-lg font-semibold">
         About Key<span className="text-accent">BPM</span>
       </h1>
       <p className="mt-2 text-text-muted">
