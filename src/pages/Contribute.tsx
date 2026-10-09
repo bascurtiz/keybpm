@@ -136,7 +136,7 @@ export function Contribute() {
 
   if (authLoading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8 lg:px-8">
+      <div className="mx-auto max-w-3xl px-4 py-6 lg:px-8">
         <p className="text-sm text-text-muted">Checking Discord session…</p>
       </div>
     )
@@ -144,7 +144,7 @@ export function Contribute() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8 lg:px-8">
+      <div className="mx-auto max-w-3xl px-4 py-6 lg:px-8">
         <h1 className="text-lg font-semibold">
           {mode === 'correct' ? 'Suggest a correction' : 'Contribute'}
         </h1>
@@ -161,7 +161,7 @@ export function Contribute() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 lg:px-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-lg font-semibold">
           {mode === 'correct' ? 'Suggest a correction' : 'Add a new track'}

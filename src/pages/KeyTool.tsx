@@ -617,9 +617,10 @@ export function KeyTool() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      {/* Title block matches About: title, then description 8px below it. */}
+      <div>
         <h1 className="text-lg font-semibold">Key Tool</h1>
-        <p className="text-xs text-text-muted">
+        <p className="mt-2 text-xs text-text-muted">
           Metronome, scales and a playable keyboard — match the notes until you find the key.
         </p>
       </div>
