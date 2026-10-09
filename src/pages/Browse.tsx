@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FilterBar, PLAIN_MODE, hasActiveFilters } from '@/components/FilterBar'
 import { bpmInRange } from '@/lib/bpm'
@@ -10,6 +10,10 @@ import { tracks, bpmBounds } from '@/lib/data'
 import { searchTracks } from '@/lib/search'
 import { downloadCsv, downloadJson } from '@/lib/export'
 import { formatCount } from '@/lib/format'
+import { useMediaQuery } from '@/lib/useMediaQuery'
+
+/** Filter fields whose non-null value means "this filter is doing something". */
+const FACET_KEYS = ['bpmMin', 'bpmMax', 'key', 'camelot', 'mode', 'genre', 'label', 'yearMin', 'yearMax'] as const
 
 const VALID_SORTS: SortKey[] = ['artist', 'title', 'bpm', 'key', 'camelot', 'genre', 'label', 'year']
 
@@ -64,6 +68,16 @@ export function Browse() {
   const [params, setParams] = useSearchParams()
   const state = useMemo(() => readState(params), [params])
 
+  // Below lg the facet panel is a disclosure — on a 360px phone it would
+  // otherwise push the track list a full screen down.
+  const isLg = useMediaQuery('(min-width: 1024px)')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  useEffect(() => {
+    if (isLg) setFiltersOpen(false)
+  }, [isLg])
+
+  const activeFilterCount = FACET_KEYS.filter(k => state[k] !== null).length
+
   // Keep header search box in sync: it writes ?q= here directly.
   const set = (patch: Partial<FilterState & { sort: SortKey; dir: SortDir; q: string }>) => {
     setParams(writeState({ ...state, ...patch }))
@@ -117,8 +131,12 @@ export function Browse() {
         </p>
       </div>
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-[280px_1fr]">
-        <aside className="lg:sticky lg:top-20 lg:self-start">
+      {/* minmax(0,1fr) so a long unbreakable track title can never widen the grid. */}
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[280px_1fr] lg:gap-6">
+        <aside
+          id="browse-filters"
+          className={`${filtersOpen ? 'block' : 'hidden'} lg:sticky lg:top-20 lg:block lg:self-start`}
+        >
           <FilterBar
             filters={state}
             onChange={patch => set(patch)}
@@ -128,8 +146,20 @@ export function Browse() {
         </aside>
 
         <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-text-muted">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(o => !o)}
+              aria-expanded={filtersOpen}
+              aria-controls="browse-filters"
+              className="btn-ghost px-3 py-1.5 text-xs lg:hidden"
+            >
+              Filters{activeFilterCount > 0 && ` (${activeFilterCount})`}
+              <span aria-hidden className={`transition-transform duration-150 ${filtersOpen ? 'rotate-180' : ''}`}>
+                ▾
+              </span>
+            </button>
+            <p className="order-last w-full text-xs text-text-muted lg:order-none lg:w-auto lg:flex-1">
               {filtersActive ? (
                 <>Filtered by <span className="font-mono text-text">{state.q || 'facets'}</span></>
               ) : (

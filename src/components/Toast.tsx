@@ -32,7 +32,7 @@ export function Toast() {
       id="toast"
       role="status"
       aria-live="polite"
-      className={`pointer-events-none fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[10px] bg-accent-solid px-[18px] py-2.5 text-sm font-medium transition-all duration-200 ${
+      className={`pointer-events-none fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2 rounded-[10px] bg-accent-solid px-[18px] py-2.5 text-sm font-medium transition-all duration-200 ${
         message ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
       }`}
     >

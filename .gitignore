@@ -8,3 +8,4 @@ dist/
 npm-debug.log*
 workers/api/.dev.vars
 .wrangler/
+.freebuff

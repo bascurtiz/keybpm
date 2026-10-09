@@ -27,11 +27,17 @@ const MODE_LABELS: { id: WheelMode; label: string }[] = [
   { id: 'openkey', label: 'Open Key' },
 ]
 
-/** 24 nodes: A ring (minor, inner) and B ring (major, outer). */
+/**
+ * 24 nodes: A ring (minor, inner) and B ring (major, outer), as a radius in
+ * percent of the container. The B ring is 15% wide, so its radius must stay
+ * ≤ 42.5 for the nodes at 3/9 o'clock to fit inside the box — at 43 they poked
+ * 0.5% outside, which showed up as a phantom horizontal scrollbar anywhere the
+ * wheel sits in an overflow container (e.g. the mobile Scale Finder card).
+ */
 function buildNodes(topNum: number): Node[] {
   const nodes: Node[] = []
   for (const ring of ['A', 'B'] as Ring[]) {
-    const r = ring === 'A' ? 30 : 43
+    const r = ring === 'A' ? 30 : 42
     for (let n = 1; n <= 12; n++) {
       const steps = (n - topNum + 12) % 12
       const angle = (steps * 30 - 90) * (Math.PI / 180)
@@ -154,7 +160,7 @@ export function KeyWheel({
       >
         <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" aria-hidden>
           <circle cx="50" cy="50" r="30" fill="none" stroke="rgb(var(--line))" strokeWidth="0.3" />
-          <circle cx="50" cy="50" r="43" fill="none" stroke="rgb(var(--line))" strokeWidth="0.3" />
+          <circle cx="50" cy="50" r="42" fill="none" stroke="rgb(var(--line))" strokeWidth="0.3" />
         </svg>
 
         <div className="pointer-events-none absolute left-1/2 top-1/2 w-[38%] -translate-x-1/2 -translate-y-1/2 text-center">

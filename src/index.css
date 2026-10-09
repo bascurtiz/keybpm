@@ -224,9 +224,14 @@
     @apply pill border-warn text-warn;
   }
 
-  /* Dual-range slider: two overlaid native ranges; thumbs stay clickable. */
+  /* Dual-range slider: two overlaid native ranges; thumbs stay clickable.
+     Track height lives here (not a utility) so touch devices can grow the
+     grab strip — see the pointer: coarse block below. */
+  .dual-range {
+    height: 1.25rem;
+  }
   .dual-range input[type='range'] {
-    @apply pointer-events-none absolute inset-0 h-5 w-full appearance-none bg-transparent;
+    @apply pointer-events-none absolute inset-0 w-full appearance-none bg-transparent;
   }
   .dual-range input[type='range']::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -253,6 +258,22 @@
   .dual-range input[type='range']:focus-visible::-webkit-slider-thumb {
     outline: 2px solid rgb(var(--accent-hover));
     outline-offset: 2px;
+  }
+
+  /* Touch devices (phones/tablets): a taller grab strip and bigger thumbs,
+     so BPM/Year ranges stay draggable with a finger. */
+  @media (pointer: coarse) {
+    .dual-range {
+      height: 1.75rem;
+    }
+    .dual-range input[type='range']::-webkit-slider-thumb {
+      height: 20px;
+      width: 20px;
+    }
+    .dual-range input[type='range']::-moz-range-thumb {
+      height: 20px;
+      width: 20px;
+    }
   }
 
   /* search input: hide the browser clear button, keep layout stable */
@@ -407,15 +428,42 @@
     max-width: 1.75rem;
     height: 3.5rem;
   }
+  /* On phones the fixed-width drone keyboard (7 x 2.5rem plus the black-key
+     overlaps ≈ 340px) is wider than the Guided Mode card, which forced a
+     horizontal scrollbar in Step 1. Below sm the drone keys share the card
+     width instead — same approach as the full-width piano. */
+  @media (max-width: 639.98px) {
+    .kt-drone {
+      overflow-x: visible;
+      width: 100%;
+    }
+    .kt-drone .kt-piano-inner {
+      width: 100%;
+      min-width: 0;
+    }
+    .kt-drone .kt-key {
+      flex: 1 1 0;
+      width: auto;
+      max-width: none;
+    }
+    .kt-drone .kt-key.black {
+      flex: 0.7 1 0;
+      width: auto;
+      max-width: none;
+    }
+  }
 
-  /* Key Tool — fit tools + piano comfortably in 1080p viewport without clipping. */
+  /* Key Tool — fit tools + piano comfortably in 1080p viewport without clipping.
+     The 1.5rem top padding matches the `py-6` of Browse, so the page heading
+     sits at the same distance from the header on both pages. There is still
+     slack left under the piano at 1080p, so this adds no vertical scrollbar. */
   .kt-page {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     max-width: 1400px;
     margin-inline: auto;
-    padding: 0.5rem 0.75rem 0.75rem;
+    padding: 1.5rem 0.75rem 0.75rem;
     min-height: calc(100dvh - var(--header-h, 64px));
     box-sizing: border-box;
   }
@@ -427,9 +475,11 @@
     flex: 0 0 auto;
     min-height: 0;
   }
-  /* Scale Finder card wraps its content naturally without tall empty dead space */
+  /* Scale Finder card. NOTE: no `align-self` here — on mobile .kt-tools is a
+     stretch column, so an override would shrink this card below the width of
+     the Metronome/Transpose cards beside it. The lg row layout sets its own
+     `align-self: flex-start` below (content height, no tall empty dead space). */
   .kt-card-scale {
-    align-self: flex-start;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -459,6 +509,15 @@
     .kt-card-side {
       flex: 1 1 0;
       max-width: 260px;
+    }
+    /* Card titles on one baseline: Scale Finder's header also carries the
+       notation switch, so its title is centred in a 40px row. These cards opt
+       into the same row at lg (their `lg:pt-3` in KeyTool.tsx supplies the
+       matching top padding — a plain padding-top here would lose to `p-4`). */
+    .kt-header-row {
+      display: flex;
+      align-items: center;
+      min-height: 2.5rem;
     }
     .kt-card-scale {
       flex: 2 1 0;

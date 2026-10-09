@@ -45,9 +45,9 @@ export function Home() {
   }, [])
 
   return (
-    <div className="mx-auto max-w-[1100px] px-5 py-8">
+    <div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-5 sm:py-8">
       {/* Hero card */}
-      <div className="relative rounded-card border border-line bg-bg-card px-7 py-9 md:px-9 md:py-11">
+      <div className="relative rounded-card border border-line bg-bg-card px-5 py-7 sm:px-7 sm:py-9 md:px-9 md:py-11">
         {/* Handwritten "Community powered" note (public/community-powered.svg),
             top-right of the card with the arrow gesturing down at the search
             bar. Desktop only; decorative. */}
@@ -56,11 +56,11 @@ export function Home() {
           aria-label="Community powered"
           className="community-note pointer-events-none absolute right-9 top-11 hidden h-[216px] w-[192px] min-[1060px]:block"
         />
-        <h1 className="text-3xl font-bold leading-tight md:text-[40px]">
+        <h1 className="text-[26px] font-bold leading-tight sm:text-3xl md:text-[40px]">
           The open music <b className="text-accent-hover">key &amp; BPM database.</b>
         </h1>
         <p className="mt-3 leading-relaxed text-text-muted">
-          Real tracks. Real people. Real musical data.
+          Real tracks. Real people. Real musical data.{' '}
           <br className="hidden sm:block" />
           Help build the most accurate, community-driven database for key, bpm and more.
         </p>
@@ -69,30 +69,30 @@ export function Home() {
           <SearchBar />
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap gap-2.5 sm:gap-3">
           <Link to="/browse" className="btn-primary">Browse Tracks</Link>
           <Link to="/mix" className="btn-ghost">Mix Finder</Link>
           <Link to="/key" className="btn-ghost">Key Wheel</Link>
           <Link to="/tool" className="btn-ghost">Key Tool</Link>
         </div>
 
-        <div className="mt-8 grid grid-cols-3 gap-4 border-t border-line pt-6">
+        <div className="mt-7 grid grid-cols-3 gap-3 border-t border-line pt-5 sm:mt-8 sm:gap-4 sm:pt-6">
           <div>
-            <div className="text-[26px] font-semibold leading-tight">{formatCount(stats.tracks)}</div>
+            <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.tracks)}</div>
             <div className="text-xs text-text-muted">tracks</div>
           </div>
           <div>
-            <div className="text-[26px] font-semibold leading-tight">{formatCount(stats.artists)}</div>
+            <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.artists)}</div>
             <div className="text-xs text-text-muted">artists</div>
           </div>
           {stats.labels > 0 ? (
             <div>
-              <div className="text-[26px] font-semibold leading-tight">{formatCount(stats.labels)}</div>
+              <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.labels)}</div>
               <div className="text-xs text-text-muted">labels</div>
             </div>
           ) : (
             <div>
-              <div className="text-[26px] font-semibold leading-tight">{formatCount(stats.withBpm)}</div>
+              <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.withBpm)}</div>
               <div className="text-xs text-text-muted">with BPM</div>
             </div>
           )}
@@ -101,7 +101,7 @@ export function Home() {
 
       {/* Browse by key */}
       <SectionHead title="Browse by key" to="/key" linkLabel="View all keys →" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3 lg:grid-cols-6">
         {keyCounts.map(({ code, keyName, count }) => (
           <Link
             key={code}

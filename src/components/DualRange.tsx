@@ -33,7 +33,7 @@ export function DualRange({
           {format(low)} – {format(high)}
         </span>
       </div>
-      <div className="dual-range relative h-5">
+      <div className="dual-range relative">
         <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-line" />
         <div
           className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"

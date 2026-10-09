@@ -73,7 +73,7 @@ function AppFooter() {
   if (pathname === '/tool') return null
   return (
     <footer className="mt-12 border-t border-line">
-      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs text-text-dim lg:px-8">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-xs text-text-dim lg:px-8">
         <span className="font-mono">KeyBPM — open music Key &amp; BPM database</span>
         <span>
           Data: duuzu&apos;s key &amp; bpm database v10 · <Link to="/about" className="underline underline-offset-2 hover:text-text-muted">About &amp; data notes</Link>

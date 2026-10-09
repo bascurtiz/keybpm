@@ -107,7 +107,9 @@ export function MixFinder() {
         <p className="text-xs text-text-muted">Deterministic compatibility: key rules + BPM proximity{allGenres.length || allLabels.length ? ' + genre/label' : ''}.</p>
       </div>
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-[320px_1fr]">
+      {/* minmax(0,1fr): long track titles are `truncate` (nowrap), so an `auto`
+          column would be inflated by their min-content width. */}
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[320px_1fr]">
         {/* ---- Controls ---- */}
         <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
           {/* Source */}

@@ -110,8 +110,11 @@ function transposeDisplay(
   return { label, color: noteColor }
 }
 
-/** Ascending only: do–re–mi–fa–so–la–ti–do (no descent). */
-function buildScalePattern(notes: string[], octaveOffset: number) {
+/**
+ * Scale run for playback. Ascending by default: do–re–mi–fa–so–la–ti–do.
+ * With `descend` the run walks back down to the root as well: …–do–ti–la–…–do.
+ */
+function buildScalePattern(notes: string[], octaveOffset: number, descend = false) {
   if (!notes.length) return []
   const pattern: { freq: number; noteName: string }[] = []
   const baseOctave = 4 + octaveOffset
@@ -124,6 +127,12 @@ function buildScalePattern(notes: string[], octaveOffset: number) {
     if (i > 0 && idx <= lastIdx) oct++
     pattern.push({ freq: getFrequency(n, oct), noteName: n })
     lastIdx = idx
+  }
+  // Walk back down by replaying the ascending steps in reverse (their octaves
+  // are already resolved). The last step — the top note — is skipped so it is
+  // not heard twice, leaving the run to end on the root again.
+  if (descend) {
+    for (let i = pattern.length - 2; i >= 0; i--) pattern.push({ ...pattern[i] })
   }
   return pattern
 }
@@ -429,7 +438,9 @@ export function KeyTool() {
     engine.stopDrone()
     const scaleName = type === 'Major' ? 'Pentatonic Major' : 'Pentatonic Minor'
     const notes = getScaleNotes(easyRoot, scaleName)
-    engine.playPattern(buildScalePattern(notes, octaveOffset), bpm, engine.playing)
+    // Step 2 plays the run up and back down, so both directions are audible
+    // when judging whether the song sits major or minor.
+    engine.playPattern(buildScalePattern(notes, octaveOffset, true), bpm, engine.playing)
     if (!engine.playing) setPlaying(true)
   }
 
@@ -599,8 +610,8 @@ export function KeyTool() {
 
       <div className="kt-tools">
         {/* 1. Instructions */}
-        <section className="surface kt-card kt-card-side p-4">
-          <h2 className="mb-3.5 text-sm font-semibold">Instructions</h2>
+        <section className="surface kt-card kt-card-side p-4 lg:pt-3">
+          <h2 className="kt-header-row mb-3.5 text-sm font-semibold">Instructions</h2>
           <ol className="list-decimal space-y-3 pl-4 text-xs text-text-muted">
             <li>Play a track from any source</li>
             <li>Play metronome and set BPM based on track</li>
@@ -645,8 +656,8 @@ export function KeyTool() {
         </section>
 
         {/* 2. Metronome */}
-        <section className="surface kt-card kt-card-side p-4">
-          <h2 className="mb-3.5 text-sm font-semibold">Metronome</h2>
+        <section className="surface kt-card kt-card-side p-4 lg:pt-3">
+          <h2 className="kt-header-row mb-3.5 text-sm font-semibold">Metronome</h2>
           <div className="flex items-baseline gap-2">
             <input
               type="number"
@@ -755,7 +766,7 @@ export function KeyTool() {
         {guided ? (
           /* 3. Guided Mode (replaces Scale Finder + Transpose) */
           <section className="surface kt-card kt-card-guided space-y-4 overflow-auto p-3">
-            <h2 className="text-sm font-semibold">Guided Mode</h2>
+            <h2 className="kt-header-row text-sm font-semibold">Guided Mode</h2>
             <div>
               <h3 className="mb-1 text-sm font-medium">Step 1: Find the tonic</h3>
               <p className="mb-3 text-xs text-text-muted">Tap a note. Does it feel like the song comes to rest here?</p>
@@ -796,7 +807,7 @@ export function KeyTool() {
               <div className="mt-4">
                 <h3 className="mb-1 text-sm font-medium">Step 3: Play the mode</h3>
                 <p className="mb-3 text-xs text-text-muted">Tap a mode to play it. Which one matches?</p>
-                <div className={`grid gap-2 ${easyVibe === 'Minor' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                <div className={`grid grid-cols-2 gap-2 ${easyVibe === 'Minor' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
                   {MODES_DATA[easyVibe].map(mode => (
                     <button
                       key={mode.name}
@@ -826,8 +837,11 @@ export function KeyTool() {
           <>
             {/* 3. Scale Finder */}
             <section className="surface kt-card kt-card-scale p-3 pb-5">
+              {/* On phones the card is narrower than the title + notation switch
+                  together, so the title is dropped below sm and only the switch
+                  stays centered. */}
               <div className="relative mb-3 flex min-h-[2.5rem] items-center justify-center">
-                <h2 className="absolute left-0 text-sm font-semibold">Scale Finder</h2>
+                <h2 className="absolute left-0 hidden text-sm font-semibold sm:block">Scale Finder</h2>
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                   <WheelModeSwitch mode={wheelMode} onChange={onModeChange} compact />
                 </div>
@@ -948,7 +962,7 @@ export function KeyTool() {
             {/* 4. Key Transpose + links — links sit below, not in Scale Finder */}
             <div className="kt-transpose-col">
             <section className="surface kt-card kt-card-transpose p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="kt-header-row mb-2 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold">Transpose</h2>
                 <label className="flex items-center gap-1.5 text-[10px] text-text-dim">
                   <input

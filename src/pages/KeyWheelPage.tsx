@@ -61,7 +61,7 @@ export function KeyWheelPage() {
         </p>
       </div>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[440px_minmax(0,1fr)]">
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[440px_minmax(0,1fr)]">
         <div>
           <KeyWheel
             selected={selected}

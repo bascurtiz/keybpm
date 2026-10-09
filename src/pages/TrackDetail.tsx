@@ -109,20 +109,20 @@ export function TrackDetail() {
   ].filter((r): r is [string, string] => r[1] !== null)
 
   return (
-    <article className="mx-auto max-w-4xl px-4 py-6 lg:px-8">
+    <article className="mx-auto max-w-4xl px-4 py-5 sm:py-6 lg:px-8">
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="mb-6 text-sm text-text-muted transition-colors hover:text-text"
+        className="mb-5 text-sm text-text-muted transition-colors hover:text-text sm:mb-6"
       >
         ← Back
       </button>
 
       {/* Title block — prototype: art tile + artist – title + tags */}
-      <header className="flex items-center gap-5">
-        <ArtTile track={track} size={80} />
-        <div className="min-w-0">
-          <h1 className="text-[22px] font-semibold leading-tight">{trackName(track)}</h1>
+      <header className="flex flex-wrap items-center gap-4 sm:flex-nowrap sm:gap-5">
+        <ArtTile track={track} size={72} />
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-xl font-semibold leading-tight sm:text-[22px]">{trackName(track)}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-text-muted">
             {track.genre && <span className="tag">{track.genre}</span>}
             {track.label && <span className="tag">{track.label}</span>}
@@ -132,8 +132,8 @@ export function TrackDetail() {
         </div>
       </header>
 
-      <div className="mt-5 flex flex-wrap items-center gap-4 border-y border-line py-4">
-        <span className="text-[26px] font-semibold leading-none">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-line py-4 sm:mt-5">
+        <span className="text-[22px] font-semibold leading-none sm:text-[26px]">
           <BpmBadge bpm={track.bpm} />
           <span className="ml-1.5 text-sm font-normal text-text-muted">BPM</span>
         </span>
@@ -178,7 +178,7 @@ export function TrackDetail() {
         </Link>
       </div>
 
-      <div className={`mt-8 grid gap-6 ${releaseRows.length ? 'md:grid-cols-2' : ''}`}>
+      <div className={`mt-6 grid grid-cols-[minmax(0,1fr)] gap-4 sm:mt-8 sm:gap-6 ${releaseRows.length ? 'md:grid-cols-2' : ''}`}>
         {releaseRows.length > 0 && (
           <section className="surface p-4">
             <H2>Release</H2>
@@ -271,7 +271,8 @@ export function TrackDetail() {
         {mixes.length === 0 ? (
           <EmptyState title="No compatible tracks" hint="Nothing in the dataset matches within the default ±4 BPM window." />
         ) : (
-          <div className="surface overflow-x-auto">
+          <>
+          <div className="surface hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line bg-bg-subtle text-xs font-medium text-text-muted">
@@ -306,6 +307,36 @@ export function TrackDetail() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile: compact list — a 540px-wide table would just be a scrollbar (§22). */}
+          <ul className="surface divide-y divide-line overflow-hidden md:hidden">
+            {mixes.map(m => {
+              const tight = m.deltaBpm !== null && Math.abs(m.deltaBpm) <= 1
+              return (
+                <li key={m.track.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/track/${m.track.id}`)}
+                    className="block w-full px-4 py-3 text-left transition-colors hover:bg-bg-hover"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate font-medium">{m.track.artist}</span>
+                      <span className={`shrink-0 font-mono text-xs tabular-nums ${tight ? 'text-ok' : 'text-text-dim'}`}>
+                        Δ {formatDelta(m.deltaBpm)}
+                      </span>
+                    </div>
+                    <div className="truncate text-sm text-text-muted">{m.track.title || '—'}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-dim">
+                      <BpmBadge bpm={m.track.bpm} raw={m.track.bpmRaw} className="text-text-muted" />
+                      <KeyBadge keyName={m.track.key} mode={m.track.mode} short className="font-medium text-text" />
+                      <CamelotBadge code={m.track.camelot} approximate={!!m.track.mode} />
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          </>
         )}
       </section>
       </>}
