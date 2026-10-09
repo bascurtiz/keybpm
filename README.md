@@ -64,6 +64,18 @@ npm run data:youtube:reset  # clear all youtube fields, then rematch every expor
 
 Matching is scoped per `part-NN.csv` (no cross-part guesses). Artist + title must agree; remix names must match; wrong hits (interviews, kids’ songs) are left unmatched.
 
+### Gathered results (Soundiiz / TuneMyMusic)
+
+When the source is a hand-collected batch of tracks that have no YouTube link yet — so there is no original `part-NN.csv` to align against — drop the downloaded CSVs in a directory of their own and use `--gathered`:
+
+```bash
+npm run data:tunemymusic:gathered   # reads data/export-tunemymusic/to-import/*.csv, refreshes the CSV
+```
+
+Every export row is scored against the whole catalogue, but only rows whose best match still lacks a link are assigned: a lookup for a track that is already linked counts as a duplicate rather than an excuse to link a sibling row. Exact score ties are broken by how much of a row's own wording the export repeats, which is what stops `Plaza Speakers K` from taking `Plaza Speakers L`'s video and `New You (Headspace)` from taking the `(Shella Fresh)` one. Existing `youtube` values are never overwritten, so re-running is safe (a second run matches 0).
+
+`--dry` reports what would change without writing; `--debug` prints the score spread, near misses and a per-row `--probe=<text>` breakdown.
+
 ### Schema
 
 ```json

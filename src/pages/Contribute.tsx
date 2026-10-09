@@ -57,6 +57,7 @@ export function Contribute() {
   const [title, setTitle] = useState('')
   const [keyName, setKeyName] = useState('')
   const [bpm, setBpm] = useState('')
+  const [tuning, setTuning] = useState('')
   const [notes, setNotes] = useState('')
   const [youtube, setYoutube] = useState('')
 
@@ -66,6 +67,9 @@ export function Contribute() {
       setTitle(original.title)
       setKeyName(original.key ?? '')
       setBpm(original.bpm !== null ? String(original.bpm) : '')
+      setTuning(
+        original.tuning !== undefined ? `${original.tuning > 0 ? '+' : ''}${original.tuning}` : '',
+      )
       setNotes(original.notes ?? '')
       setYoutube(original.youtube ?? '')
     }
@@ -78,7 +82,15 @@ export function Contribute() {
   }, [original])
 
   const camelot = keyName ? KEY_TO_CAMELOT[keyName] ?? '' : ''
-  const canSubmit = artist.trim() && title.trim() && keyName && bpm.trim()
+  /** Cents sharp (+), flat (−) or off (0). Blank = not stated. `NaN` when the text isn't a number. */
+  const tuningValue = useMemo(() => {
+    const t = tuning.trim()
+    if (!t) return undefined
+    const n = Number(t)
+    return Number.isFinite(n) ? Math.round(n) : Number.NaN
+  }, [tuning])
+  const tuningInvalid = tuningValue !== undefined && !Number.isFinite(tuningValue)
+  const canSubmit = Boolean(artist.trim() && title.trim() && keyName && bpm.trim() && !tuningInvalid)
 
   const previewTrack = useMemo<Track | null>(() => {
     if (!canSubmit || !camelot) return null
@@ -91,6 +103,7 @@ export function Contribute() {
       bpm: Number.isFinite(n) && n > 0 ? n : null,
       key: keyName,
       camelot,
+      tuning: tuningValue,
       genre: original?.genre ?? null,
       label: original?.label ?? null,
       release: original?.release ?? null,
@@ -102,12 +115,16 @@ export function Contribute() {
       notes: notes.trim() || undefined,
       youtube: canonicalYoutube(youtube) ?? undefined,
     }
-  }, [canSubmit, camelot, artist, title, bpm, keyName, notes, youtube, original])
+  }, [canSubmit, camelot, artist, title, bpm, keyName, tuningValue, notes, youtube, original])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!user) {
       login()
+      return
+    }
+    if (tuningInvalid) {
+      toast('Tuning must be a number of cents, e.g. +25 or -40')
       return
     }
     if (!canSubmit || !previewTrack) {
@@ -148,7 +165,37 @@ export function Contribute() {
         <h1 className="text-lg font-semibold">
           {mode === 'correct' ? 'Suggest a correction' : 'Contribute'}
         </h1>
-        <div className="surface mt-4 p-6">
+
+        <section className="surface mt-4 p-6">
+          <h2 className="text-sm font-semibold">How can you contribute?</h2>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-text-muted marker:text-text-dim">
+            <li>
+              Found a track missing a YouTube link (those that don&apos;t show a YouTube thumbnail) or a wrong
+              video.
+            </li>
+            <li>
+              Found wrong or missing info on a track (compared to what&apos;s stated in the{' '}
+              <a
+                href="https://docs.google.com/document/d/1WcHNaTo6KHNG88yUWxrCULuwHPuQCGQ8UtItgzzK50Q/edit?tab=t.0"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:text-accent-hover"
+              >
+                duuzu database spreadsheet
+              </a>
+              ).
+            </li>
+            <li>A track that&apos;s not in the database yet, which you have keyed and bpm-determined.</li>
+          </ol>
+          <p className="mt-4 border-t border-line pt-4 text-sm text-text-muted">
+            Either <span className="text-text">open the track</span>, click the{' '}
+            <span className="text-text">Suggest correction</span> button and fill in the proper info. Or click{' '}
+            <span className="text-text">Contribute</span>, <span className="text-text">add new track</span> and fill
+            in the proper info.
+          </p>
+        </section>
+
+        <div className="surface mt-5 p-6">
           <p className="text-sm text-text-muted">
             Sign in with Discord to add tracks or suggest corrections. Submissions go to a review queue.
           </p>
@@ -212,6 +259,17 @@ export function Contribute() {
               placeholder="e.g. 124 or 127.5"
             />
           </Field>
+          <Field label="Tuning (cents)">
+            <input
+              className={`input w-full ${tuningInvalid ? 'border-bad focus:border-bad focus:ring-bad' : ''}`}
+              value={tuning}
+              onChange={e => setTuning(e.target.value)}
+              inputMode="numeric"
+              autoComplete="off"
+              aria-invalid={tuningInvalid || undefined}
+              placeholder="e.g. +25 (sharp) or -40 (flat)"
+            />
+          </Field>
           <Field label="YouTube URL">
             <input
               className="input w-full"
@@ -222,18 +280,20 @@ export function Contribute() {
               autoComplete="off"
             />
           </Field>
-          <Field label="Notes">
-            <input
-              className="input w-full"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Key changes, alternate BPM, caveats…"
-            />
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Notes">
+              <input
+                className="input w-full"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Key changes, alternate BPM, caveats…"
+              />
+            </Field>
+          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          <div className="flex items-center gap-2 text-sm text-text-muted">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-text-muted">
             {camelot ? (
               <>
                 <CamelotBadge code={camelot} />
@@ -241,6 +301,16 @@ export function Contribute() {
               </>
             ) : (
               <span>Select a key to derive its Camelot code</span>
+            )}
+            {tuningInvalid ? (
+              <span className="text-bad">Tuning must be a number of cents, e.g. +25 or -40</span>
+            ) : (
+              tuningValue !== undefined && (
+                <span>
+                  tuning {tuningValue > 0 ? '+' : ''}
+                  {tuningValue}¢ {tuningValue > 0 ? 'sharp' : tuningValue < 0 ? 'flat' : 'standard'}
+                </span>
+              )
             )}
           </div>
           <button type="submit" className="btn-primary px-3 py-1.5 text-xs">

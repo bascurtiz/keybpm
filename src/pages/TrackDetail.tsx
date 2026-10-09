@@ -193,7 +193,7 @@ export function TrackDetail() {
         <section className="surface p-4">
           <H2
             right={
-              <span className={track.confidence !== null && track.confidence >= 0.9 ? 'pill-ok' : 'pill-warn'}>
+              <span className={track.confidence !== null && track.confidence >= 0.9 ? 'pill-ok' : 'pill-neutral'}>
                 {track.confidence !== null && track.confidence >= 0.9 ? 'Consensus' : 'Provisional'}
               </span>
             }

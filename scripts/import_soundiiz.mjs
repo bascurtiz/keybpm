@@ -14,11 +14,20 @@
  * Prefer same-row alignment (Soundiiz usually preserves order), then fuzzy
  * artist+title scoring. Remix/edit tokens must agree when present.
  *
- * --gathered handles a different workflow: the CSV rows are Soundiiz results
- * for a hand-collected set of tracks that have no YouTube link yet, so there
- * are no original part-NN rows to scope against. Each row is fuzzy-matched
- * against the whole catalogue, but ONLY tracks that still lack a link are
- * eligible — existing `youtube` values are never overwritten.
+ * --gathered handles a different workflow (Soundiiz or TuneMyMusic results):
+ * the CSV rows are search results for tracks that had no YouTube link yet, so
+ * there are no original part-NN rows to scope against. Each row is scored
+ * against the whole catalogue — including titles that already have a link — so
+ * "this lookup is for a track we already linked" reads as a duplicate instead
+ * of being pushed onto a weaker sibling row. Only rows whose best match still
+ * lacks a link are assigned, and existing `youtube` values are never
+ * overwritten.
+ *
+ * Exact score ties are broken by how much of a row's own wording the export
+ * repeats (rawOverlap), which is what keeps sibling titles apart: without it
+ * "Plaza Speakers K" and "Plaza Speakers L" tokenize identically, as do
+ * "New You (Headspace)" and "New You (Shella Fresh)", and the catalogue order
+ * would decide which one gets someone else's video.
  */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -109,6 +118,10 @@ function fold(s) {
     .replace(/[œŒ]/g, 'oe')
     .replace(/[þÞ]/g, 'th')
     .replace(/[ıİ]/g, 'i')
+    // A few catalogue rows use underscores as spaces (file-name style titles:
+    // "She__Doesn_t__Mind__ (Fraxiom__Remix)"). Treat them as spaces so \b-anchored
+    // checks (remix keywords, core-title brackets) see the real word boundaries.
+    .replace(/_+/g, ' ')
     .replace(/[\u{1D7CE}-\u{1D7FF}]/gu, ch => {
       const code = ch.codePointAt(0)
       for (const b of [0x1D7CE, 0x1D7D8, 0x1D7E2, 0x1D7EC, 0x1D7F6]) {
@@ -121,10 +134,24 @@ function fold(s) {
 }
 
 function coreTitle(title) {
-  return String(title).replace(
+  // Underscores act as spaces here too, so the \b remix/mix/edit test below sees
+  // "(Fraxiom__Remix)" as a remix bracket and keeps it instead of stripping it.
+  return String(title).replace(/_+/g, ' ').replace(
     /\s*[\(\[](?![^)\]]*\b(?:remix|mix|edit|bootleg|flip|vip|version|cover|live|acoustic|instrumental|acapella|inst|remaster|dub)\b)[^)\]]*[\)\]]/gi,
     '',
   )
+}
+
+// Words that can make up a whole upload-noise tail (" - Official Video").
+const TAIL_NOISE = new Set([
+  'official', 'lyric', 'lyrics', 'audio', 'video', 'visualizer', 'visualiser',
+  'music', 'clip', 'mv', 'hd', 'hq', '4k', '8k', 'full', 'original', 'explicit',
+])
+
+/** True when a " - …" tail is nothing but upload noise. */
+function isNoiseTail(tail) {
+  const words = tail.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  return words.length > 0 && words.length <= 6 && words.every(w => TAIL_NOISE.has(w))
 }
 
 function stripJunk(s) {
@@ -133,7 +160,16 @@ function stripJunk(s) {
     .replace(/[\(\[][^)\]]*lyric[^)\]]*[\)\]]/g, ' ')
     .replace(/[\(\[]\s*(audio|video|visualizer|hq|hd|4k|mv|perfect|english)\s*[\)\]]/g, ' ')
     .replace(/\|\s*music history.*$/g, ' ')
-    .replace(/\s+[-–—]\s+(official|lyric|audio|video).*$/g, ' ')
+    // Drop a trailing " - Official Video" / " - Audio" tail, but only when the
+    // WHOLE tail is upload noise. Titles that merely start with one of those
+    // words are real: "FKA twigs - Video Girl", "Tenacious D - Video Games",
+    // "Justice - Audio, Video, Disco." must keep their title.
+    .replace(/\s+[-–—]\s+([^-–—]*)$/, (m, tail) => (isNoiseTail(tail) ? ' ' : m))
+}
+
+/** Lower-cased words, keeping short ones (the tokenizer drops those). */
+function verbatimWords(s) {
+  return fold(s).replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean)
 }
 
 function tokens(s) {
@@ -226,7 +262,34 @@ function prepTrack(orig) {
   const views = [trackView(orig.artist, orig.title)]
   const m = String(orig.title).match(INNER_TITLE)
   if (m) views.push(trackView(m[1], m[2]))
-  return { artist: orig.artist, title: orig.title, views }
+  return {
+    artist: orig.artist,
+    title: orig.title,
+    views,
+    // Every word of the row as written, including the short ones the tokenizer
+    // drops — see rawOverlap().
+    verbatim: [...new Set([...verbatimWords(orig.artist), ...verbatimWords(orig.title)])],
+  }
+}
+
+/**
+ * How much of a row's own wording (artist + title, short tokens included)
+ * appears verbatim in the export title. Only used to break exact score ties, so
+ * it can never add or remove a match — it just picks the right sibling.
+ *
+ * Sibling titles usually tokenize to the same thing: "Plaza Speakers K" and
+ * "Plaza Speakers L" both become {plaza, speakers}, and "New You (Headspace)"
+ * vs "New You (Shella Fresh)" both core to {new, you}. Without this, whichever
+ * sibling the catalogue lists first wins every one of those rows.
+ */
+function rawOverlap(prep, e) {
+  if (!prep.verbatim.length) return 0
+  let hit = 0
+  for (const w of prep.verbatim) if (e.verbatim.has(w)) hit++
+  // Jaccard, not hit/rowWords: a one-word row like "Splatoon – Plaza" would
+  // otherwise score a perfect overlap against any export that says "Plaza".
+  const union = new Set([...prep.verbatim, ...e.verbatim]).size
+  return union ? hit / union : 0
 }
 
 /** Pre-computed token view of a Soundiiz export row. */
@@ -239,8 +302,33 @@ function prepExp(exp) {
     hayArtist: new Set(contentTokens(hay.artist)),
     hayTitle: new Set(contentTokens(hay.title)),
     hayBlobTokens: new Set(contentTokens(hay.blob)),
+    verbatim: new Set(verbatimWords(hay.blob)),
     remix: remixTags(`${exp.title} ${exp.artist}`),
   }
+}
+
+/**
+ * Pick the best catalogue row for one export row. Highest score wins; on an
+ * exact tie the row whose own wording the export repeats wins (see rawOverlap).
+ * `state` carries the incumbent's cached overlap across loop iterations.
+ */
+function pickBest(ep, candidates, state) {
+  for (const [pair, prep] of candidates) {
+    const s = scorePrepared(prep, ep)
+    if (s < state.score) continue
+    if (s > state.score) {
+      state.score = s
+      state.pair = pair
+      state.prep = prep
+      state.overlap = -1
+      continue
+    }
+    if (!state.prep) { state.pair = pair; state.prep = prep; continue }
+    if (state.overlap < 0) state.overlap = rawOverlap(state.prep, ep)
+    const mine = rawOverlap(prep, ep)
+    if (mine > state.overlap) { state.pair = pair; state.prep = prep; state.overlap = mine }
+  }
+  return state
 }
 
 function scorePair(orig, exp) {
@@ -435,17 +523,12 @@ for (const file of files) {
   for (let i = 0; i < exports.length; i++) {
     if (usedExp.has(i)) continue
     const exp = exports[i]
-    let best = null
-    let bestScore = 0
-    for (const pair of partPairs) {
-      if (pair.hasYoutube || usedPair.has(pair)) continue
-      const s = scorePair(pair, exp)
-      if (s > bestScore) { bestScore = s; best = pair }
-    }
-    if (best && bestScore >= THRESHOLD) {
-      usedPair.add(best)
+    const state = { pair: null, prep: null, score: 0, overlap: -1 }
+    pickBest(prepExp(exp), partPairs.filter(p => !p.hasYoutube && !usedPair.has(p)).map(p => [p, prepTrack(p)]), state)
+    if (state.pair && state.score >= THRESHOLD) {
+      usedPair.add(state.pair)
       usedExp.add(i)
-      assignments.push({ pair: best, exp, score: bestScore, how: 'fuzzy' })
+      assignments.push({ pair: state.pair, exp, score: state.score, how: 'fuzzy' })
     }
   }
 
@@ -456,22 +539,19 @@ for (const file of files) {
 }
 
 // Gathered mode: no original rows, so fuzzy-match each export row against the
-// whole catalogue, restricted to titles that still have no YouTube link.
+// whole catalogue. Every row is scored against ALL pairs — including ones that
+// already have a link — so "this lookup is for a track we already linked" reads
+// as a duplicate instead of being pushed onto a weaker sibling. Only pairs that
+// still need a link are ever assigned.
 if (GATHERED && gatheredExports.length) {
   const candidates = [...pairIndex.values()]
-    .filter(p => p.missing > 0 && !usedPair.has(p))
+    .filter(p => !usedPair.has(p))
     .map(p => [p, prepTrack(p)])
 
   const scored = []
   for (const exp of gatheredExports) {
-    const ep = prepExp(exp)
-    let bestPair = null
-    let bestScore = 0
-    for (const [pair, prep] of candidates) {
-      const s = scorePrepared(prep, ep)
-      if (s > bestScore) { bestScore = s; bestPair = pair }
-    }
-    scored.push({ pair: bestPair, exp, score: bestScore, how: 'gathered' })
+    const state = pickBest(prepExp(exp), candidates, { pair: null, prep: null, score: 0, overlap: -1 })
+    scored.push({ pair: state.pair, exp, score: state.score, how: 'gathered' })
   }
 
   if (DEBUG) {
@@ -504,7 +584,9 @@ if (GATHERED && gatheredExports.length) {
     }
   }
 
-  const bestPerExport = scored.filter(s => s.pair && s.score >= THRESHOLD)
+  // Only rows whose best match still needs a link are candidates; a row whose
+  // best match is already linked is a duplicate lookup, not a sibling match.
+  const bestPerExport = scored.filter(s => s.pair && s.score >= THRESHOLD && s.pair.missing > 0)
 
   // Greedy by descending confidence so the strongest matches win a title.
   bestPerExport.sort((a, b) => b.score - a.score)

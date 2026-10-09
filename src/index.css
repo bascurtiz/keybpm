@@ -213,15 +213,17 @@
            px-2.5 py-0.5 text-xs text-text-muted;
   }
 
-  /* Prototype-style status pill: .pill .ok / .pill .warn */
+  /* Prototype-style status pill: .pill .ok / .pill .neutral. Colour is held
+     back for states that mean something (Consensus = verified); an unverified
+     value stays a plain outline instead of a warning amber. */
   .pill {
     @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium;
   }
   .pill-ok {
     @apply pill border-ok text-ok;
   }
-  .pill-warn {
-    @apply pill border-warn text-warn;
+  .pill-neutral {
+    @apply pill border-text-dim font-semibold text-text;
   }
 
   /* Dual-range slider: two overlaid native ranges; thumbs stay clickable.

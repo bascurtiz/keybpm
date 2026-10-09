@@ -22,7 +22,8 @@ function payloadSummary(p: Record<string, unknown>) {
   const bpm = p.bpm != null ? String(p.bpm) : '—'
   const key = String(p.key ?? '—')
   const camelot = typeof p.camelot === 'string' ? p.camelot : null
-  return { artist, title, bpm, key, camelot }
+  const tuning = typeof p.tuning === 'number' && Number.isFinite(p.tuning) ? p.tuning : null
+  return { artist, title, bpm, key, camelot, tuning }
 }
 
 export function Review() {
@@ -135,6 +136,12 @@ export function Review() {
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-text-muted">
                       <span>{p.bpm} BPM</span>
                       <span>{p.key}</span>
+                      {p.tuning !== null && (
+                        <span>
+                          {p.tuning > 0 ? '+' : ''}
+                          {p.tuning}¢
+                        </span>
+                      )}
                       {p.camelot && <CamelotBadge code={p.camelot} />}
                     </div>
                     {existing && (
