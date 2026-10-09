@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { SearchBar } from '@/components/SearchBar'
 import { ArtTile } from '@/components/ArtTile'
 import { CamelotBadge } from '@/components/badges'
-import { stats, tracks } from '@/lib/data'
+import { stats, tracks, useCatalog } from '@/lib/data'
 import { ALL_CAMELOT_CODES, CAMELOT_TO_KEY } from '@/types/track'
 import { formatBpm, formatCount, shortKey, trackName } from '@/lib/format'
 import { usePageMeta } from '@/lib/meta'
@@ -24,6 +24,8 @@ function SectionHead({ title, to, linkLabel }: { title: string; to: string; link
 }
 
 export function Home() {
+  // Re-render when the catalog changes (approved-queue overlay landing).
+  useCatalog()
   usePageMeta('KeyBPM — Open Music Key & BPM Database', HOME_DESCRIPTION)
 
   // Track counts per Camelot position, in wheel order (1A 1B 2A 2B …) so

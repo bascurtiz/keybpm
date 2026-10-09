@@ -39,7 +39,9 @@ export function soundcloudThumbUrl(
     .replace(/_large(\.\w+)$/, `-${variant}$1`)
 }
 
-/** oEmbed thumbnail per track URL, memoized in-session and persisted in
+import { apiUrl } from '@/lib/api'
+
+/** Artwork thumbnail per track URL, memoized in-session and persisted in
  * localStorage (bounded) so each SoundCloud track is looked up once per
  * browser. Failures are not persisted — they retry next session. */
 const inflight = new Map<string, Promise<string | null>>()
@@ -77,8 +79,41 @@ function persist(): void {
   }
 }
 
-/** Resolve the artwork image URL for a SoundCloud track (oEmbed, CORS-open),
- * or null when unavailable. */
+/** Resolve the artwork image URL for a SoundCloud track, or null when
+ * unavailable.
+ *
+ * 1. KeyBPM API — the Worker reads the track page's og:image server-side.
+ *    Needed because SoundCloud's oEmbed endpoint returns 403 for many
+ *    networks/VPNs and track pages have no CORS headers.
+ * 2. Direct oEmbed fallback, for static-only deployments without the API.
+ */
+async function resolveArtwork(trackUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(apiUrl(`/api/artwork?url=${encodeURIComponent(trackUrl)}`), {
+      credentials: 'omit',
+    })
+    if (res.ok) {
+      const data = (await res.json()) as { artwork?: unknown }
+      if (typeof data.artwork === 'string' && data.artwork.startsWith('https://')) return data.artwork
+    }
+  } catch {
+    /* API unreachable — fall back to oEmbed */
+  }
+
+  try {
+    const res = await fetch(
+      `https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(trackUrl)}`,
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as { thumbnail_url?: unknown }
+    return typeof data.thumbnail_url === 'string' && data.thumbnail_url.startsWith('https://')
+      ? data.thumbnail_url
+      : null
+  } catch {
+    return null
+  }
+}
+
 export function fetchSoundcloudArtwork(trackUrl: string): Promise<string | null> {
   const memo = inflight.get(trackUrl)
   if (memo) return memo
@@ -86,24 +121,12 @@ export function fetchSoundcloudArtwork(trackUrl: string): Promise<string | null>
   const p = (async () => {
     const cached = artStore()[trackUrl]
     if (cached) return cached
-    try {
-      const res = await fetch(
-        `https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(trackUrl)}`,
-      )
-      if (!res.ok) throw new Error(String(res.status))
-      const data = (await res.json()) as { thumbnail_url?: unknown }
-      const thumb =
-        typeof data.thumbnail_url === 'string' && data.thumbnail_url.startsWith('https://')
-          ? data.thumbnail_url
-          : null
-      if (thumb) {
-        artStore()[trackUrl] = thumb
-        persist()
-      }
-      return thumb
-    } catch {
-      return null
+    const thumb = await resolveArtwork(trackUrl)
+    if (thumb) {
+      artStore()[trackUrl] = thumb
+      persist()
     }
+    return thumb
   })()
 
   inflight.set(trackUrl, p)

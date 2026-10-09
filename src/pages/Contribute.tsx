@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { getTrack } from '@/lib/data'
+import { getTrack, useCatalog } from '@/lib/data'
 import { CAMELOT_WHEEL, KEY_TO_CAMELOT } from '@/types/track'
 import { slugId } from '@/lib/contributions'
 import { canonicalYoutube } from '@/lib/youtube'
@@ -38,6 +38,9 @@ export function Contribute() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const { user, loading: authLoading, login } = useAuth()
+  // Re-resolve `original` when the catalog changes (overlay landing), so a
+  // correction opened via ?correct=<id> prefills from the freshest track.
+  useCatalog()
 
   const correctId = params.get('correct')
   const original = correctId ? getTrack(correctId) : undefined

@@ -1,4 +1,5 @@
 import { getUser, insertSubmission, listSubmissions, getSubmission, reviewSubmission, setRole, upsertUser, markApplied } from './db'
+import { canonicalSoundcloud, fetchSoundcloudArtwork } from './artwork'
 import { err, json, optionsCors, publicOrigin, withCors, isSecure } from './http'
 import {
   clearOauthStateCookie,
@@ -12,6 +13,8 @@ import {
 } from './session'
 import type { Env, Role, SubmissionRow } from './types'
 import { toPublicUser } from './types'
+
+const PUBLIC_CORS = { 'Access-Control-Allow-Origin': '*' }
 
 function serializeSubmission(row: SubmissionRow) {
   let payload: unknown = null
@@ -254,6 +257,42 @@ export default {
         const updated = await setRole(env, roleMatch[1], body.role)
         if (!updated) return withCors(req, env, err('User not found', 404))
         return withCors(req, env, json(toPublicUser(updated)))
+      }
+
+      // Public SoundCloud artwork proxy — the browser can't read SoundCloud
+      // pages (no CORS) and oEmbed is 403 for many networks, so the Worker
+      // resolves og:image once and caches it. Wildcard CORS: public, no cookies.
+      if (path === '/api/artwork' && req.method === 'GET') {
+        const canonical = canonicalSoundcloud(url.searchParams.get('url') ?? '')
+        if (!canonical) return json({ artwork: null, error: 'Not a SoundCloud track URL' }, 400, PUBLIC_CORS)
+
+        const cacheKey = new Request(`${url.origin}/api/artwork?url=${encodeURIComponent(canonical)}`)
+        let hit: Response | undefined
+        try {
+          hit = await caches.default.match(cacheKey)
+        } catch {
+          /* cache unavailable — resolve live */
+        }
+        if (hit) return hit
+
+        const artwork = await fetchSoundcloudArtwork(canonical)
+        const res = new Response(
+          JSON.stringify({ artwork, url: canonical }),
+          {
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+              // Covers change rarely; failures retry in an hour.
+              'Cache-Control': artwork ? 'public, max-age=604800' : 'public, max-age=3600',
+            },
+          },
+        )
+        try {
+          await caches.default.put(cacheKey, res.clone())
+        } catch {
+          /* cache unavailable — still serve the fresh result */
+        }
+        return res
       }
 
       // Public live overlay: approved (not yet written to tracks.json) appear in search.

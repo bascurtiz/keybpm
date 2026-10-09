@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { tracks, allGenres, allLabels, getTrack } from '@/lib/data'
+import { tracks, allGenres, allLabels, getTrack, useCatalog } from '@/lib/data'
 import { findMixes, DEFAULT_MIX_OPTIONS } from '@/lib/mix'
 import type { MixOptions } from '@/lib/mix'
 import { BpmBadge, CamelotBadge, KeyBadge } from '@/components/badges'
@@ -41,6 +41,8 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
 export function MixFinder() {
   const [params, setParams] = useSearchParams()
   const { camelot: urlCamelot, bpm: urlBpmRaw } = useParams()
+  // Re-run mix matching when the catalog changes (approved-queue overlay).
+  const catalogVersion = useCatalog()
   const sourceTrack = getTrack(params.get('track') ?? undefined)
 
   const [opts, setOpts] = useState<MixOptions>(DEFAULT_MIX_OPTIONS)
@@ -84,7 +86,7 @@ export function MixFinder() {
   const results = useMemo(() => {
     if (!source) return []
     return findMixes(source, tracks, opts)
-  }, [source, opts])
+  }, [source, opts, catalogVersion])
 
   // Track picker: cheap substring match over the static dataset.
   const matches = useMemo(() => {

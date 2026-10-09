@@ -1,8 +1,7 @@
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
-import { stats } from '@/lib/data'
+import { stats, useCatalog } from '@/lib/data'
 import { formatCount } from '@/lib/format'
-import { DATA_CHANGED } from '@/lib/contributions'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { LogoMark } from '@/components/LogoMark'
 import { useAuth } from '@/lib/AuthContext'
@@ -151,13 +150,9 @@ export function Header() {
       isActive ? 'bg-bg-hover font-medium text-accent' : 'text-text hover:bg-bg-hover'
     }`
 
-  // Re-render the header track count when contributions change without navigation.
-  const [, setDataTick] = useState(0)
-  useEffect(() => {
-    const bump = () => setDataTick(n => n + 1)
-    window.addEventListener(DATA_CHANGED, bump)
-    return () => window.removeEventListener(DATA_CHANGED, bump)
-  }, [])
+  // Re-render the header track count when the catalog changes (a local
+  // contribution saved, or the approved-queue overlay landing after Approve).
+  useCatalog()
 
   return (
     <header ref={headerRef} className="sticky top-0 z-40 border-b border-line bg-bg">

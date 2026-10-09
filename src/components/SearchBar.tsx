@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { tracks } from '@/lib/data'
+import { tracks, useCatalog } from '@/lib/data'
 import { parseQuery, matchesTrack } from '@/lib/search'
 import { formatBpm } from '@/lib/format'
 
@@ -17,6 +17,8 @@ const MAX_SUGGESTIONS = 8
 export function SearchBar() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
+  // Keep suggestions in sync when the catalog changes (approved overlay).
+  const catalogVersion = useCatalog()
   const [text, setText] = useState(params.get('q') ?? '')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
@@ -42,7 +44,7 @@ export function SearchBar() {
       }
     }
     return out
-  }, [text])
+  }, [text, catalogVersion])
 
   // Close when clicking/tapping outside the search box.
   useEffect(() => {

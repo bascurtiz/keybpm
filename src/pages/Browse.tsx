@@ -6,7 +6,7 @@ import type { FilterState } from '@/components/FilterBar'
 import { TrackTable, compareTracks } from '@/components/TrackTable'
 import type { SortKey, SortDir } from '@/components/TrackTable'
 import { EmptyState } from '@/components/EmptyState'
-import { tracks, bpmBounds } from '@/lib/data'
+import { tracks, bpmBounds, useCatalog } from '@/lib/data'
 import { searchTracks } from '@/lib/search'
 import { downloadCsv, downloadJson } from '@/lib/export'
 import { formatCount } from '@/lib/format'
@@ -66,6 +66,8 @@ function writeState(s: FilterState & { sort: SortKey; dir: SortDir; q: string })
 
 export function Browse() {
   const [params, setParams] = useSearchParams()
+  // Re-compute results when the catalog changes (approved-queue overlay).
+  const catalogVersion = useCatalog()
   const state = useMemo(() => readState(params), [params])
 
   // Below lg the facet panel is a disclosure — on a 360px phone it would
@@ -103,7 +105,7 @@ export function Browse() {
     // 3. Sort (nulls last)
     rows.sort((a, b) => compareTracks(a, b, state.sort, state.dir))
     return rows
-  }, [state])
+  }, [state, catalogVersion])
 
   useEffect(() => {
     document.title = state.q

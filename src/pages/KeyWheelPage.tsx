@@ -4,7 +4,7 @@ import { KeyWheel } from '@/components/KeyWheel'
 import { TrackTable, compareTracks } from '@/components/TrackTable'
 import type { SortKey, SortDir } from '@/components/TrackTable'
 import { EmptyState } from '@/components/EmptyState'
-import { tracks } from '@/lib/data'
+import { tracks, useCatalog } from '@/lib/data'
 import { getCompatibleKeys, camelotColor, camelotToOpenKey } from '@/lib/camelot'
 import { CamelotBadge } from '@/components/badges'
 import { CAMELOT_TO_KEY } from '@/types/track'
@@ -21,6 +21,8 @@ export function KeyWheelPage() {
   const [sort, setSort] = useState<SortKey>('bpm')
   const [dir, setDir] = useState<SortDir>('asc')
   const [wheelMode, setWheelMode] = useState<WheelMode>(readWheelMode)
+  // Re-derive key tracks when the catalog changes (approved-queue overlay).
+  const catalogVersion = useCatalog()
 
   const selected = camelot && CAMELOT_TO_KEY[camelot] ? camelot.toUpperCase() : null
   const keyName = selected ? CAMELOT_TO_KEY[selected] : null
@@ -38,14 +40,14 @@ export function KeyWheelPage() {
     const rows = tracks.filter(t => t.camelot === selected)
     rows.sort((a, b) => compareTracks(a, b, sort, dir))
     return rows
-  }, [selected, sort, dir])
+  }, [selected, sort, dir, catalogVersion])
 
   // Count tracks per compatible key, for the sidebar chips.
   const counts = useMemo(() => {
     const map = new Map<string, number>()
     for (const t of tracks) if (t.camelot) map.set(t.camelot, (map.get(t.camelot) ?? 0) + 1)
     return map
-  }, [])
+  }, [catalogVersion])
 
   function onSort(key: SortKey) {
     if (sort === key) setDir(d => (d === 'asc' ? 'desc' : 'asc'))

@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import type { Track } from '@/types/track'
 import { CAMELOT_TO_KEY, KEY_TO_CAMELOT } from '@/types/track'
 import rawTracks from '../../data/tracks.json'
@@ -113,6 +114,23 @@ const uniqueSorted = (values: (string | number | null | undefined)[]): (string |
 /** Approved Discord queue rows not yet written into data/tracks.json. */
 let queueOverlay: Submission[] = []
 
+/**
+ * Fired after `refresh()` repopulates the module exports, so components
+ * re-render. Distinct from DATA_CHANGED (a *request* to refresh, from
+ * contributions.ts); dispatching this is what makes an async overlay landing
+ * visible to a page that already rendered — without it, approving a
+ * correction leaves the track detail showing pre-overlay data.
+ */
+export const CATALOG_CHANGED = 'keydb:catalog-changed'
+
+/**
+ * Bumped on every refresh. Components subscribe via `useCatalog()` and
+ * re-render when it changes — the arrays themselves are mutated in place
+ * (stable identity), so a plain `useEffect` dependency on them would never
+ * fire.
+ */
+let version = 0
+
 function applyQueueOverlay(base: Track[]): Track[] {
   if (!queueOverlay.length) return base
   const by = new Map(base.map(t => [t.id, t]))
@@ -174,17 +192,49 @@ function refresh(): void {
   bpmBounds.max = Number.isFinite(bMax) ? Math.ceil(bMax) : 200
   yearBounds.min = allYears.length ? allYears[0] : 0
   yearBounds.max = allYears.length ? allYears[allYears.length - 1] : 0
+  version++
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(CATALOG_CHANGED))
+}
+
+/**
+ * Subscribe to the catalog. Returns the current version so the component
+ * re-renders whenever the dataset changes (local contribution saved, or the
+ * approved-queue overlay landing after the async fetch).
+ *
+ * Read the data through the module exports afterwards — `tracks`, `stats`,
+ * `getTrack`, the `all*` lists — they always hold the latest values.
+ */
+export function useCatalog(): number {
+  return useSyncExternalStore(
+    onChange => {
+      window.addEventListener(DATA_CHANGED, onChange)
+      window.addEventListener(CATALOG_CHANGED, onChange)
+      return () => {
+        window.removeEventListener(DATA_CHANGED, onChange)
+        window.removeEventListener(CATALOG_CHANGED, onChange)
+      }
+    },
+    () => version,
+    () => version,
+  )
 }
 
 refresh()
 
-/** Pull approved queue into the live catalog (Approve → searchable without apply-queue). */
+/**
+ * Pull approved queue into the live catalog (Approve → searchable without apply-queue).
+ *
+ * Runs on load, so a page rendered before it resolves will be one render
+ * behind without `useCatalog()` — that hook subscribes to CATALOG_CHANGED.
+ */
 export async function reloadQueueOverlay(): Promise<void> {
   queueOverlay = await apiOverlay()
   refresh()
 }
 
 if (typeof window !== 'undefined') {
+  // Refresh on contribution changes; `refresh()` itself broadcasts
+  // CATALOG_CHANGED, so `useCatalog()` subscribers update either way.
   window.addEventListener(DATA_CHANGED, refresh)
   void reloadQueueOverlay()
 }

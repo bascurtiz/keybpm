@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { usePageMeta } from '@/lib/meta'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getTrack, tracks } from '@/lib/data'
+import { getTrack, tracks, useCatalog } from '@/lib/data'
 import { getCompatibleKeys, keyRelation, camelotColor } from '@/lib/camelot'
 import { findMixes, DEFAULT_MIX_OPTIONS } from '@/lib/mix'
 import { CAMELOT_TO_KEY } from '@/types/track'
@@ -69,6 +69,9 @@ function relationLabel(source: string, code: string): string {
 export function TrackDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  // Re-render when the catalog changes — notably when the approved-queue
+  // overlay lands after this page already rendered with the pre-overlay track.
+  useCatalog()
   const track = getTrack(id)
 
   usePageMeta(
