@@ -214,7 +214,10 @@ export function TrackDetail() {
           {track.tuning !== undefined && (
             <DataRow label="Tuning" value={`${track.tuning > 0 ? '+' : ''}${track.tuning}¢`} extra={track.tuning > 0 ? 'sharp' : 'flat'} />
           )}
-          <DataRow label="Source" value={track.source} />
+          {/* Community rows are attributed to the Discord member who submitted
+              them (stamped by the API from their session); the sheet's own
+              rows keep their source. */}
+          <DataRow label="Source" value={track.submittedBy ?? track.source} />
           {track.confidence !== null && <DataRow label="Confidence" value={formatConfidence(track.confidence)} />}
           <DataRow label="Verified" value={formatDate(track.lastVerified)} />
           {track.notes && <DataRow label="Note" value={track.notes} />}
