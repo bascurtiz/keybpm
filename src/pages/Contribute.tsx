@@ -60,8 +60,8 @@ export function Contribute() {
   const [bpm, setBpm] = useState('')
   const [tuning, setTuning] = useState('')
   const [notes, setNotes] = useState('')
-  const [youtube, setYoutube] = useState('')
-  const [soundcloud, setSoundcloud] = useState('')
+  /** One field for either platform — canonicalized into `youtube` or `soundcloud` on submit. */
+  const [mediaUrl, setMediaUrl] = useState('')
 
   useEffect(() => {
     if (original) {
@@ -73,8 +73,7 @@ export function Contribute() {
         original.tuning !== undefined ? `${original.tuning > 0 ? '+' : ''}${original.tuning}` : '',
       )
       setNotes(original.notes ?? '')
-      setYoutube(original.youtube ?? '')
-      setSoundcloud(original.soundcloud ?? '')
+      setMediaUrl(original.youtube ?? original.soundcloud ?? '')
     }
   }, [original])
 
@@ -116,10 +115,10 @@ export function Contribute() {
       confidence: original?.confidence ?? null,
       lastVerified: original?.lastVerified ?? null,
       notes: notes.trim() || undefined,
-      youtube: canonicalYoutube(youtube) ?? undefined,
-      soundcloud: canonicalSoundcloud(soundcloud) ?? undefined,
+      youtube: canonicalYoutube(mediaUrl) ?? undefined,
+      soundcloud: canonicalSoundcloud(mediaUrl) ?? undefined,
     }
-  }, [canSubmit, camelot, artist, title, bpm, keyName, tuningValue, notes, youtube, soundcloud, original])
+  }, [canSubmit, camelot, artist, title, bpm, keyName, tuningValue, notes, mediaUrl, original])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -274,22 +273,12 @@ export function Contribute() {
               placeholder="e.g. +25 (sharp) or -40 (flat)"
             />
           </Field>
-          <Field label="YouTube URL">
+          <Field label="YouTube / SoundCloud URL">
             <input
               className="input w-full"
-              value={youtube}
-              onChange={e => setYoutube(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=…"
-              inputMode="url"
-              autoComplete="off"
-            />
-          </Field>
-          <Field label="SoundCloud URL">
-            <input
-              className="input w-full"
-              value={soundcloud}
-              onChange={e => setSoundcloud(e.target.value)}
-              placeholder="https://soundcloud.com/…/…"
+              value={mediaUrl}
+              onChange={e => setMediaUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=… or https://soundcloud.com/…/…"
               inputMode="url"
               autoComplete="off"
             />
