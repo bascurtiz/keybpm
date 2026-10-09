@@ -37,12 +37,20 @@ export function About() {
       </h1>
       <p className="mt-2 text-text-muted">
         An open, portable music Key &amp; BPM database built for DJs, producers and music researchers —
-        a dedicated web app inspired by the useful parts of a well-kept spreadsheet, without the spreadsheet.
+        a dedicated web app inspired by the{' '}
+        <a
+          href="https://docs.google.com/document/d/1WcHNaTo6KHNG88yUWxrCULuwHPuQCGQ8UtItgzzK50Q/edit?tab=t.0"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent hover:text-accent-hover"
+        >
+          duuzu&#39;s key &amp; bpm database spreadsheet
+        </a>.
       </p>
 
       <H2>What it does</H2>
       <ul className="list-disc space-y-1 pl-5 text-sm text-text-muted">
-        <li>Search with music-aware queries: <code className="font-mono text-text">128 11A</code>, <code className="font-mono text-text">F#m 125-130</code>, <code className="font-mono text-text">charli 8A</code>, <code className="font-mono text-text">dorian 120-130</code></li>
+        <li>Search with music-aware queries: <code className="font-mono text-text">128 11A</code>, <code className="font-mono text-text">F#m 125-130</code>, <code className="font-mono text-text">daft punk 8A</code>, <code className="font-mono text-text">dorian 120-130</code></li>
         <li>Filter by BPM range, key, Camelot, genre, label and year — all reflected in the URL</li>
         <li>Explore harmonic relationships on the <Link to="/key" className="text-accent hover:text-accent-hover">Key Wheel</Link></li>
         <li>Find compatible tracks with explainable reasons in the <Link to="/mix" className="text-accent hover:text-accent-hover">Mix Finder</Link></li>
