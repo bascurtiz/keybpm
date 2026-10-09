@@ -32,7 +32,8 @@ const WAVES: { id: WaveType; label: string; icon: string }[] = [
   { id: 'guitar', label: 'Guitar', icon: `${import.meta.env.BASE_URL}key-tool-assets/guitar.svg` },
 ]
 
-const VIDEO_SRC = 'https://www.youtube.com/embed/aHj81Y1yR_g?autoplay=1'
+// youtu.be/KcBnbkym4Lo — embedded form of the demo video linked from the tool.
+const VIDEO_SRC = 'https://www.youtube.com/embed/KcBnbkym4Lo?autoplay=1'
 
 const MODES_DATA = {
   Major: [

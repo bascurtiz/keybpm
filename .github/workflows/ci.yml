@@ -1,0 +1,38 @@
+name: CI
+
+# Build check only. Cloudflare rebuilds the site straight from this repo on
+# every push (README → Deploy → Cloudflare Pages), so pushing to GitHub Pages
+# from here was redundant — and it failed on every run: GitHub Pages was never
+# enabled for this repository, so `actions/deploy-pages` got a 404 creating the
+# deployment. That job is gone; this workflow now just proves the app compiles.
+#
+# Want a GitHub Pages mirror as well? Re-add the deploy job
+# (actions/upload-pages-artifact + actions/deploy-pages, with `pages: write` /
+# `id-token: write` permissions and a `github-pages` environment) and set
+# Settings → Pages → Source: GitHub Actions.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # `tsc -b && vite build` — typecheck plus a production bundle on base "/".
+      # For a sub-path build (GitHub Pages style), set BASE_PATH=/<repo>/.
+      - run: npm run build

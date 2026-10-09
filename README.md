@@ -185,23 +185,18 @@ Roles: `user` (submit), `trusted` (approve), `mod` (approve, reject, set roles).
 3. Framework preset: *None* · Build command: `npm run build` · Output directory: `dist`.
 4. Done. Every `git push` redeploys.
 
-`public/_redirects` rewrites every path to `index.html`, so deep links like `/track/<id>` work.
+`wrangler.jsonc` sets `assets.not_found_handling: single-page-application`, so deep links like `/track/<id>` are served `index.html` (Cloudflare Pages projects get the same behaviour from a `_redirects` rule).
 
-### GitHub Pages
+### Continuous integration
 
-`.github/workflows/deploy-pages.yml` builds and deploys on every push to `main`:
+`.github/workflows/ci.yml` runs `npm ci && npm run build` on every push to `main` and on pull requests — a compile/typecheck gate, not a deploy. It replaced an earlier GitHub Pages workflow whose deploy job failed on every run because Pages was never enabled for this repo; Cloudflare remains the only deployer.
 
-1. Push the repo to GitHub.
-2. Repo **Settings → Pages → Source: GitHub Actions**.
-
-The workflow builds with `BASE_PATH=/<repo>/` (the router and asset URLs follow it) and copies `index.html` to `404.html` as the SPA fallback. For a custom domain, change `BASE_PATH` to `/` in the workflow.
-
-To build for a sub-path locally: `BASE_PATH=/keybpm/ npm run build`.
+To build for a sub-path locally (GitHub Pages style): `BASE_PATH=/keybpm/ npm run build`.
 
 ## Project structure
 
 ```
-├── .github/workflows/    # GitHub Pages deployment
+├── .github/workflows/    # CI build check (Cloudflare does the deploy)
 ├── data/                 # portable dataset (tracks.json, tracks.csv)
 ├── scripts/              # import/export + apply_submissions
 ├── workers/api/          # Discord OAuth + D1 submission queue (Wrangler)
