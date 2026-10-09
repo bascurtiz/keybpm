@@ -282,6 +282,18 @@
     -webkit-appearance: none;
   }
 
+  /* BPM stepper: the native spinner is cramped/ambiguous in the narrow field,
+     so it is replaced by explicit +/- buttons. ArrowUp/Down still step. */
+  .bpm-input::-webkit-outer-spin-button,
+  .bpm-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .bpm-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   /* Reserve the bold width so the active (font-medium) link doesn't push its neighbours. */
   .nav-link {
     display: inline-flex;

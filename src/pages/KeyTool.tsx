@@ -302,6 +302,10 @@ export function KeyTool() {
     }
   }
 
+  function nudgeBpm(delta: number) {
+    setBpm(v => Math.min(255, Math.max(40, Math.round((v + delta) * 10) / 10)))
+  }
+
   function onTap() {
     const now = performance.now()
     tapTimes.current.push(now)
@@ -501,12 +505,16 @@ export function KeyTool() {
         return
       }
 
-      if (['+', '=', 'NumpadAdd'].includes(e.key) && !typing) {
-        setBpm(v => Math.min(255, Math.round((v + 0.1) * 10) / 10))
+      // The BPM shortcuts stay live while the BPM field itself is focused;
+      // a number input ignores +/- keys, so without this the shortcut appears
+      // dead right when the user is interacting with the metronome.
+      const bpmField = (e.target as HTMLElement)?.id === 'bpm-input'
+      if (['+', '=', 'NumpadAdd'].includes(e.key) && (!typing || bpmField)) {
+        nudgeBpm(1)
         return
       }
-      if (['-', '_', 'NumpadSubtract'].includes(e.key) && !typing) {
-        setBpm(v => Math.max(40, Math.round((v - 0.1) * 10) / 10))
+      if (['-', '_', 'NumpadSubtract'].includes(e.key) && (!typing || bpmField)) {
+        nudgeBpm(-1)
         return
       }
 
@@ -658,16 +666,36 @@ export function KeyTool() {
         {/* 2. Metronome */}
         <section className="surface kt-card kt-card-side p-4 lg:pt-3">
           <h2 className="kt-header-row mb-3.5 text-sm font-semibold">Metronome</h2>
-          <div className="flex items-baseline gap-2">
-            <input
-              type="number"
-              min={40}
-              max={255}
-              step={0.1}
-              value={bpm}
-              onChange={e => setBpm(Math.min(255, Math.max(40, Number(e.target.value) || 120)))}
-              className="input w-[4.5rem] font-mono text-lg tabular-nums"
-            />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Decrease BPM"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-bg-hover text-base leading-none text-text hover:border-accent"
+                onClick={() => nudgeBpm(-1)}
+              >
+                −
+              </button>
+              <input
+                id="bpm-input"
+                type="number"
+                min={40}
+                max={255}
+                step={1}
+                inputMode="numeric"
+                value={bpm}
+                onChange={e => setBpm(Math.min(255, Math.max(40, Number(e.target.value) || 120)))}
+                className="input bpm-input w-[5.5rem] text-center font-mono text-lg tabular-nums"
+              />
+              <button
+                type="button"
+                aria-label="Increase BPM"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-bg-hover text-base leading-none text-text hover:border-accent"
+                onClick={() => nudgeBpm(1)}
+              >
+                +
+              </button>
+            </div>
             <span className="text-xs text-text-muted">BPM</span>
           </div>
           <input
