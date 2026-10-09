@@ -9,3 +9,6 @@ npm-debug.log*
 workers/api/.dev.vars
 .wrangler/
 .freebuff/
+
+# Local dumps/backups of production data — never commit.
+.backup/

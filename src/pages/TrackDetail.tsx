@@ -216,9 +216,7 @@ export function TrackDetail() {
           <DataRow label="Source" value={track.source} />
           {track.confidence !== null && <DataRow label="Confidence" value={formatConfidence(track.confidence)} />}
           <DataRow label="Verified" value={formatDate(track.lastVerified)} />
-          {track.notes && (
-            <p className="mt-3 border-t border-line/60 pt-3 text-xs text-text-muted">{track.notes}</p>
-          )}
+          {track.notes && <DataRow label="Note" value={track.notes} />}
         </section>
       </div>
 

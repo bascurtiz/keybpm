@@ -5,6 +5,7 @@
  *   npm run data:youtube           # merge new matches (never overwrites)
  *   npm run data:youtube -- --reset  # clear all youtube fields, then rematch
  *   node scripts/import_soundiiz.mjs --dry
+ *   node scripts/import_soundiiz.mjs --gathered --dir=data/export-soundiiz [--dry] [--debug] [--threshold=0.82]
  *
  * Reads every *.csv in data/soundiiz/export/. When a matching
  * data/soundiiz/part-NN.csv exists, matching is scoped to that part only
@@ -12,18 +13,32 @@
  *
  * Prefer same-row alignment (Soundiiz usually preserves order), then fuzzy
  * artist+title scoring. Remix/edit tokens must agree when present.
+ *
+ * --gathered handles a different workflow: the CSV rows are Soundiiz results
+ * for a hand-collected set of tracks that have no YouTube link yet, so there
+ * are no original part-NN rows to scope against. Each row is fuzzy-matched
+ * against the whole catalogue, but ONLY tracks that still lack a link are
+ * eligible — existing `youtube` values are never overwritten.
  */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const TRACKS = join(ROOT, 'data', 'tracks.json')
 const SOUNDIZ = join(ROOT, 'data', 'soundiiz')
-const EXPORT_DIR = join(SOUNDIZ, 'export')
-const DRY = process.argv.includes('--dry')
-const RESET = process.argv.includes('--reset')
-const THRESHOLD = 0.82
+const ARGS = process.argv.slice(2)
+const argValue = (name, fallback) => {
+  const prefix = `--${name}=`
+  const hit = ARGS.find(a => a.startsWith(prefix))
+  return hit ? hit.slice(prefix.length) : fallback
+}
+const EXPORT_DIR = resolve(ROOT, argValue('dir', join('data', 'soundiiz', 'export')))
+const DRY = ARGS.includes('--dry')
+const RESET = ARGS.includes('--reset')
+const GATHERED = ARGS.includes('--gathered')
+const DEBUG = ARGS.includes('--debug')
+const THRESHOLD = parseFloat(argValue('threshold', '0.82'))
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/
 const STOP = new Set([
@@ -35,6 +50,8 @@ const STOP = new Set([
   'soundtrack', 'ost',
 ])
 const REMIX_RE = /\b(remix|bootleg|flip|vip|edit|cover|instrumental|acapella|inst|\bdub\b|club\s*mix|radio\s*mix|extended\s*mix)\b/i
+// Uploads that are not the recording itself — a wrong hit even when the words line up.
+const NON_SONG_RE = /\b(reaction(\s+video)?|nightcore|karaoke|type\s+beat|slowed\s*\+?\s*reverb|sped\s+up|1\s*hour\s+loop|10\s*hours?)\b/i
 
 function parseCsv(text) {
   const rows = []
@@ -83,6 +100,15 @@ function fold(s) {
   return String(s)
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
+    // Letters that NFKD leaves alone (no combining-mark decomposition).
+    .replace(/[łŁ]/g, 'l')
+    .replace(/[đĐðÐ]/g, 'd')
+    .replace(/[øØ]/g, 'o')
+    .replace(/[ß]/g, 'ss')
+    .replace(/[æÆ]/g, 'ae')
+    .replace(/[œŒ]/g, 'oe')
+    .replace(/[þÞ]/g, 'th')
+    .replace(/[ıİ]/g, 'i')
     .replace(/[\u{1D7CE}-\u{1D7FF}]/gu, ch => {
       const code = ch.codePointAt(0)
       for (const b of [0x1D7CE, 0x1D7D8, 0x1D7E2, 0x1D7EC, 0x1D7F6]) {
@@ -125,11 +151,16 @@ function contentTokens(s) {
 
 function coverage(need, have) {
   if (!need.length) return 0
-  const h = new Set(have)
+  const h = have instanceof Set ? have : new Set(have)
   let hit = 0
   for (const w of need) {
     if (h.has(w)) { hit++; continue }
-    if ([...h].some(x => x.startsWith(w) || w.startsWith(x))) hit++
+    // Prefix fallback (plural/suffix variations) — but only for words long
+    // enough to be meaningful. Otherwise "medcab" would "match" the token
+    // "me", and generic fragments would inflate every score.
+    for (const x of h) {
+      if (w.length >= 3 && x.length >= 3 && (x.startsWith(w) || w.startsWith(x))) { hit++; break }
+    }
   }
   return hit / need.length
 }
@@ -165,27 +196,90 @@ function splitHaystack(title, artist) {
   return { artist: '', title: t, blob: t }
 }
 
-function scorePair(orig, exp) {
+// "Daft Punk ft. Pharrell, Nile Rodgers" → primary "Daft Punk". YouTube titles
+// routinely drop the featured credits our rows carry, so the primary artist is
+// what must line up; the full credit list is only a bonus signal.
+const ARTIST_SEP = /\s+(?:ft\.?|feat\.?|featuring|with|vs\.?|x)\s+|\s*[,&]\s*/i
+
+/** Token view of one artist/title interpretation. */
+function trackView(artist, title) {
+  const titleTokens = contentTokens(title)
+  return {
+    artist,
+    title,
+    origArtist: contentTokens(artist),
+    primaryArtist: contentTokens(String(artist).split(ARTIST_SEP)[0]),
+    origTitle: titleTokens,
+    coreTokens: contentTokens(coreTitle(title)),
+    remix: remixTags(title),
+  }
+}
+
+// Dataset convention for game/film OSTs: the "artist" is the franchise and the
+// title holds "Composer - Track" (e.g. "Cyberpunk 2077 – P.T. Adamczyk - The Heist").
+// Soundiiz returns those as artist=P.T. Adamczyk, title=The Heist, so we also
+// score a view built from the inner artist/title.
+const INNER_TITLE = /^(.+?)\s[-–—]\s(.+)$/
+
+/** Pre-computed token view of a catalogue entry (artist + title). */
+function prepTrack(orig) {
+  const views = [trackView(orig.artist, orig.title)]
+  const m = String(orig.title).match(INNER_TITLE)
+  if (m) views.push(trackView(m[1], m[2]))
+  return { artist: orig.artist, title: orig.title, views }
+}
+
+/** Pre-computed token view of a Soundiiz export row. */
+function prepExp(exp) {
   const hay = splitHaystack(exp.title, exp.artist)
-  const origArtist = contentTokens(orig.artist)
-  const origTitle = contentTokens(orig.title)
-  const origCore = contentTokens(coreTitle(orig.title))
-  const titleNeed = origCore.length ? origCore : origTitle
-  const hayArtist = contentTokens(hay.artist)
-  const hayTitle = contentTokens(hay.title)
-  const hayBlob = contentTokens(hay.blob)
+  return {
+    title: exp.title,
+    artist: exp.artist,
+    hayBlob: hay.blob,
+    hayArtist: new Set(contentTokens(hay.artist)),
+    hayTitle: new Set(contentTokens(hay.title)),
+    hayBlobTokens: new Set(contentTokens(hay.blob)),
+    remix: remixTags(`${exp.title} ${exp.artist}`),
+  }
+}
+
+function scorePair(orig, exp) {
+  return scorePrepared(prepTrack(orig), prepExp(exp))
+}
+
+function scorePrepared(o, e) {
+  let best = 0
+  for (const v of o.views) {
+    const s = scoreView(v, e)
+    if (s > best) best = s
+  }
+  return best
+}
+
+function scoreView(o, e) {
+  const origArtist = o.origArtist
+  const primary = o.primaryArtist
+  const titleNeed = o.coreTokens.length ? o.coreTokens : o.origTitle
+  const hayArtist = e.hayArtist
+  const hayTitle = e.hayTitle
+  const hayBlob = e.hayBlobTokens
 
   const artistScore = Math.max(
     coverage(origArtist, hayArtist),
     coverage(origArtist, hayBlob) * 0.95,
+    primary.length ? coverage(primary, hayArtist) : 0,
+    primary.length ? coverage(primary, hayBlob) * 0.95 : 0,
   )
   const titleCov = Math.max(
     coverage(titleNeed, hayTitle),
     coverage(titleNeed, hayBlob),
   )
-  const titleScore = Math.max(titleCov, titleNeed.length ? 0 : 0)
+  const titleScore = titleCov
 
-  if (origArtist.length <= 2 && artistScore < 0.99) return 0
+  // Short artist names ("BICEP", "björk") still match via the full-title blob,
+  // which only carries 0.95 weight — so allow that path rather than demanding
+  // a perfect artist-only match. The title guards below keep this from drifting.
+  if (origArtist.length <= 2 && artistScore < 0.9) return 0
   if (artistScore < 0.7) return 0
   if (titleNeed.length === 0) return 0
   if (titleNeed.length === 1 && titleCov < 0.99) return 0
@@ -196,19 +290,21 @@ function scorePair(orig, exp) {
   if (distinctive.length && coverage(distinctive, hayBlob) < 0.8) return 0
 
   // If our title names a remix, the export must look like that remix (not the original).
-  const oRemix = remixTags(orig.title)
-  const eRemix = remixTags(`${exp.title} ${exp.artist}`)
-  if ([...oRemix].some(t => t.startsWith('r:')) && ![...oRemix].filter(t => t.startsWith('r:')).every(t => eRemix.has(t) || hayBlob.includes(t.slice(2)))) {
+  const oRemix = o.remix
+  const eRemix = e.remix
+  if ([...oRemix].some(t => t.startsWith('r:')) && ![...oRemix].filter(t => t.startsWith('r:')).every(t => eRemix.has(t) || e.hayBlob.includes(t.slice(2)))) {
     // remixer token missing — reject unless overall title coverage is perfect
     if (titleCov < 0.95) return 0
   }
-  if (oRemix.has('remix') && !eRemix.has('remix') && !REMIX_RE.test(exp.title)) {
+  if (oRemix.has('remix') && !eRemix.has('remix') && !REMIX_RE.test(e.title)) {
     if (titleCov < 0.95) return 0
   }
   // Export is a remix but original isn't → usually wrong
-  if (eRemix.has('remix') && !oRemix.has('remix') && !REMIX_RE.test(orig.title)) {
+  if (eRemix.has('remix') && !oRemix.has('remix') && !REMIX_RE.test(o.title)) {
     return 0
   }
+  // A reaction/nightcore/karaoke upload is never the track we catalogue.
+  if (NON_SONG_RE.test(e.title) && !NON_SONG_RE.test(o.title)) return 0
 
   return artistScore * 0.4 + titleScore * 0.6
 }
@@ -280,22 +376,28 @@ for (const t of tracks) {
   const key = `${artist}\0${title}`
   let pair = pairIndex.get(key)
   if (!pair) {
-    pair = { artist, title, ids: [], hasYoutube: false }
+    pair = { artist, title, ids: [], hasYoutube: false, missing: 0 }
     pairIndex.set(key, pair)
   }
   pair.ids.push(t.id)
   if (t.youtube) pair.hasYoutube = true
+  else pair.missing++
 }
 
 const assignments = []
 const usedPair = new Set()
 let unusedExp = 0
 const unmatchedOrig = []
+const gatheredExports = []
 
 for (const file of files) {
   const exports = byFile.get(file)
   const origPart = loadOriginalPart(file)
   if (!origPart) {
+    if (GATHERED) {
+      gatheredExports.push(...exports)
+      continue
+    }
     console.warn(`No matching data/soundiiz/${file} — skipping ${file} (refusing global match)`)
     unusedExp += exports.length
     continue
@@ -353,6 +455,67 @@ for (const file of files) {
   }
 }
 
+// Gathered mode: no original rows, so fuzzy-match each export row against the
+// whole catalogue, restricted to titles that still have no YouTube link.
+if (GATHERED && gatheredExports.length) {
+  const candidates = [...pairIndex.values()]
+    .filter(p => p.missing > 0 && !usedPair.has(p))
+    .map(p => [p, prepTrack(p)])
+
+  const scored = []
+  for (const exp of gatheredExports) {
+    const ep = prepExp(exp)
+    let bestPair = null
+    let bestScore = 0
+    for (const [pair, prep] of candidates) {
+      const s = scorePrepared(prep, ep)
+      if (s > bestScore) { bestScore = s; bestPair = pair }
+    }
+    scored.push({ pair: bestPair, exp, score: bestScore, how: 'gathered' })
+  }
+
+  if (DEBUG) {
+    const buckets = [0, 0, 0, 0, 0]
+    for (const s of scored) {
+      const i = s.score >= 0.9 ? 4 : s.score >= 0.8 ? 3 : s.score >= 0.7 ? 2 : s.score >= 0.5 ? 1 : 0
+      buckets[i]++
+    }
+    console.log(`  debug best-score spread: <0.5:${buckets[0]} 0.5-0.7:${buckets[1]} 0.7-0.8:${buckets[2]} 0.8-0.9:${buckets[3]} >=0.9:${buckets[4]}`)
+    console.log('  near misses (0.6-0.82):')
+    for (const s of scored.filter(x => x.score >= 0.6 && x.score < 0.82).sort((a, b) => b.score - a.score).slice(0, 20)) {
+      console.log(`    ${s.score.toFixed(2)}  ${s.pair ? `${s.pair.artist} – ${s.pair.title}` : '(no candidate)'}  ←  ${s.exp.title}`)
+    }
+    console.log('  unmatched export samples (<0.5):')
+    for (const s of scored.filter(x => x.score < 0.5).slice(0, 30)) console.log(`    ←  ${s.exp.title}${s.exp.artist ? `  [${s.exp.artist}]` : ''}`)
+    const probe = argValue('probe')
+    if (probe) {
+      for (const s of scored.filter(x => x.exp.title.toLowerCase().includes(probe.toLowerCase()))) {
+        const pp = s.pair ? prepTrack(s.pair) : null
+        const ep = prepExp(s.exp)
+        console.log(`  probe ${s.score.toFixed(2)}  ${s.pair ? `${s.pair.artist} – ${s.pair.title}` : '(none)'}  ←  ${s.exp.title}${s.exp.artist ? `  [${s.exp.artist}]` : ''}`)
+        if (pp) for (const v of pp.views) console.log(`    track view: artist=${JSON.stringify(v.origArtist)} primary=${JSON.stringify(v.primaryArtist)} core=${JSON.stringify(v.coreTokens)} remix=${JSON.stringify([...v.remix])} rescore=${scoreView(v, ep).toFixed(2)}`)
+        console.log(`    combined score=${scorePrepared(pp ?? { views: [] }, ep).toFixed(2)}`)
+        console.log(`    export tokens: artist=${JSON.stringify([...ep.hayArtist])} title=${JSON.stringify([...ep.hayTitle])} blob=${JSON.stringify([...ep.hayBlobTokens])} remix=${JSON.stringify([...ep.remix])}`)
+      }
+    }
+    console.log('  accepted but marginal (best-per-export):')
+    for (const s of scored.filter(x => x.pair && x.score >= THRESHOLD && x.score < 0.92).sort((a, b) => a.score - b.score).slice(0, 40)) {
+      console.log(`    ${s.score.toFixed(2)}  ${s.pair.artist} – ${s.pair.title}  ←  ${s.exp.title}${s.exp.artist ? `  [${s.exp.artist}]` : ''}`)
+    }
+  }
+
+  const bestPerExport = scored.filter(s => s.pair && s.score >= THRESHOLD)
+
+  // Greedy by descending confidence so the strongest matches win a title.
+  bestPerExport.sort((a, b) => b.score - a.score)
+  for (const a of bestPerExport) {
+    if (usedPair.has(a.pair)) continue
+    usedPair.add(a.pair)
+    assignments.push(a)
+  }
+  unusedExp += gatheredExports.length - assignments.filter(a => a.how === 'gathered').length
+}
+
 const byId = new Map(tracks.map(t => [t.id, t]))
 let updated = 0
 for (const { pair, exp } of assignments) {
@@ -370,12 +533,13 @@ if (!DRY) {
 
 const totalYt = tracks.filter(t => t.youtube).length
 const sample = (list, fmt, n = 8) => list.slice(0, n).map(fmt).join('\n  ')
-const byHow = { index: 0, fuzzy: 0 }
+const byHow = { index: 0, fuzzy: 0, gathered: 0 }
 for (const a of assignments) byHow[a.how]++
 
 console.log(`Soundiiz export: ${files.join(', ')} (${[...byFile.values()].reduce((n, a) => n + a.length, 0)} YouTube rows)`)
+if (GATHERED) console.log(`Gathered mode: ${gatheredExports.length} export rows matched against tracks still missing a link`)
 console.log(`Matched ${assignments.length} unique titles → ${updated} track records${DRY ? ' (dry run)' : ''}`)
-console.log(`  via index: ${byHow.index} · via fuzzy: ${byHow.fuzzy} · total with youtube now: ${totalYt}`)
+console.log(`  via index: ${byHow.index} · via fuzzy: ${byHow.fuzzy}${GATHERED ? ` · via gathered: ${byHow.gathered}` : ''} · total with youtube now: ${totalYt}`)
 console.log(`Unmatched originals (in exported parts): ${unmatchedOrig.length} · unused export rows: ${unusedExp}`)
 if (assignments.length) {
   const weak = assignments.filter(a => a.score < 0.9).slice(0, 8)
