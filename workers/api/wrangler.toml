@@ -16,7 +16,8 @@ DISCORD_CLIENT_ID = "1557691079057219594"
 # Comma-separated Discord snowflake IDs that boot as mod on first login.
 MOD_DISCORD_IDS = "390110399048974337"
 # Public origin of the SPA (used for OAuth redirect + cookie redirects).
-APP_ORIGIN = "http://localhost:5173"
+APP_ORIGIN = "https://keybpm.info"
+
 
 # Secrets — never commit these. Local: workers/api/.dev.vars
 # Production: wrangler secret put …
