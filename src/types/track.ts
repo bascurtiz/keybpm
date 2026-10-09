@@ -38,11 +38,14 @@ export interface Track {
   submittedByDiscordId?: string
 }
 
-// Camelot wheel mapping: number -> [minor key (A), major key (B)]
+// Camelot wheel mapping: number -> [minor key (A), major key (B)].
+// Canonical spellings follow duuzu's sheet: the minor ring is all-sharp
+// (A#m, C#m, D#m, G#m), the major ring keeps flats for Ab/Eb/Bb and
+// sharps for C#/F#. KEY_TO_CAMELOT below still accepts the other spellings.
 export const CAMELOT_WHEEL: Record<string, { minor: string; major: string }> = {
-  '1': { minor: 'Ab minor', major: 'B major' },
-  '2': { minor: 'Eb minor', major: 'F# major' },
-  '3': { minor: 'Bb minor', major: 'Db major' },
+  '1': { minor: 'G# minor', major: 'B major' },
+  '2': { minor: 'D# minor', major: 'F# major' },
+  '3': { minor: 'A# minor', major: 'C# major' },
   '4': { minor: 'F minor', major: 'Ab major' },
   '5': { minor: 'C minor', major: 'Eb major' },
   '6': { minor: 'G minor', major: 'Bb major' },
@@ -51,7 +54,7 @@ export const CAMELOT_WHEEL: Record<string, { minor: string; major: string }> = {
   '9': { minor: 'E minor', major: 'G major' },
   '10': { minor: 'B minor', major: 'D major' },
   '11': { minor: 'F# minor', major: 'A major' },
-  '12': { minor: 'Db minor', major: 'E major' },
+  '12': { minor: 'C# minor', major: 'E major' },
 }
 
 // Musical key -> Camelot code
@@ -70,11 +73,11 @@ export const KEY_TO_CAMELOT: Record<string, string> = {
   'Db minor': '12A', 'C# minor': '12A', 'E major': '12B',
 }
 
-// Camelot code -> musical key
+// Camelot code -> musical key (canonical display spelling — see CAMELOT_WHEEL)
 export const CAMELOT_TO_KEY: Record<string, string> = {
-  '1A': 'Ab minor', '1B': 'B major',
-  '2A': 'Eb minor', '2B': 'F# major',
-  '3A': 'Bb minor', '3B': 'Db major',
+  '1A': 'G# minor', '1B': 'B major',
+  '2A': 'D# minor', '2B': 'F# major',
+  '3A': 'A# minor', '3B': 'C# major',
   '4A': 'F minor', '4B': 'Ab major',
   '5A': 'C minor', '5B': 'Eb major',
   '6A': 'G minor', '6B': 'Bb major',
@@ -83,7 +86,7 @@ export const CAMELOT_TO_KEY: Record<string, string> = {
   '9A': 'E minor', '9B': 'G major',
   '10A': 'B minor', '10B': 'D major',
   '11A': 'F# minor', '11B': 'A major',
-  '12A': 'Db minor', '12B': 'E major',
+  '12A': 'C# minor', '12B': 'E major',
 }
 
 export const ALL_CAMELOT_CODES: string[] = [

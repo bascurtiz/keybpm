@@ -20,24 +20,25 @@ const INPUT = process.argv[2] ?? join(ROOT, "duuzu's song key & bpm 'database' v
 const SOURCE = "duuzu's key & bpm database v10"
 const VERIFIED = '2025-06-15'
 
-/** Section heading → canonical key name (same spelling as src/types/track.ts). */
+/** Section heading → canonical key name (same spelling as src/types/track.ts:
+ * duuzu's all-sharp minor ring, flats kept on Ab/Eb/Bb/C# majors). */
 const SECTION_KEYS = {
-  Amin: 'A minor', Cmaj: 'C major', 'A#min': 'Bb minor', 'C#maj': 'Db major',
+  Amin: 'A minor', Cmaj: 'C major', 'A#min': 'A# minor', 'C#maj': 'C# major',
   Bmin: 'B minor', Dmaj: 'D major', Cmin: 'C minor', Ebmaj: 'Eb major',
-  'C#min': 'Db minor', Emaj: 'E major', Dmin: 'D minor', Fmaj: 'F major',
-  'D#min': 'Eb minor', 'F#maj': 'F# major', Emin: 'E minor', Gmaj: 'G major',
+  'C#min': 'C# minor', Emaj: 'E major', Dmin: 'D minor', Fmaj: 'F major',
+  'D#min': 'D# minor', 'F#maj': 'F# major', Emin: 'E minor', Gmaj: 'G major',
   Fmin: 'F minor', Abmaj: 'Ab major', 'F#min': 'F# minor', Amaj: 'A major',
-  Gmin: 'G minor', Bbmaj: 'Bb major', 'G#min': 'Ab minor', Bmaj: 'B major',
+  Gmin: 'G minor', Bbmaj: 'Bb major', 'G#min': 'G# minor', Bmaj: 'B major',
   other: null,
 }
 
 const KEY_TO_CAMELOT = {
-  'Ab minor': '1A', 'B major': '1B', 'Eb minor': '2A', 'F# major': '2B',
-  'Bb minor': '3A', 'Db major': '3B', 'F minor': '4A', 'Ab major': '4B',
+  'G# minor': '1A', 'B major': '1B', 'D# minor': '2A', 'F# major': '2B',
+  'A# minor': '3A', 'C# major': '3B', 'F minor': '4A', 'Ab major': '4B',
   'C minor': '5A', 'Eb major': '5B', 'G minor': '6A', 'Bb major': '6B',
   'D minor': '7A', 'F major': '7B', 'A minor': '8A', 'C major': '8B',
   'E minor': '9A', 'G major': '9B', 'B minor': '10A', 'D major': '10B',
-  'F# minor': '11A', 'A major': '11B', 'Db minor': '12A', 'E major': '12B',
+  'F# minor': '11A', 'A major': '11B', 'C# minor': '12A', 'E major': '12B',
 }
 
 /** The sheet's mode abbreviations. maj/min are the plain key and aren't stored as a mode. */

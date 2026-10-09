@@ -39,9 +39,9 @@ const GENRE_KEYWORDS = [
 // Key name normalization: shorthand -> canonical key name
 const KEY_PATTERNS: Record<string, string> = {
   // Minor keys
-  'abm': 'Ab minor', 'g#m': 'Ab minor', 'g#min': 'Ab minor', 'abmin': 'Ab minor',
-  'ebm': 'Eb minor', 'd#m': 'Eb minor', 'd#min': 'Eb minor', 'ebmin': 'Eb minor',
-  'bbm': 'Bb minor', 'a#m': 'Bb minor', 'a#min': 'Bb minor', 'bbmin': 'Bb minor',
+  'abm': 'G# minor', 'g#m': 'G# minor', 'g#min': 'G# minor', 'abmin': 'G# minor',
+  'ebm': 'D# minor', 'd#m': 'D# minor', 'd#min': 'D# minor', 'ebmin': 'D# minor',
+  'bbm': 'A# minor', 'a#m': 'A# minor', 'a#min': 'A# minor', 'bbmin': 'A# minor',
   'fm': 'F minor', 'fmin': 'F minor',
   'cm': 'C minor', 'cmin': 'C minor',
   'gm': 'G minor', 'gmin': 'G minor',
@@ -50,11 +50,11 @@ const KEY_PATTERNS: Record<string, string> = {
   'em': 'E minor', 'emin': 'E minor',
   'bm': 'B minor', 'bmin': 'B minor',
   'f#m': 'F# minor', 'f#min': 'F# minor',
-  'dbm': 'Db minor', 'c#m': 'Db minor', 'c#min': 'Db minor', 'dbmin': 'Db minor',
+  'dbm': 'C# minor', 'c#m': 'C# minor', 'c#min': 'C# minor', 'dbmin': 'C# minor',
   // Major keys
   'b': 'B major', 'bmaj': 'B major', 'bma': 'B major',
   'f#': 'F# major', 'f#maj': 'F# major', 'gb': 'F# major', 'gbmaj': 'F# major',
-  'db': 'Db major', 'c#': 'Db major', 'dbmaj': 'Db major', 'c#maj': 'Db major',
+  'db': 'C# major', 'c#': 'C# major', 'dbmaj': 'C# major', 'c#maj': 'C# major',
   'ab': 'Ab major', 'g#': 'Ab major', 'abmaj': 'Ab major', 'g#maj': 'Ab major',
   'eb': 'Eb major', 'd#': 'Eb major', 'ebmaj': 'Eb major', 'd#maj': 'Eb major',
   'bb': 'Bb major', 'a#': 'Bb major', 'bbmaj': 'Bb major', 'a#maj': 'Bb major',

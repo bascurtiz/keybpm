@@ -2,6 +2,9 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { stats, bpmBounds, yearBounds, allCamelots } from '@/lib/data'
 import { formatCount } from '@/lib/format'
+import { ALL_CAMELOT_CODES } from '@/types/track'
+import { camelotToOpenKey } from '@/lib/camelot'
+import { CamelotBadge } from '@/components/badges'
 
 function H2({ children }: { children: React.ReactNode }) {
   return <h2 className="mb-3 mt-10 text-lg font-semibold">{children}</h2>
@@ -22,6 +25,53 @@ function Anno({ code, children }: { code: string; children: React.ReactNode }) {
       <code className="w-24 shrink-0 font-mono text-xs text-text">{code}</code>
       <span>{children}</span>
     </li>
+  )
+}
+
+/** Camelot position -> [flat spelling, sharp spelling] in short notation.
+ * `—` where the sharp spelling has no real-world use (nobody writes G# major
+ * for Ab major). */
+const NOTATION: Record<string, [flat: string, sharp: string]> = {
+  '1A': ['Abm', 'G#m'], '2A': ['Ebm', 'D#m'], '3A': ['Bbm', 'A#m'],
+  '4A': ['Fm', 'Fm'], '5A': ['Cm', 'Cm'], '6A': ['Gm', 'Gm'],
+  '7A': ['Dm', 'Dm'], '8A': ['Am', 'Am'], '9A': ['Em', 'Em'],
+  '10A': ['Bm', 'Bm'], '11A': ['Gbm', 'F#m'], '12A': ['Dbm', 'C#m'],
+  '1B': ['B', 'B'], '2B': ['Gb', 'F#'], '3B': ['Db', 'C#'],
+  '4B': ['Ab', '—'], '5B': ['Eb', 'D#'], '6B': ['Bb', 'A#'],
+  '7B': ['F', 'F'], '8B': ['C', 'C'], '9B': ['G', 'G'],
+  '10B': ['D', 'D'], '11B': ['A', 'A'], '12B': ['E', 'E'],
+}
+
+/** Full-table overview of all 24 positions in every notation the app uses. */
+function NotationTable() {
+  return (
+    <div className="surface mt-4 overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">Camelot codes with flat and sharp musical keys and Open Key equivalents</caption>
+        <thead>
+          <tr className="border-b border-line bg-bg-subtle text-xs font-medium text-text-muted">
+            <th scope="col" className="px-3 py-2 text-left">Camelot</th>
+            <th scope="col" className="px-3 py-2 text-left">Musical (flats)</th>
+            <th scope="col" className="px-3 py-2 text-left">Musical (sharps)</th>
+            <th scope="col" className="px-3 py-2 text-left">Open Key</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ALL_CAMELOT_CODES.map(code => (
+            <tr key={code} className="border-b border-line/60 last:border-0">
+              <td className="px-3 py-1.5">
+                <Link to={`/key/${code}`} className="inline-block outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                  <CamelotBadge code={code} />
+                </Link>
+              </td>
+              <td className="px-3 py-1.5 font-mono text-text-muted">{NOTATION[code][0]}</td>
+              <td className="px-3 py-1.5 font-mono text-text-muted">{NOTATION[code][1]}</td>
+              <td className="px-3 py-1.5 font-mono text-text-muted">{camelotToOpenKey(code)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -215,6 +265,15 @@ export function About() {
         <li><strong>Adjacent</strong> — ±1 on the same ring: 10A / 12A</li>
         <li><strong>Relative</strong> — major/minor swap: 11A → 11B</li>
       </ul>
+
+      <H2>Key notation overview</H2>
+      <p className="text-sm text-text-muted">
+        Every Camelot position in each notation, in wheel order. The app displays the{' '}
+        <strong className="text-text">sharp</strong> spelling for minor keys and duuzu&apos;s spelling for major keys
+        (Ab, Eb, Bb, F#, C#); both spellings are accepted anywhere you can type a key. Click a code to browse that
+        key on the <Link to="/key" className="text-accent hover:text-accent-hover">Key Wheel</Link>.
+      </p>
+      <NotationTable />
 
       <H2>Run it locally</H2>
       <pre className="surface overflow-x-auto p-4 font-mono text-xs leading-relaxed text-text-muted">{`npm install

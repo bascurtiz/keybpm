@@ -21,9 +21,9 @@ const ROOT = join(__dirname, '..')
 
 // Musical key -> Camelot (canonical names, mirrors src/types/track.ts)
 const KEY_TO_CAMELOT = {
-  'Ab minor': '1A', 'G# minor': '1A',
-  'Eb minor': '2A', 'D# minor': '2A',
-  'Bb minor': '3A', 'A# minor': '3A',
+  'G# minor': '1A', 'G# minor': '1A',
+  'D# minor': '2A', 'D# minor': '2A',
+  'A# minor': '3A', 'A# minor': '3A',
   'F minor': '4A',
   'C minor': '5A',
   'G minor': '6A',
@@ -32,10 +32,10 @@ const KEY_TO_CAMELOT = {
   'E minor': '9A',
   'B minor': '10A',
   'F# minor': '11A',
-  'Db minor': '12A', 'C# minor': '12A',
+  'C# minor': '12A', 'C# minor': '12A',
   'B major': '1B',
   'F# major': '2B', 'Gb major': '2B',
-  'Db major': '3B', 'C# major': '3B',
+  'C# major': '3B', 'C# major': '3B',
   'Ab major': '4B', 'G# major': '4B',
   'Eb major': '5B', 'D# major': '5B',
   'Bb major': '6B', 'A# major': '6B',
@@ -55,36 +55,36 @@ const slug = (s) =>
 // [artist, title, bpm, key, genre, label, release, year, duration, source, confidence, lastVerified, extras?]
 // extras: { keySource?, bpmSource?, notes?, tuning?, bpmRaw? }
 const ROWS = [
-  // ---- 1A Ab minor ----
-  ['Nova Kestrel', 'Low Orbit', 124, 'Ab minor', 'Deep House', 'Nordlys', 'Low Orbit EP', 2021, 342, 'Beatport', 0.98, '2026-09-12'],
-  ['Nova Kestrel', 'Quiet Machines', 122.5, 'Ab minor', 'Deep House', 'Nordlys', 'Low Orbit EP', 2023, 367, 'Beatport', 0.97, '2026-09-12'],
-  ['Halcyon Bloc', 'Afterglow Static', 128, 'Ab minor', 'Melodic Techno', 'Static Bloom', 'Afterglow', 2022, 391, 'MusicalKeyCNN', 0.91, '2026-08-30', { keySource: 'MusicalKeyCNN', bpmSource: 'Beatport' }],
-  ['Marlowe Quinn', 'Tundra Pulse', 130, 'Ab minor', 'Techno', 'Ferrite', 'Tundra Pulse', 2019, 404, 'community', 0.82, '2026-06-14'],
+  // ---- 1A G# minor ----
+  ['Nova Kestrel', 'Low Orbit', 124, 'G# minor', 'Deep House', 'Nordlys', 'Low Orbit EP', 2021, 342, 'Beatport', 0.98, '2026-09-12'],
+  ['Nova Kestrel', 'Quiet Machines', 122.5, 'G# minor', 'Deep House', 'Nordlys', 'Low Orbit EP', 2023, 367, 'Beatport', 0.97, '2026-09-12'],
+  ['Halcyon Bloc', 'Afterglow Static', 128, 'G# minor', 'Melodic Techno', 'Static Bloom', 'Afterglow', 2022, 391, 'MusicalKeyCNN', 0.91, '2026-08-30', { keySource: 'MusicalKeyCNN', bpmSource: 'Beatport' }],
+  ['Marlowe Quinn', 'Tundra Pulse', 130, 'G# minor', 'Techno', 'Ferrite', 'Tundra Pulse', 2019, 404, 'community', 0.82, '2026-06-14'],
   // ---- 1B B major ----
   ['Velvet Atlas', 'Gilded Hour', 126, 'B major', 'House', 'Blonde Vinyl', 'Gilded Hour', 2020, 318, 'Discogs', 0.95, '2026-07-03'],
   ['Velvet Atlas', 'Paper Crowns', 124, 'B major', 'House', 'Blonde Vinyl', 'Gilded Hour', 2020, 331, 'Discogs', 0.94, '2026-07-03'],
   ['Dune Motorik', 'Autobahn Dreams', 132.6, 'B major', 'Progressive House', 'Gravity Wells', 'Exit 12', 2018, 436, 'manual', 0.9, '2026-05-21'],
   ['Juno Static', 'Signal Lost', null, 'B major', 'Electro', null, null, null, null, 'community', null, null],
   // ---- 2A Eb minor ----
-  ['Circuit Bloom', 'Iron Garden', 129, 'Eb minor', 'Techno', 'Ferrite', 'Iron Garden', 2021, 377, 'Beatport', 0.99, '2026-09-05'],
-  ['Lena Voss', 'Nachtform', 133, 'Eb minor', 'Techno', 'Ferrite', 'Nachtform', 2024, 365, 'MusicalKeyCNN', 0.88, '2026-10-01'],
-  ['Pale Meridian', 'Sunken Bell', 121, 'Eb minor', 'Deep House', 'Hollow Bay', 'Sunken Bell', 2017, 355, 'community', 0.76, null],
-  ['Theo Grains', 'Millstone', 125, 'Eb minor', 'Tech House', 'Cassette Republic', 'Millstone EP', 2022, 309, 'manual', 1, '2026-04-18'],
+  ['Circuit Bloom', 'Iron Garden', 129, 'D# minor', 'Techno', 'Ferrite', 'Iron Garden', 2021, 377, 'Beatport', 0.99, '2026-09-05'],
+  ['Lena Voss', 'Nachtform', 133, 'D# minor', 'Techno', 'Ferrite', 'Nachtform', 2024, 365, 'MusicalKeyCNN', 0.88, '2026-10-01'],
+  ['Pale Meridian', 'Sunken Bell', 121, 'D# minor', 'Deep House', 'Hollow Bay', 'Sunken Bell', 2017, 355, 'community', 0.76, null],
+  ['Theo Grains', 'Millstone', 125, 'D# minor', 'Tech House', 'Cassette Republic', 'Millstone EP', 2022, 309, 'manual', 1, '2026-04-18'],
   // ---- 2B F# major ----
   ['Arcade Hearts', 'Neon Arcade', 128, 'F# major', 'Electro', 'Mono Lake', 'Joystick', 2019, 296, 'Discogs', 0.93, '2026-03-02'],
   ['Arcade Hearts', 'Continue?', 130, 'F# major', 'Electro', 'Mono Lake', 'Joystick', 2019, 311, 'Discogs', 0.92, '2026-03-02'],
   ['Kai Rourke', 'Silverline', 126, 'F# major', 'House', null, null, 2015, 324, 'community', 0.68, null],
   ['Ivory Signal', 'White Noise Choir', 138, 'F# major', 'Trance', 'Kite Records', 'Ascension', 2016, 448, 'Mixed In Key', 0.96, '2026-02-27'],
   // ---- 3A Bb minor ----
-  ['Dust Republic', 'Bunker Funk', 127, 'Bb minor', 'Tech House', 'Cassette Republic', 'Bunker Funk', 2023, 322, 'Beatport', 0.97, '2026-08-09'],
-  ['Sable Runway', 'Nightshift', 131, 'Bb minor', 'Techno', 'Ferrite', 'Nightshift', 2020, 386, 'manual', 0.95, '2026-06-30'],
-  ['Analog Sunday', 'Slow Fade Gospel', 118, 'Bb minor', 'Deep House', 'Hollow Bay', 'Slow Fade', 2014, 372, 'community', 0.71, null],
-  ['Halcyon Bloc', 'Glass Rivers', 123.5, 'Bb minor', 'Melodic Techno', 'Static Bloom', 'Glass Rivers', 2024, 398, 'MusicalKeyCNN', 0.86, '2026-09-19', { notes: 'Detected key contested with 12A by one source.' }],
+  ['Dust Republic', 'Bunker Funk', 127, 'A# minor', 'Tech House', 'Cassette Republic', 'Bunker Funk', 2023, 322, 'Beatport', 0.97, '2026-08-09'],
+  ['Sable Runway', 'Nightshift', 131, 'A# minor', 'Techno', 'Ferrite', 'Nightshift', 2020, 386, 'manual', 0.95, '2026-06-30'],
+  ['Analog Sunday', 'Slow Fade Gospel', 118, 'A# minor', 'Deep House', 'Hollow Bay', 'Slow Fade', 2014, 372, 'community', 0.71, null],
+  ['Halcyon Bloc', 'Glass Rivers', 123.5, 'A# minor', 'Melodic Techno', 'Static Bloom', 'Glass Rivers', 2024, 398, 'MusicalKeyCNN', 0.86, '2026-09-19', { notes: 'Detected key contested with 12A by one source.' }],
   // ---- 3B Db major ----
-  ['Juno Static', 'Tower Block Sky', 122, 'Db major', 'House', 'Blonde Vinyl', 'Tower Block', 2021, 327, 'Discogs', 0.94, '2026-07-22'],
-  ['Lena Voss', 'Sunday Driver', 120, 'Db major', 'Disco', 'Mono Lake', 'Sunday Driver', 2019, 341, 'manual', 0.98, '2026-05-08'],
-  ['Marlowe Quinn', 'Cold Chapel', 126, 'Db major', 'Progressive House', 'Prism Press', 'Cold Chapel', 2022, 419, 'Beatport', 0.9, '2026-08-24'],
-  ['Mira Tan', 'Paper Boats', 119, 'Db major', 'Afro House', null, 'Paper Boats', 2023, 355, 'community', 0.85, '2026-06-11'],
+  ['Juno Static', 'Tower Block Sky', 122, 'C# major', 'House', 'Blonde Vinyl', 'Tower Block', 2021, 327, 'Discogs', 0.94, '2026-07-22'],
+  ['Lena Voss', 'Sunday Driver', 120, 'C# major', 'Disco', 'Mono Lake', 'Sunday Driver', 2019, 341, 'manual', 0.98, '2026-05-08'],
+  ['Marlowe Quinn', 'Cold Chapel', 126, 'C# major', 'Progressive House', 'Prism Press', 'Cold Chapel', 2022, 419, 'Beatport', 0.9, '2026-08-24'],
+  ['Mira Tan', 'Paper Boats', 119, 'C# major', 'Afro House', null, 'Paper Boats', 2023, 355, 'community', 0.85, '2026-06-11'],
   // ---- 4A F minor ----
   ['Circuit Bloom', 'Black Glass', 134, 'F minor', 'Techno', 'Ferrite', 'Black Glass', 2022, 402, 'Beatport', 0.98, '2026-09-27'],
   ['Velvet Atlas', 'Fever Dial', 125, 'F minor', 'House', 'Blonde Vinyl', 'Fever Dial', 2022, 314, 'Discogs', 0.96, '2026-07-16'],
@@ -165,11 +165,11 @@ const ROWS = [
   ['Velvet Atlas', 'Radio Days', 123, 'A major', 'House', 'Blonde Vinyl', 'Radio Days', 2016, 332, 'Discogs', 0.92, '2026-07-16'],
   ['Mira Tan', 'Sunrise Market', 120, 'A major', 'Afro House', 'Hollow Bay', 'Sunrise Market', 2025, 347, 'manual', 0.98, '2026-06-11'],
   ['Dust Republic', 'Velocity', 135, 'A major', 'UK Garage', 'Cassette Republic', 'Velocity', 2022, 299, 'community', 0.84, '2026-08-09'],
-  // ---- 12A Db minor ----
-  ['Dune Motorik', 'Deep Chorus', 131, 'Db minor', 'Techno', 'Gravity Wells', 'Deep Chorus', 2023, 395, 'MusicalKeyCNN', 0.92, '2026-10-02'],
-  ['Halcyon Bloc', 'Obsidian', 124, 'Db minor', 'Melodic Techno', 'Static Bloom', 'Obsidian', 2021, 403, 'Beatport', 0.94, '2026-08-30'],
-  ['Arcade Hearts', 'Pixel Dust', 172.5, 'Db minor', 'Drum & Bass', 'Mono Lake', 'Pixel Dust', 2024, 300, 'community', 0.85, '2026-03-02'],
-  ['Analog Sunday', 'Velvet Rope', 116.5, 'Db minor', 'Disco', 'Mono Lake', 'Velvet Rope', 2015, 338, 'community', 0.69, null],
+  // ---- 12A C# minor ----
+  ['Dune Motorik', 'Deep Chorus', 131, 'C# minor', 'Techno', 'Gravity Wells', 'Deep Chorus', 2023, 395, 'MusicalKeyCNN', 0.92, '2026-10-02'],
+  ['Halcyon Bloc', 'Obsidian', 124, 'C# minor', 'Melodic Techno', 'Static Bloom', 'Obsidian', 2021, 403, 'Beatport', 0.94, '2026-08-30'],
+  ['Arcade Hearts', 'Pixel Dust', 172.5, 'C# minor', 'Drum & Bass', 'Mono Lake', 'Pixel Dust', 2024, 300, 'community', 0.85, '2026-03-02'],
+  ['Analog Sunday', 'Velvet Rope', 116.5, 'C# minor', 'Disco', 'Mono Lake', 'Velvet Rope', 2015, 338, 'community', 0.69, null],
   // ---- 12B E major ----
   ['Ivory Signal', 'Apex Rising', 140, 'E major', 'Trance', 'Kite Records', 'Apex Rising', 2022, 459, 'Mixed In Key', 0.98, '2026-02-27'],
   ['Pale Meridian', 'Harbor Light', 121, 'E major', 'Deep House', 'Hollow Bay', 'Harbor Light', 2019, 363, 'manual', 0.94, '2026-07-09'],
