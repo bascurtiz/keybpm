@@ -462,14 +462,22 @@ export function KeyTool() {
   function lockGuided() {
     if (!easyRoot || !easyScale || !easyVibe) return
     const resolved = resolveScaleType(easyScale)
+    // Resolve the notes for the chosen key now. setSelected/setScaleType are
+    // async, so a deferred playScale() would still read the previous render's
+    // scaleNotes and play the old key (e.g. the default 8A = A minor).
+    const notes = getScaleNotes(easyRoot, resolved)
     setScaleType(resolved)
     const camelot = rootToCamelot(easyRoot, easyVibe)
     if (camelot) setSelected(camelot)
-    const keep = !!engineRef.current?.playing
+    const engine = engineRef.current
+    const keep = !!engine?.playing
     exitGuided(keep)
+    if (!engine) return
+    void engine.resume()
     setTimeout(() => {
-      void playScale(true)
+      engine.playScale(buildScalePattern(notes, octaveOffset), true)
     }, 400)
+    if (!engine.playing) setPlaying(true)
   }
 
   /* ── Keyboard shortcuts ── */
