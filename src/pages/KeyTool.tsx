@@ -32,7 +32,7 @@ const WAVES: { id: WaveType; label: string; icon: string }[] = [
   { id: 'guitar', label: 'Guitar', icon: `${import.meta.env.BASE_URL}key-tool-assets/guitar.svg` },
 ]
 
-const VIDEO_SRC = 'https://www.youtube.com/embed/6nPSKxuURyg?autoplay=1'
+const VIDEO_SRC = 'https://www.youtube.com/embed/aHj81Y1yR_g?autoplay=1'
 
 const MODES_DATA = {
   Major: [
@@ -1069,7 +1069,7 @@ export function KeyTool() {
 
       {showVideo && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => setShowVideo(false)} role="dialog" aria-modal="true" aria-label="Video demo">
-          <div className="relative w-full max-w-3xl overflow-hidden rounded-lg border border-line bg-bg-card shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-lg border border-line bg-bg-card shadow-xl lg:max-w-5xl" onClick={e => e.stopPropagation()}>
             <button type="button" className="absolute right-2 top-2 z-10 rounded-md bg-bg/80 px-2 py-1 text-lg leading-none text-text-muted hover:text-text" onClick={() => setShowVideo(false)} aria-label="Close">×</button>
             <div className="aspect-video w-full">
               <iframe className="h-full w-full" src={VIDEO_SRC} title="Key Tool video demo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
