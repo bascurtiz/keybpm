@@ -4,6 +4,7 @@ import { tracks, allGenres, allLabels, getTrack } from '@/lib/data'
 import { findMixes, DEFAULT_MIX_OPTIONS } from '@/lib/mix'
 import type { MixOptions } from '@/lib/mix'
 import { BpmBadge, CamelotBadge, KeyBadge } from '@/components/badges'
+import { ArtTile } from '@/components/ArtTile'
 import { EmptyState } from '@/components/EmptyState'
 import { formatCount, formatDelta } from '@/lib/format'
 import { CAMELOT_TO_KEY } from '@/types/track'
@@ -118,8 +119,13 @@ export function MixFinder() {
 
             {source ? (
               <div>
-                <div className="text-sm text-text-dim">{source.artist}</div>
-                <div className="text-lg font-semibold leading-tight">{source.title}</div>
+                <div className="flex items-center gap-3">
+                  <ArtTile track={source} size={48} />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm text-text-dim">{source.artist}</div>
+                    <div className="truncate text-lg font-semibold leading-tight">{source.title}</div>
+                  </div>
+                </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <span className="font-mono text-xl font-semibold tabular-nums">
                     {source.bpm !== null ? source.bpm : '—'}
@@ -343,8 +349,13 @@ export function MixFinder() {
                         title="Use as new source track"
                       >
                         <td className="max-w-[240px] px-3 py-2">
-                          <span className="block truncate font-medium">{m.track.artist}</span>
-                          <span className="block truncate text-xs text-text-muted">{m.track.title}</span>
+                          <span className="flex min-w-0 items-center gap-2.5">
+                            <ArtTile track={m.track} size={28} />
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium">{m.track.artist}</span>
+                              <span className="block truncate text-xs text-text-muted">{m.track.title}</span>
+                            </span>
+                          </span>
                         </td>
                         <td className="px-3 py-2 text-right"><BpmBadge bpm={m.track.bpm} raw={m.track.bpmRaw} className="text-text-muted" /></td>
                         <td className="px-3 py-2 text-right"><KeyBadge keyName={m.track.key} mode={m.track.mode} short className="font-medium text-text" /></td>
@@ -373,35 +384,40 @@ export function MixFinder() {
               <ul className="surface divide-y divide-line overflow-hidden md:hidden">
                 {results.slice(0, 100).map(m => (
                   <li key={m.track.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const p = new URLSearchParams()
-                        p.set('track', m.track.id)
-                        setParams(p)
-                      }}
-                      className="block w-full px-4 py-3 text-left transition-colors hover:bg-bg-hover"
-                      title="Use as new source track"
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="truncate font-medium">{m.track.artist}</span>
-                        <CamelotBadge
-                          code={m.track.camelot}
-                          approximate={!!m.track.mode}
-                          notation={notation}
-                          className="shrink-0"
-                        />
-                      </div>
-                      <div className="truncate text-sm text-text-muted">{m.track.title}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-dim">
-                        <BpmBadge bpm={m.track.bpm} className="text-text-muted" />
-                        <KeyBadge keyName={m.track.key} mode={m.track.mode} short />
-                        <span>Δ {formatDelta(m.deltaBpm)}</span>
-                        {m.reasons.slice(0, 2).map(r => (
-                          <span key={r} className="tag py-0.5 text-[11px]">{r}</span>
-                        ))}
-                      </div>
-                    </button>
+                    {/* Art tile sits outside the button: an anchor nested in a
+                        button is invalid, and the tile links out to YouTube. */}
+                    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-hover">
+                      <ArtTile track={m.track} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const p = new URLSearchParams()
+                          p.set('track', m.track.id)
+                          setParams(p)
+                        }}
+                        className="min-w-0 flex-1 text-left"
+                        title="Use as new source track"
+                      >
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate font-medium">{m.track.artist}</span>
+                          <CamelotBadge
+                            code={m.track.camelot}
+                            approximate={!!m.track.mode}
+                            notation={notation}
+                            className="shrink-0"
+                          />
+                        </div>
+                        <div className="truncate text-sm text-text-muted">{m.track.title}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-dim">
+                          <BpmBadge bpm={m.track.bpm} className="text-text-muted" />
+                          <KeyBadge keyName={m.track.key} mode={m.track.mode} short />
+                          <span>Δ {formatDelta(m.deltaBpm)}</span>
+                          {m.reasons.slice(0, 2).map(r => (
+                            <span key={r} className="tag py-0.5 text-[11px]">{r}</span>
+                          ))}
+                        </div>
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
