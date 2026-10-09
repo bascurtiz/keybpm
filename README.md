@@ -11,7 +11,7 @@
 - 📱 Responsive: dense table on desktop, compact list on mobile
 - 🌐 Static SPA + optional Cloudflare Worker API for Discord auth / submissions
 
-## Quick start
+## Quick start:
 
 ```bash
 npm install
