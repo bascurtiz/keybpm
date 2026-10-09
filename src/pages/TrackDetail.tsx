@@ -8,6 +8,7 @@ import { CAMELOT_TO_KEY } from '@/types/track'
 import { BpmBadge, CamelotBadge, KeyBadge } from '@/components/badges'
 import { ArtTile } from '@/components/ArtTile'
 import { EmptyState } from '@/components/EmptyState'
+import { CopyIcon, PencilIcon, SearchIcon, YoutubeIcon } from '@/components/icons'
 import { formatBpm, formatConfidence, formatDate, formatDelta, formatDuration, shortKey, trackName } from '@/lib/format'
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -23,7 +24,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       }}
       className="btn-ghost px-3 py-1.5 text-xs"
     >
-      {copied ? '✓ Copied' : `Copy ${label}`}
+      {copied ? '✓ Copied' : <><CopyIcon /> Copy {label}</>}
     </button>
   )
 }
@@ -157,7 +158,7 @@ export function TrackDetail() {
       <div className="mt-5 flex flex-wrap gap-2">
         {track.camelot && (
           <button type="button" className="btn-primary" onClick={() => navigate(`/mix?track=${track.id}`)}>
-            Find Mixes
+            <SearchIcon /> Find Mixes
           </button>
         )}
         {track.bpm !== null && <CopyButton value={String(track.bpm)} label="BPM" />}
@@ -170,11 +171,11 @@ export function TrackDetail() {
             rel="noopener noreferrer"
             className="btn-ghost px-3 py-1.5 text-xs"
           >
-            YouTube
+            <YoutubeIcon /> YouTube
           </a>
         )}
         <Link to={`/contribute?correct=${track.id}`} className="btn-ghost px-3 py-1.5 text-xs">
-          Suggest correction
+          <PencilIcon /> Suggest correction
         </Link>
       </div>
 
