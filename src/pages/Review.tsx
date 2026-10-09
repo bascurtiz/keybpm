@@ -104,7 +104,7 @@ export function Review() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 lg:px-8">
       <h1 className="text-lg font-semibold">Review queue</h1>
-      <p className="mt-2 text-sm text-text-muted">
+      <p className="mt-2 text-text-muted">
         Approve puts a track live in search immediately. Run{' '}
         <code className="font-mono text-xs">npm run data:apply-queue</code> when you want it written into{' '}
         <code className="font-mono text-xs">data/tracks.json</code> for deploy / git.

@@ -616,3 +616,25 @@
     color: #1d181e;
   }
 }
+
+/*
+ * Page transition — App.tsx keys the route wrapper by pathname, so this
+ * animation restarts on every navigation. Opacity only (no transform), which
+ * keeps sticky/fixed children inside a page pinned to the viewport and avoids
+ * creating a containing block during the fade. The global
+ * `prefers-reduced-motion` rule above already collapses it to 0.01ms.
+ */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@layer components {
+  .page-fade {
+    animation: page-fade-in 180ms ease-out both;
+  }
+}

@@ -39,28 +39,34 @@ function NotFound() {
 }
 
 export default function App() {
+  const { pathname } = useLocation()
+
   return (
     <div className="min-h-screen">
       <ScrollToTop />
       <Header />
       <Toast />
       <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/browse" element={<Browse />} />
-          <Route path="/track/:id" element={<TrackDetail />} />
-          <Route path="/contribute" element={<Contribute />} />
-          <Route path="/review" element={<Review />} />
-          <Route path="/key" element={<KeyWheelPage />} />
-          <Route path="/key/:camelot" element={<KeyWheelPage />} />
-          <Route path="/camelot/:camelot" element={<KeyWheelPage />} />
-          <Route path="/mix" element={<MixFinder />} />
-          <Route path="/mix/:camelot" element={<MixFinder />} />
-          <Route path="/mix/:camelot/:bpm" element={<MixFinder />} />
-          <Route path="/tool" element={<KeyTool />} />
-          <Route path="/about" element={<About />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        {/* Keyed by pathname so a page change re-mounts and replays the
+            fade-in; query-only changes (e.g. /mix?track=…) keep the same page. */}
+        <div key={pathname} className="page-fade">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/browse" element={<Browse />} />
+            <Route path="/track/:id" element={<TrackDetail />} />
+            <Route path="/contribute" element={<Contribute />} />
+            <Route path="/review" element={<Review />} />
+            <Route path="/key" element={<KeyWheelPage />} />
+            <Route path="/key/:camelot" element={<KeyWheelPage />} />
+            <Route path="/camelot/:camelot" element={<KeyWheelPage />} />
+            <Route path="/mix" element={<MixFinder />} />
+            <Route path="/mix/:camelot" element={<MixFinder />} />
+            <Route path="/mix/:camelot/:bpm" element={<MixFinder />} />
+            <Route path="/tool" element={<KeyTool />} />
+            <Route path="/about" element={<About />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
       </main>
       <AppFooter />
     </div>
