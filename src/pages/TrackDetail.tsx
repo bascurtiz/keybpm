@@ -174,7 +174,7 @@ export function TrackDetail() {
             rel="noopener noreferrer"
             className="btn-ghost px-3 py-1.5 text-xs"
           >
-            <YoutubeIcon /> YouTube
+            <YoutubeIcon className="text-[#FF0033]" /> YouTube
           </a>
         )}
         {track.soundcloud && (
@@ -184,11 +184,11 @@ export function TrackDetail() {
             rel="noopener noreferrer"
             className="btn-ghost px-3 py-1.5 text-xs"
           >
-            <SoundcloudIcon /> SoundCloud
+            <SoundcloudIcon className="text-[#FF4100]" /> SoundCloud
           </a>
         )}
         <Link to={`/contribute?correct=${track.id}`} className="btn-ghost px-3 py-1.5 text-xs">
-          <PencilIcon /> Suggest correction
+          <PencilIcon className="text-[#10B981]" /> Suggest correction
         </Link>
       </div>
 
