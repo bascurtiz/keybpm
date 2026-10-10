@@ -28,6 +28,7 @@ npm run data:import # re-import duuzu's sheet export → data/tracks.json + data
 npm run data:csv    # re-export data/tracks.csv from the JSON
 npm run data:seed     # regenerate the small fictional test set → data/seed-tracks.json
 npm run data:soundiiz # unique Artist - Title list for Soundiiz YouTube matching → data/soundiiz/
+npm run data:soundcloud:gathered # merge TuneMyMusic SoundCloud results → soundcloud fields + review TSVs
 npm run data:apply-queue # merge approved Discord submissions into data/tracks.json
 npm run api:dev       # Cloudflare Worker API (wrangler) on :8787
 ```
@@ -75,6 +76,19 @@ npm run data:tunemymusic:gathered   # reads data/export-tunemymusic/to-import/*.
 Every export row is scored against the whole catalogue, but only rows whose best match still lacks a link are assigned: a lookup for a track that is already linked counts as a duplicate rather than an excuse to link a sibling row. Exact score ties are broken by how much of a row's own wording the export repeats, which is what stops `Plaza Speakers K` from taking `Plaza Speakers L`'s video and `New You (Headspace)` from taking the `(Shella Fresh)` one. Existing `youtube` values are never overwritten, so re-running is safe (a second run matches 0).
 
 `--dry` reports what would change without writing; `--debug` prints the score spread, near misses and a per-row `--probe=<text>` breakdown.
+
+### SoundCloud links
+
+TuneMyMusic writes the permalink into its `url` column whichever platform it searched, so the same exports fill `soundcloud` instead of `youtube` with `--link=soundcloud`. Matching is otherwise identical; the URL is canonicalised to `https://soundcloud.com/user/track` (share/UTM params dropped), and a value is never overwritten.
+
+```bash
+npm run data:soundcloud:gathered
+```
+
+Two flags matter for a hand-collected SoundCloud batch, because uploads are user-generated and often misdescribe themselves:
+
+- `--input=<file>` lists the `Artist - Title` rows that were actually searched, so a loose hit can only land on a row that was looked up rather than anywhere in the catalogue.
+- `--report=<file.tsv>` writes three review files next to it: the accepted matches (lowest score first), `-rejected.tsv` (rows turned down, with their most plausible catalogue row and the guard that stopped it — `export-remix` means the upload is a remix of the track the row claims to be, and so on) and `-unmatched.tsv` (searched rows that got no link, which is the input for another round).
 
 ### Schema
 

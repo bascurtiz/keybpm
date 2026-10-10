@@ -14,6 +14,7 @@
     "data:soundiiz": "node scripts/export_soundiiz.mjs",
     "data:tunemymusic": "node scripts/export_tunemymusic.mjs",
     "data:tunemymusic:gathered": "node scripts/import_soundiiz.mjs --gathered --dir=data/export-tunemymusic/to-import && node scripts/export_csv.mjs",
+    "data:soundcloud:gathered": "node scripts/import_soundiiz.mjs --gathered --link=soundcloud --dir=data/export-tunemymusic/to-import --input=data/export-tunemymusic/missing-soundcloud.txt --report=data/export-tunemymusic/soundcloud-matches.tsv && node scripts/export_csv.mjs",
     "data:youtube": "node scripts/import_soundiiz.mjs && node scripts/export_csv.mjs",
     "data:youtube:reset": "node scripts/import_soundiiz.mjs --reset && node scripts/export_csv.mjs",
     "data:youtube:gathered": "node scripts/import_soundiiz.mjs --gathered --dir=data/export-soundiiz && node scripts/export_csv.mjs",

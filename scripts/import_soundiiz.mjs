@@ -20,8 +20,22 @@
  * against the whole catalogue — including titles that already have a link — so
  * "this lookup is for a track we already linked" reads as a duplicate instead
  * of being pushed onto a weaker sibling row. Only rows whose best match still
- * lacks a link are assigned, and existing `youtube` values are never
- * overwritten.
+ * lacks a link are assigned, and existing link values are never overwritten.
+ *
+ * --link=soundcloud merges the same exports as SoundCloud URLs into the
+ * `soundcloud` field (canonical `https://soundcloud.com/user/track`, share
+ * params dropped). Useful when the lookup target is SoundCloud rather than
+ * YouTube: TuneMyMusic writes the SoundCloud permalink into its `url` column
+ * either way.
+ *
+ * --input=<files> narrows the candidates to the rows that were actually looked
+ * up. The export scripts write `Artist - Title` lines, so a catalogue row is
+ * "searched" when regenerating its line reproduces one in the list. Without it
+ * a loose SoundCloud hit (user uploads, "slowed + reverb" edits, test files)
+ * can land on any of ~19,000 rows; with it, only on the few thousand searched.
+ *
+ * --report=<file> writes every accepted match as TSV, lowest score first, so a
+ * hand-collected batch can be eyeballed before it is trusted.
  *
  * Exact score ties are broken by how much of a row's own wording the export
  * repeats (rawOverlap), which is what keeps sibling titles apart: without it
@@ -48,6 +62,19 @@ const RESET = ARGS.includes('--reset')
 const GATHERED = ARGS.includes('--gathered')
 const DEBUG = ARGS.includes('--debug')
 const THRESHOLD = parseFloat(argValue('threshold', '0.82'))
+/** Catalogue field to fill: `youtube` (default) or `soundcloud`. */
+const LINK = argValue('link', 'youtube')
+const INPUT_FILES = argValue('input', '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+  .map(f => resolve(ROOT, f))
+/** Optional TSV of accepted matches (lowest score first) for review. */
+const REPORT = argValue('report', '')
+if (LINK !== 'youtube' && LINK !== 'soundcloud') {
+  console.error(`--link must be "youtube" or "soundcloud" (got "${LINK}")`)
+  process.exit(1)
+}
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/
 const STOP = new Set([
@@ -103,6 +130,41 @@ function youtubeId(input) {
     }
   } catch { /* not a URL */ }
   return null
+}
+
+/** Canonical `https://soundcloud.com/user/track` (mirrors src/lib/soundcloud.ts). */
+const SC_HOSTS = new Set(['soundcloud.com', 'm.soundcloud.com', 'api.soundcloud.com', 'on.soundcloud.com'])
+function soundcloudUrl(input) {
+  if (!input) return null
+  const s = String(input).trim()
+  try {
+    const u = new URL(s.includes('://') ? s : `https://${s}`)
+    const host = u.hostname.replace(/^www\./, '')
+    if (!SC_HOSTS.has(host)) return null
+    // on.soundcloud.com/<code> is a share short-link; it is its own canonical form.
+    if (host === 'on.soundcloud.com') {
+      const code = u.pathname.split('/').filter(Boolean)[0]
+      return code ? `https://on.soundcloud.com/${code}` : null
+    }
+    const segs = u.pathname.split('/').filter(Boolean)
+    // Track permalinks are exactly /user/track-slug; sets/albums/profiles are not.
+    if (segs.length !== 2 || segs[0] === 'sets' || segs[1] === 'sets') return null
+    return `https://soundcloud.com/${segs[0]}/${segs[1]}`
+  } catch {
+    /* not a URL */
+  }
+  return null
+}
+
+/** Canonical link for one export row, for whichever platform is being merged. */
+function exportLink(row, col) {
+  const url = col(row, 'url')
+  if (LINK === 'soundcloud') {
+    // TuneMyMusic appends utm_* share params; soundcloudUrl() drops them.
+    return soundcloudUrl(url)
+  }
+  const id = youtubeId(url) || youtubeId(col(row, 'trackid', 'track_id', 'id'))
+  return id ? `https://www.youtube.com/watch?v=${id}` : null
 }
 
 function fold(s) {
@@ -338,13 +400,19 @@ function scorePair(orig, exp) {
 function scorePrepared(o, e) {
   let best = 0
   for (const v of o.views) {
-    const s = scoreView(v, e)
+    const s = viewScore(v, e)
     if (s > best) best = s
   }
   return best
 }
 
-function scoreView(o, e) {
+/**
+ * Score one candidate view. `meta` is optional: when passed it receives the
+ * weighted score plus the guard that rejected the pair (null when it passed),
+ * so a review report can say *why* a probable match was turned down instead of
+ * leaving the reader with a bare zero.
+ */
+function viewScore(o, e, meta) {
   const origArtist = o.origArtist
   const primary = o.primaryArtist
   const titleNeed = o.coreTokens.length ? o.coreTokens : o.origTitle
@@ -363,38 +431,65 @@ function scoreView(o, e) {
     coverage(titleNeed, hayBlob),
   )
   const titleScore = titleCov
+  const weighted = artistScore * 0.4 + titleScore * 0.6
+  const record = (reject) => {
+    if (meta) {
+      meta.raw = weighted
+      meta.reject = reject
+    }
+    return reject ? 0 : weighted
+  }
 
   // Short artist names ("BICEP", "björk") still match via the full-title blob,
   // which only carries 0.95 weight — so allow that path rather than demanding
   // a perfect artist-only match. The title guards below keep this from drifting.
-  if (origArtist.length <= 2 && artistScore < 0.9) return 0
-  if (artistScore < 0.7) return 0
-  if (titleNeed.length === 0) return 0
-  if (titleNeed.length === 1 && titleCov < 0.99) return 0
-  if (titleNeed.length >= 2 && titleCov < 0.7) return 0
+  if (origArtist.length <= 2 && artistScore < 0.9) return record('artist')
+  if (artistScore < 0.7) return record('artist')
+  if (titleNeed.length === 0) return record('title')
+  if (titleNeed.length === 1 && titleCov < 0.99) return record('title')
+  if (titleNeed.length >= 2 && titleCov < 0.7) return record('title')
 
   // Distinctive title words (≥4 chars) must appear in the export.
   const distinctive = titleNeed.filter(w => w.length >= 4)
-  if (distinctive.length && coverage(distinctive, hayBlob) < 0.8) return 0
+  if (distinctive.length && coverage(distinctive, hayBlob) < 0.8) return record('title-words')
 
   // If our title names a remix, the export must look like that remix (not the original).
   const oRemix = o.remix
   const eRemix = e.remix
   if ([...oRemix].some(t => t.startsWith('r:')) && ![...oRemix].filter(t => t.startsWith('r:')).every(t => eRemix.has(t) || e.hayBlob.includes(t.slice(2)))) {
     // remixer token missing — reject unless overall title coverage is perfect
-    if (titleCov < 0.95) return 0
+    if (titleCov < 0.95) return record('remixer')
   }
   if (oRemix.has('remix') && !eRemix.has('remix') && !REMIX_RE.test(e.title)) {
-    if (titleCov < 0.95) return 0
+    if (titleCov < 0.95) return record('catalogue-remix')
   }
   // Export is a remix but original isn't → usually wrong
   if (eRemix.has('remix') && !oRemix.has('remix') && !REMIX_RE.test(o.title)) {
-    return 0
+    return record('export-remix')
   }
   // A reaction/nightcore/karaoke upload is never the track we catalogue.
-  if (NON_SONG_RE.test(e.title) && !NON_SONG_RE.test(o.title)) return 0
+  if (NON_SONG_RE.test(e.title) && !NON_SONG_RE.test(o.title)) return record('non-song')
 
-  return artistScore * 0.4 + titleScore * 0.6
+  return record(null)
+}
+
+/** Best scoped candidate for an export row by raw (guard-free) score. */
+function looseBest(ep, pool) {
+  let best = null
+  for (const [pair, prep] of pool) {
+    let raw = 0
+    let reject = null
+    for (const v of prep.views) {
+      const meta = { raw: 0, reject: null }
+      viewScore(v, ep, meta)
+      if (meta.raw > raw) {
+        raw = meta.raw
+        reject = meta.reject
+      }
+    }
+    if (!best || raw > best.raw) best = { pair, raw, reject }
+  }
+  return best
 }
 
 function csvMaps(rows) {
@@ -433,14 +528,13 @@ function loadExports() {
     const { col } = csvMaps(rows)
     const list = []
     for (const row of rows.slice(1)) {
-      const id = youtubeId(col(row, 'url')) || youtubeId(col(row, 'trackid', 'track_id', 'id'))
-      if (!id) continue
+      const link = exportLink(row, col)
+      if (!link) continue
       list.push({
         file,
         title: col(row, 'title', 'name', 'track', 'song'),
         artist: col(row, 'artist', 'artists'),
-        youtube: `https://www.youtube.com/watch?v=${id}`,
-        id,
+        link,
       })
     }
     byFile.set(file, list)
@@ -450,8 +544,8 @@ function loadExports() {
 
 const tracks = JSON.parse(readFileSync(TRACKS, 'utf8'))
 if (RESET) {
-  for (const t of tracks) delete t.youtube
-  console.log('Cleared existing youtube fields (--reset)')
+  for (const t of tracks) delete t[LINK]
+  console.log(`Cleared existing ${LINK} fields (--reset)`)
 }
 
 const { files, byFile } = loadExports()
@@ -464,13 +558,36 @@ for (const t of tracks) {
   const key = `${artist}\0${title}`
   let pair = pairIndex.get(key)
   if (!pair) {
-    pair = { artist, title, ids: [], hasYoutube: false, missing: 0 }
+    pair = { key, artist, title, ids: [], hasLink: false, missing: 0 }
     pairIndex.set(key, pair)
   }
   pair.ids.push(t.id)
-  if (t.youtube) pair.hasYoutube = true
+  if (t[LINK]) pair.hasLink = true
   else pair.missing++
 }
+
+// Optional scoping (--input): only rows that were actually searched may receive
+// a link. The export scripts emit `Artist - Title` lines, so a catalogue row is
+// "searched" when regenerating that line reproduces one in the file.
+const scoped = new Set()
+if (INPUT_FILES.length) {
+  const listed = new Set()
+  for (const file of INPUT_FILES) {
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const trimmed = line.trim()
+      if (trimmed) listed.add(trimmed)
+    }
+  }
+  for (const pair of pairIndex.values()) {
+    if (listed.has(`${pair.artist} - ${pair.title}`)) scoped.add(pair.key)
+  }
+  console.log(`--input: ${scoped.size} of ${pairIndex.size} unique artist – title pairs were searched (${listed.size} lines listed)`)
+  if (!scoped.size) {
+    console.error(`No catalogue rows appear in ${INPUT_FILES.join(', ')}`)
+    process.exit(1)
+  }
+}
+const inScope = (pair) => !scoped.size || scoped.has(pair.key)
 
 const assignments = []
 const usedPair = new Set()
@@ -499,7 +616,7 @@ for (const file of files) {
     if (seen.has(key)) continue
     seen.add(key)
     const pair = pairIndex.get(key)
-    if (pair) partPairs.push(pair)
+    if (pair && inScope(pair)) partPairs.push(pair)
   }
 
   const usedExp = new Set()
@@ -509,7 +626,7 @@ for (const file of files) {
   for (let i = 0; i < n; i++) {
     const r = origPart[i]
     const pair = pairIndex.get(`${r.artist}\0${r.title}`)
-    if (!pair || pair.hasYoutube || usedPair.has(pair)) continue
+    if (!pair || !inScope(pair) || pair.hasLink || usedPair.has(pair)) continue
     const exp = exports[i]
     const s = scorePair(pair, exp)
     if (s >= THRESHOLD) {
@@ -524,7 +641,7 @@ for (const file of files) {
     if (usedExp.has(i)) continue
     const exp = exports[i]
     const state = { pair: null, prep: null, score: 0, overlap: -1 }
-    pickBest(prepExp(exp), partPairs.filter(p => !p.hasYoutube && !usedPair.has(p)).map(p => [p, prepTrack(p)]), state)
+    pickBest(prepExp(exp), partPairs.filter(p => !p.hasLink && !usedPair.has(p)).map(p => [p, prepTrack(p)]), state)
     if (state.pair && state.score >= THRESHOLD) {
       usedPair.add(state.pair)
       usedExp.add(i)
@@ -534,7 +651,7 @@ for (const file of files) {
 
   unusedExp += exports.length - usedExp.size
   for (const pair of partPairs) {
-    if (!pair.hasYoutube && !usedPair.has(pair)) unmatchedOrig.push(pair)
+    if (!pair.hasLink && !usedPair.has(pair)) unmatchedOrig.push(pair)
   }
 }
 
@@ -545,7 +662,7 @@ for (const file of files) {
 // still need a link are ever assigned.
 if (GATHERED && gatheredExports.length) {
   const candidates = [...pairIndex.values()]
-    .filter(p => !usedPair.has(p))
+    .filter(p => !usedPair.has(p) && inScope(p))
     .map(p => [p, prepTrack(p)])
 
   const scored = []
@@ -573,7 +690,7 @@ if (GATHERED && gatheredExports.length) {
         const pp = s.pair ? prepTrack(s.pair) : null
         const ep = prepExp(s.exp)
         console.log(`  probe ${s.score.toFixed(2)}  ${s.pair ? `${s.pair.artist} – ${s.pair.title}` : '(none)'}  ←  ${s.exp.title}${s.exp.artist ? `  [${s.exp.artist}]` : ''}`)
-        if (pp) for (const v of pp.views) console.log(`    track view: artist=${JSON.stringify(v.origArtist)} primary=${JSON.stringify(v.primaryArtist)} core=${JSON.stringify(v.coreTokens)} remix=${JSON.stringify([...v.remix])} rescore=${scoreView(v, ep).toFixed(2)}`)
+        if (pp) for (const v of pp.views) console.log(`    track view: artist=${JSON.stringify(v.origArtist)} primary=${JSON.stringify(v.primaryArtist)} core=${JSON.stringify(v.coreTokens)} remix=${JSON.stringify([...v.remix])} rescore=${viewScore(v, ep).toFixed(2)}`)
         console.log(`    combined score=${scorePrepared(pp ?? { views: [] }, ep).toFixed(2)}`)
         console.log(`    export tokens: artist=${JSON.stringify([...ep.hayArtist])} title=${JSON.stringify([...ep.hayTitle])} blob=${JSON.stringify([...ep.hayBlobTokens])} remix=${JSON.stringify([...ep.remix])}`)
       }
@@ -603,8 +720,8 @@ let updated = 0
 for (const { pair, exp } of assignments) {
   for (const id of pair.ids) {
     const t = byId.get(id)
-    if (!t || t.youtube) continue
-    t.youtube = exp.youtube
+    if (!t || t[LINK]) continue
+    t[LINK] = exp.link
     updated++
   }
 }
@@ -613,15 +730,85 @@ if (!DRY) {
   writeFileSync(TRACKS, '[\n' + tracks.map(t => JSON.stringify(t)).join(',\n') + '\n]\n')
 }
 
-const totalYt = tracks.filter(t => t.youtube).length
+// Review file: accepted matches lowest score first, so the shakiest guesses are
+// the first rows to check (the tail of a hand-collected SoundCloud batch is
+// where uploads start misrepresenting themselves).
+if (REPORT) {
+  const clean = (v) => String(v ?? '').replace(/[\t\r\n]+/g, ' ').trim()
+  // The remix guards cover "remix"; a few version words slip past them (the
+  // upload says "(cover)" or "bootleg" where the catalogue lists the original).
+  // They stay matched — the audio is usually the same recording — but get a
+  // flag so they can be reviewed before being trusted.
+  const VERSION_WORD_RE = new RegExp(
+    REMIX_RE.source + '|\\b(cover|live|mashup|slowed|sped\\s+up|remake)\\b',
+    'i',
+  )
+  const isVersion = (a) => VERSION_WORD_RE.test(a.exp.title) && !VERSION_WORD_RE.test(a.pair.title)
+  const head = 'score\thow\tflag\texport_artist\texport_title\turl\ttrack_title\ttrack_artist'
+  const rows = [...assignments]
+    .sort((a, b) => a.score - b.score)
+    .map(a => [
+      a.score.toFixed(3),
+      a.how,
+      isVersion(a) ? 'version' : '',
+      clean(a.exp.artist),
+      clean(a.exp.title),
+      a.exp.link,
+      clean(a.pair.title),
+      clean(a.pair.artist),
+    ].join('\t'))
+  writeFileSync(resolve(ROOT, REPORT), '\ufeff' + [head, ...rows].join('\n') + '\n')
+  const flagged = assignments.filter(isVersion).length
+  console.log(`Wrote ${assignments.length} accepted matches (lowest score first) -> ${REPORT}${flagged ? ` (${flagged} flagged "version" — the upload is a remix/cover/live take of the track, review those first)` : ''}`)
+
+  const base = REPORT.replace(/\.tsv$/, '')
+  if (scoped.size) {
+    const missed = [...pairIndex.values()].filter(p => scoped.has(p.key) && p.missing > 0 && !usedPair.has(p))
+    const head2 = 'artist\ttitle\tyoutube\tsoundcloud'
+    const rows2 = missed.map(p => {
+      const t = byId.get(p.ids[0]) ?? {}
+      return [clean(p.artist), clean(p.title), clean(t.youtube), clean(t.soundcloud)].join('\t')
+    })
+    writeFileSync(resolve(ROOT, base + '-unmatched.tsv'), '\ufeff' + [head2, ...rows2].join('\n') + '\n')
+    console.log(`  searched rows with no ${LINK} match: ${missed.length} -> ${base}-unmatched.tsv`)
+  }
+
+  // Turned-down export rows are the ones a human has to judge: most are simply
+  // a different recording, but the raw (guard-free) score says which of them
+  // still point at a plausible catalogue row, and `rejected` names the guard
+  // that stopped it ("export-remix" = the upload is a remix of the track the
+  // export row claims to be, and so on).
+  const accepted = new Set(assignments.map(a => a.exp))
+  const rejected = gatheredExports.length ? gatheredExports.filter(exp => !accepted.has(exp)) : []
+  if (rejected.length) {
+    const pool = [...pairIndex.values()].filter(inScope).map(p => [p, prepTrack(p)])
+    const head3 = 'raw\trejected\texport_artist\texport_title\turl\tbest_track_title\tbest_track_artist'
+    const rows3 = rejected
+      .map(exp => ({ exp, best: looseBest(prepExp(exp), pool) }))
+      .sort((a, b) => (b.best?.raw ?? 0) - (a.best?.raw ?? 0))
+      .map(({ exp, best }) => [
+        (best?.raw ?? 0).toFixed(3),
+        best?.reject ?? (best && usedPair.has(best.pair) ? 'track-claimed' : 'passed-tie'),
+        clean(exp.artist),
+        clean(exp.title),
+        exp.link,
+        clean(best?.pair.title),
+        clean(best?.pair.artist),
+      ].join('\t'))
+    writeFileSync(resolve(ROOT, base + '-rejected.tsv'), '\ufeff' + [head3, ...rows3].join('\n') + '\n')
+    console.log(`  export rows turned down: ${rejected.length} -> ${base}-rejected.tsv`)
+  }
+}
+
+const totalLinked = tracks.filter(t => t[LINK]).length
 const sample = (list, fmt, n = 8) => list.slice(0, n).map(fmt).join('\n  ')
 const byHow = { index: 0, fuzzy: 0, gathered: 0 }
 for (const a of assignments) byHow[a.how]++
 
-console.log(`Soundiiz export: ${files.join(', ')} (${[...byFile.values()].reduce((n, a) => n + a.length, 0)} YouTube rows)`)
+console.log(`Export: ${files.join(', ')} (${[...byFile.values()].reduce((n, a) => n + a.length, 0)} ${LINK} rows)`)
 if (GATHERED) console.log(`Gathered mode: ${gatheredExports.length} export rows matched against tracks still missing a link`)
 console.log(`Matched ${assignments.length} unique titles → ${updated} track records${DRY ? ' (dry run)' : ''}`)
-console.log(`  via index: ${byHow.index} · via fuzzy: ${byHow.fuzzy}${GATHERED ? ` · via gathered: ${byHow.gathered}` : ''} · total with youtube now: ${totalYt}`)
+console.log(`  via index: ${byHow.index} · via fuzzy: ${byHow.fuzzy}${GATHERED ? ` · via gathered: ${byHow.gathered}` : ''} · total with ${LINK} now: ${totalLinked}`)
 console.log(`Unmatched originals (in exported parts): ${unmatchedOrig.length} · unused export rows: ${unusedExp}`)
 if (assignments.length) {
   const weak = assignments.filter(a => a.score < 0.9).slice(0, 8)
@@ -638,4 +825,4 @@ if (unmatchedOrig.length) {
   console.log('Unmatched originals (first 12):')
   console.log('  ' + sample(unmatchedOrig, p => `${p.artist} – ${p.title}`, 12))
 }
-if (!DRY) console.log(`Wrote youtube URLs -> data/tracks.json`)
+if (!DRY) console.log(`Wrote ${LINK} URLs -> data/tracks.json`)
