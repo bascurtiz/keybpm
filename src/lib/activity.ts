@@ -70,25 +70,26 @@ export function useActivity(): ActivityState {
  * One merged, newest-first activity list: additions, edits and the reviews that
  * cleared them, in a single "Community activity" feed.
  *
- * Ordered by submission time rather than review time, because the row shows
- * "added/edited … ago" — ordering by review time would print timestamps that run
- * backwards down the list.
+ * One row per track — a track that was added and then corrected twice is one
+ * thing that appeared, not three — and the **add wins** over any later edit:
+ * the row credits whoever put the track in the database ("added … by"), which
+ * is the contribution worth surfacing. A track that only ever existed in the
+ * dataset lists its newest correction instead.
  *
- * One row per track: a track that was added and then corrected twice is one
- * thing that changed, not three — the newest event represents it.
+ * Ordered by the kept row's submission time rather than its review time,
+ * because the row shows "added/edited … ago" — ordering by review time would
+ * print timestamps that run backwards down the list.
  */
 export function recentActivity(items: ActivityItem[], limit = 6): ActivityItem[] {
-  const seen = new Set<string>()
-  const out: ActivityItem[] = []
-  const sorted = [...items].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
-  for (const item of sorted) {
-    // Fall back to the queue row's own id — it is always unique, so an entry
-    // with no track reference is never merged with another.
+  // Track id, falling back to the queue row's own id — always unique, so an
+  // entry with no track reference is never merged with another.
+  const byTrack = new Map<string, ActivityItem>()
+  for (const item of items) {
     const key = item.trackId ?? item.id
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(item)
-    if (out.length === limit) break
+    const kept = byTrack.get(key)
+    if (!kept || (item.kind === 'add' && kept.kind !== 'add')) byTrack.set(key, item)
   }
-  return out
+  return [...byTrack.values()]
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+    .slice(0, limit)
 }
