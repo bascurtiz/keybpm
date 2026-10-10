@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ArtTile } from '@/components/ArtTile'
+import { CamelotBadge } from '@/components/badges'
 import { useActivity, recentActivity } from '@/lib/activity'
 import { getTrack } from '@/lib/data'
 import type { ActivityItem } from '@/lib/api'
@@ -13,7 +14,8 @@ import { formatBpm, formatRelative, shortKey, trackName } from '@/lib/format'
  * The imported dataset has no per-row dates, so this is the review queue's
  * `/api/activity`: every entry is a contribution that went live, labeled with
  * what it did (`added` / `edited`), who did it and when, plus the reviewer who
- * cleared it. Each entry links to the track it is about.
+ * cleared it. Each entry links to the track it is about and carries the track's
+ * Camelot chip on the right — the key is what a DJ scans a track list for.
  */
 
 /**
@@ -35,15 +37,13 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   const bpm = track?.bpm ?? item.bpm
   const key = track?.key ?? item.key
   const camelot = track?.camelot ?? item.camelot
-  const values = [bpm !== null ? `${formatBpm(bpm)} BPM` : null, key ? shortKey(key) : null, camelot]
+  // BPM and key only — the Camelot code rides the chip on the right.
+  const values = [bpm !== null ? `${formatBpm(bpm)} BPM` : null, key ? shortKey(key) : null]
     .filter(Boolean)
     .join(' · ')
 
   // A review is what verification means in KeyBPM, so every row here was
   // verified — only add the reviewer's name when it is not the same person.
-  const verified = `Verified${item.reviewer ? ` by ${item.reviewer}` : ''}${
-    item.reviewedAt ? `, ${formatRelative(item.reviewedAt)}` : ''
-  }`
   const by = [item.by, item.reviewer && item.reviewer !== item.by ? `✓ ${item.reviewer}` : null]
     .filter(Boolean)
     .join(' · ')
@@ -61,9 +61,11 @@ function ActivityRow({ item }: { item: ActivityItem }) {
           </span>
         </span>
       </span>
-      <span role="img" aria-label={verified} title={verified} className="shrink-0 text-xs text-ok">
-        ✓
-      </span>
+      <CamelotBadge
+        code={camelot}
+        approximate={!!track?.mode}
+        className="shrink-0"
+      />
     </>
   )
 
