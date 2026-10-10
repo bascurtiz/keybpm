@@ -23,15 +23,19 @@ function it(name, fn) {
 }
 
 const t = {
-  add: (id, payload, created_at) => ({ id, kind: 'add', track_id: null, payload, created_at }),
-  correct: (id, track_id, payload, created_at) => ({
+  add: (id, payload, created_at, review) => ({ id, kind: 'add', track_id: null, payload, created_at, ...review }),
+  correct: (id, track_id, payload, created_at, review) => ({
     id,
     kind: 'correct',
     track_id,
     payload,
     created_at,
+    ...review,
   }),
 }
+
+/** What the API returns for an approved row. */
+const approved = (at, by) => ({ reviewed_at: `${at} 11:53:32`, reviewer_username: by })
 
 const track = (over = {}) => ({
   id: 'depeche-mode-policy-of-truth',
@@ -151,6 +155,19 @@ it('a correction to a sheet row records the editor instead of claiming the contr
   assert.equal(tracks[0].lastEditedBy, 'Bas Curtiz')
 })
 
+it('a correction that carries source "Community" still cannot relabel a sheet row', () => {
+  // Older clients sent source: 'Community' on every correction payload.
+  const base = { ...track({ bpm: 124, source: "duuzu's key & bpm database v10" }) }
+  delete base.submittedBy
+  const submissions = [
+    t.correct('c1', base.id, { ...track({ bpm: 126 }), source: 'Community', submittedBy: 'TestMod' }, '2026-10-10 11:00:00'),
+  ]
+  const { tracks } = mergeQueue([base], submissions)
+  assert.equal(tracks[0].source, "duuzu's key & bpm database v10")
+  assert.equal(tracks[0].bpm, 126, 'the actual data still patches')
+  assert.equal(tracks[0].lastEditedBy, 'TestMod')
+})
+
 it('editing your own submission does not add a redundant editor', () => {
   const submissions = [
     t.add('a1', { ...track({ bpm: null }), submittedBy: 'TheHolyT-Bo' }, '2026-10-10 01:00:00'),
@@ -159,6 +176,42 @@ it('editing your own submission does not add a redundant editor', () => {
   const { tracks } = mergeQueue([], submissions)
   assert.equal(tracks[0].submittedBy, 'TheHolyT-Bo')
   assert.equal(tracks[0].lastEditedBy, undefined)
+})
+
+it('an approved row carries the review date and reviewer as verification', () => {
+  const submissions = [
+    t.add('a1', track({ bpm: 114 }), '2026-10-10 01:00:00', approved('2026-10-10', 'Bas Curtiz')),
+  ]
+  const { tracks } = mergeQueue([], submissions)
+  assert.equal(tracks[0].verifiedAt, '2026-10-10')
+  assert.equal(tracks[0].verifiedBy, 'Bas Curtiz')
+  assert.equal(tracks[0].lastVerified, null, 'the source date is left alone')
+})
+
+it('a corrected row is verified as of the correction review, by its reviewer', () => {
+  const submissions = [
+    t.add('a1', track({ bpm: null }), '2026-10-10 01:00:00', approved('2026-10-10', 'TheHolyT-Bo')),
+    t.correct('c1', 'depeche-mode-policy-of-truth', track({ bpm: 114 }), '2026-10-10 11:00:00', approved('2026-10-11', 'Bas Curtiz')),
+  ]
+  const { tracks } = mergeQueue([], submissions)
+  assert.equal(tracks[0].bpm, 114)
+  assert.equal(tracks[0].verifiedAt, '2026-10-11')
+  assert.equal(tracks[0].verifiedBy, 'Bas Curtiz')
+  assert.equal(tracks[0].submittedBy, undefined, 'verification does not re-attribute')
+})
+
+it('an unreviewed row gets no verification stamp', () => {
+  const submissions = [t.add('a1', track({ bpm: 120 }), '2026-10-10 01:00:00')]
+  const { tracks } = mergeQueue([], submissions)
+  assert.equal(tracks[0].verifiedAt, undefined)
+  assert.equal(tracks[0].verifiedBy, undefined)
+})
+
+it('verification needs no reviewer name to stamp the date', () => {
+  const submissions = [t.add('a1', track({ bpm: 120 }), '2026-10-10 01:00:00', { reviewed_at: '2026-10-10 09:00:00' })]
+  const { tracks } = mergeQueue([], submissions)
+  assert.equal(tracks[0].verifiedAt, '2026-10-10')
+  assert.equal(tracks[0].verifiedBy, undefined)
 })
 
 it('new tracks are prepended and existing order is preserved', () => {

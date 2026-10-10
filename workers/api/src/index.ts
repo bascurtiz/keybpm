@@ -37,6 +37,31 @@ function serializeSubmission(row: SubmissionRow) {
   return { ...row, payload }
 }
 
+/** Reviewer display names for a batch of rows — one query per chunk, not per row. */
+async function reviewerNames(env: Env, rows: SubmissionRow[]): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map(r => r.reviewer_id).filter((id): id is string => !!id))]
+  const names = new Map<string, string>()
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50)
+    const { results } = await env.DB.prepare(
+      `SELECT discord_id, username FROM users WHERE discord_id IN (${chunk.map(() => '?').join(', ')})`,
+    )
+      .bind(...chunk)
+      .all<{ discord_id: string; username: string }>()
+    for (const r of results ?? []) names.set(r.discord_id, r.username)
+  }
+  return names
+}
+
+/** Submissions plus the reviewer's name — the client stamps verification from it. */
+async function serializeSubmissions(env: Env, rows: SubmissionRow[]) {
+  const names = await reviewerNames(env, rows)
+  return rows.map(row => ({
+    ...serializeSubmission(row),
+    reviewer_username: row.reviewer_id ? names.get(row.reviewer_id) ?? null : null,
+  }))
+}
+
 async function requireUser(req: Request, env: Env) {
   const token = getCookie(req, COOKIE)
   const discordId = await readSessionToken(env, token)
@@ -243,7 +268,7 @@ export default {
           // Reviewers default to pending queue.
           list = await listSubmissions(env, { status: statuses ?? 'pending' })
         }
-        return withCors(req, env, json({ submissions: list.map(serializeSubmission) }))
+        return withCors(req, env, json({ submissions: await serializeSubmissions(env, list) }))
       }
 
       const approveMatch = path.match(/^\/api\/submissions\/([^/]+)\/approve$/)
@@ -355,7 +380,7 @@ export default {
           req,
           env,
           json({
-            submissions: rows.map(serializeSubmission),
+            submissions: await serializeSubmissions(env, rows),
           }),
         )
       }
@@ -370,7 +395,7 @@ export default {
           return withCors(req, env, err('Forbidden', 403))
         }
         const rows = await listSubmissions(env, { status: 'approved', limit: 500, order: 'asc' })
-        return withCors(req, env, json({ submissions: rows.map(serializeSubmission) }))
+        return withCors(req, env, json({ submissions: await serializeSubmissions(env, rows) }))
       }
 
       if (path === '/api/export/mark-applied' && req.method === 'POST') {

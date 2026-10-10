@@ -123,6 +123,7 @@ Two flags matter for a hand-collected SoundCloud batch, because uploads are user
 | `keySource` / `bpmSource` | Per-value provenance (e.g. key from MusicalKeyCNN) |
 | `submittedBy` / `submittedByDiscordId` | Discord member who contributed the row — a later correction never takes this over |
 | `lastEditedBy` / `lastEditedByDiscordId` | Discord member whose **correction** last changed the row |
+| `verifiedAt` / `verifiedBy` | Date and reviewer of the queue approval that verified the row — the only thing "Verified" means |
 | `notes` | Free-text caveats (key changes, time signatures…) |
 | `youtube` | Watch URL — table/detail show its thumbnail; click opens the video |
 
@@ -198,6 +199,8 @@ Merges approved submissions into `data/tracks.json`, refreshes CSV, marks them `
 Queue rows are folded in **oldest first**: `add` rows are inserted before the `correct` rows that target them, and a correction is a *patch* — fields it leaves unstated keep their existing value. Without that order a correction to a track that only existed in the queue found nothing to patch, so the original add (empty BPM) won and the track stayed tempo-less in live search. `scripts/lib/merge_queue.mjs` holds that logic; `npm test` covers it.
 
 Attribution is not patchable: the queue stamps every submission with its author, so a moderator correcting someone else's row would otherwise replace the contributor's name. `submittedBy` stays with the original submitter and the editor is recorded in `lastEditedBy` (shown as **Edited by** on the track page). A correction also keeps the record's `source` instead of relabelling it "Community".
+
+**Verification** is a review stamp, nothing else: approving a row writes `verifiedAt` (the review date) and `verifiedBy` (the reviewer, resolved from `users` by the API for the overlay/export payloads) onto the track, and a later correction re-stamps it because the reviewer verified the new values. Unreviewed rows carry no stamp and the track page shows no *Verified* row. The imported `lastVerified` is **not** a review — it is the date the source (duuzu's sheet) last refreshed the row, imported as a single constant, so it is displayed beside `source` as "as of …".
 
 Approved rows stay listed under **Approved & applied** at the bottom of `/review`, where a moderator gets a **Remove** button: it hard-deletes the queue row (`DELETE /api/submissions/:id`, mod-only), so an `approved` track leaves live search/overlay immediately. An `applied` row is already in `data/tracks.json` — delete it there too and redeploy.
 

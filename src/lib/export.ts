@@ -5,7 +5,7 @@ const COLUMNS: (keyof Track)[] = [
   'id', 'artist', 'title', 'bpm', 'bpmRaw', 'key', 'camelot', 'mode', 'keyRaw', 'tuning',
   'tags', 'genre', 'label', 'release', 'year', 'duration', 'source', 'confidence',
   'lastVerified', 'notes', 'youtube', 'soundcloud', 'submittedBy', 'submittedByDiscordId',
-  'lastEditedBy', 'lastEditedByDiscordId',
+  'lastEditedBy', 'lastEditedByDiscordId', 'verifiedAt', 'verifiedBy',
 ]
 
 const esc = (v: unknown): string => {

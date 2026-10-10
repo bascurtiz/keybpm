@@ -202,13 +202,17 @@ export function TrackDetail() {
           </section>
         )}
 
-        {/* Provenance */}
+        {/* Provenance. The pill states what is actually known about the row: a
+            reviewer approved it, or it came in through the queue — a plain
+            imported row claims neither. */}
         <section className="surface p-4">
           <H2
             right={
-              <span className={track.confidence !== null && track.confidence >= 0.9 ? 'pill-ok' : 'pill-neutral'}>
-                {track.confidence !== null && track.confidence >= 0.9 ? 'Consensus' : 'Provisional'}
-              </span>
+              track.verifiedAt ? (
+                <span className="pill-ok">Verified</span>
+              ) : track.submittedBy ? (
+                <span className="pill-neutral">Community</span>
+              ) : undefined
             }
           >
             Data
@@ -231,10 +235,26 @@ export function TrackDetail() {
               them (stamped by the API from their session); the sheet's own
               rows keep their source. A later correction is recorded as an
               editor, never as a new contributor. */}
-          <DataRow label="Source" value={track.submittedBy ?? track.source} />
+          <DataRow
+            label="Source"
+            value={track.submittedBy ?? track.source}
+            extra={
+              !track.submittedBy && track.lastVerified
+                ? `as of ${formatDate(track.lastVerified)}`
+                : undefined
+            }
+          />
           {track.lastEditedBy && <DataRow label="Edited by" value={track.lastEditedBy} />}
           {track.confidence !== null && <DataRow label="Confidence" value={formatConfidence(track.confidence)} />}
-          <DataRow label="Verified" value={formatDate(track.lastVerified)} />
+          {/* Only a review counts as verification (see README); an unreviewed
+              row shows no date rather than the source's snapshot date. */}
+          {track.verifiedAt && (
+            <DataRow
+              label="Verified"
+              value={formatDate(track.verifiedAt)}
+              extra={track.verifiedBy ? `by ${track.verifiedBy}` : undefined}
+            />
+          )}
           {track.notes && <DataRow label="Note" value={track.notes} />}
         </section>
       </div>

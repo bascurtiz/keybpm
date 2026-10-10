@@ -83,6 +83,10 @@ function normalizeTrack(raw: unknown): Track | null {
   if (lastEditedBy) track.lastEditedBy = lastEditedBy
   const lastEditedByDiscordId = str(r.lastEditedByDiscordId)
   if (lastEditedByDiscordId) track.lastEditedByDiscordId = lastEditedByDiscordId
+  const verifiedAt = str(r.verifiedAt)
+  if (verifiedAt) track.verifiedAt = verifiedAt
+  const verifiedBy = str(r.verifiedBy)
+  if (verifiedBy) track.verifiedBy = verifiedBy
   return track
 }
 
@@ -158,11 +162,36 @@ let version = 0
  */
 const NOT_PATCHABLE = new Set([
   'id',
+  // Provenance belongs to the record, not to whoever edited it: a correction
+  // cannot re-attribute the contribution, relabel where the data came from, or
+  // claim a review. Those are set from the queue row (or not at all).
+  'source',
   'submittedBy',
   'submittedByDiscordId',
   'lastEditedBy',
   'lastEditedByDiscordId',
+  'verifiedAt',
+  'verifiedBy',
 ])
+
+/** `reviewed_at` ("2026-10-10 11:53:32") -> "2026-10-10"; undefined if absent. */
+function reviewDate(s: Submission): string | undefined {
+  const raw = s.reviewed_at
+  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : undefined
+}
+
+/**
+ * Approval is verification: the reviewer who let the row through stands behind
+ * the values, so the date and their name travel with the track. Rows nobody has
+ * reviewed keep no stamp at all rather than a meaningless date.
+ */
+function stampVerification(track: Track, s: Submission): Track {
+  const at = reviewDate(s)
+  if (!at) return track
+  const next: Track = { ...track, verifiedAt: at }
+  if (s.reviewer_username) next.verifiedBy = s.reviewer_username
+  return next
+}
 function chronological(a: Submission, b: Submission): number {
   return a.created_at.localeCompare(b.created_at)
 }
@@ -177,8 +206,9 @@ function applyQueueOverlay(base: Track[]): Track[] {
     if (s.kind === 'correct') continue
     const normalized = normalizeTrack(s.payload)
     if (!normalized || by.has(normalized.id)) continue
-    by.set(normalized.id, normalized)
-    added.push(normalized)
+    const stamped = stampVerification(normalized, s)
+    by.set(stamped.id, stamped)
+    added.push(stamped)
   }
 
   for (const s of ordered) {
@@ -198,6 +228,12 @@ function applyQueueOverlay(base: Track[]): Track[] {
     if (editor && editor !== existing.submittedBy) {
       next.lastEditedBy = editor
       if (patch.submittedByDiscordId) next.lastEditedByDiscordId = patch.submittedByDiscordId
+    }
+    // A correction was reviewed too — the reviewer verified the new values.
+    const reviewed = reviewDate(s)
+    if (reviewed) {
+      next.verifiedAt = reviewed
+      if (s.reviewer_username) next.verifiedBy = s.reviewer_username
     }
     by.set(existing.id, next as unknown as Track)
   }

@@ -30,6 +30,8 @@ export interface Submission {
   reject_note: string | null
   created_at: string
   reviewed_at: string | null
+  /** Display name of the reviewer, resolved by the API (null for pending rows). */
+  reviewer_username?: string | null
 }
 
 export async function apiGetMe(): Promise<AuthUser | null> {

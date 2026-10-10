@@ -16,11 +16,31 @@
  * (missing / null) keep their existing value, so a form that only knows part
  * of a record cannot blank the rest of it.
  *
- * Attribution is never patched: the queue stamps `submittedBy` with whoever
+ * Provenance is never patched: the queue stamps `submittedBy` with whoever
  * wrote the submission, so a moderator correcting a contributed track would
- * otherwise replace its contributor's name. `submittedBy` stays put and the
- * editor is recorded in `lastEditedBy` instead.
+ * otherwise replace its contributor's name (and relabel a sheet row's `source`
+ * as "Community"). `source`/`submittedBy` stay put and the editor is recorded
+ * in `lastEditedBy` instead.
+ *
+ * Approval is verification: the reviewer who let a row through stands behind
+ * its values, so `verifiedAt` (the review date) and `verifiedBy` (their name)
+ * are stamped on every merged row. Rows nobody reviewed carry no stamp — the
+ * imported `lastVerified` is the *source's* refresh date, not a review.
  */
+
+/** "2026-10-10 11:53:32" -> "2026-10-10"; undefined when there is no review date. */
+function reviewDate(s) {
+  const raw = s && s.reviewed_at
+  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : undefined
+}
+
+function stampVerification(row, s) {
+  const at = reviewDate(s)
+  if (!at) return row
+  const next = { ...row, verifiedAt: at }
+  if (s.reviewer_username) next.verifiedBy = s.reviewer_username
+  return next
+}
 
 function plainObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v) ? v : null
@@ -57,7 +77,7 @@ export function mergeQueue(tracks, submissions) {
       skipped.push({ id: s.id, reason: `id ${id} already exists` })
       continue
     }
-    const row = { ...payload, id, source: payload.source || 'Community' }
+    const row = stampVerification({ ...payload, id, source: payload.source || 'Community' }, s)
     byId.set(id, row)
     added.push(row)
     appliedIds.push(s.id)
@@ -80,21 +100,29 @@ export function mergeQueue(tracks, submissions) {
       if (k === 'id' || v === null || v === undefined) continue
       patch[k] = v
     }
-    // The stamp is the submission's author, not the record's contributor.
+    // The stamp is the submission's author, not the record's contributor, and
+    // the payload's `source` describes whoever typed the form.
     const editor = patch.submittedBy
     const editorId = patch.submittedByDiscordId
     delete patch.submittedBy
     delete patch.submittedByDiscordId
+    delete patch.source
 
     const next = {
       ...existing,
       ...patch,
       id: existing.id,
-      source: patch.source || existing.source || 'Community',
+      source: existing.source || 'Community',
     }
     if (editor && editor !== existing.submittedBy) {
       next.lastEditedBy = editor
       if (editorId) next.lastEditedByDiscordId = editorId
+    }
+    // A correction was reviewed too — the reviewer verified the new values.
+    const reviewed = reviewDate(s)
+    if (reviewed) {
+      next.verifiedAt = reviewed
+      if (s.reviewer_username) next.verifiedBy = s.reviewer_username
     }
 
     byId.set(existing.id, next)

@@ -13,6 +13,10 @@ export interface Track {
   duration: number | null
   source: string
   confidence: number | null
+  /**
+   * Date the *source* last refreshed this row (for imported rows: duuzu's
+   * sheet snapshot). It is not a review — see `verifiedAt`.
+   */
   lastVerified: string | null
   /** Raw/alternate BPM notation (e.g. "80/160", "~122"). Optional. */
   bpmRaw?: string
@@ -44,6 +48,10 @@ export interface Track {
   lastEditedBy?: string
   /** Discord snowflake of the last editor. */
   lastEditedByDiscordId?: string
+  /** Date a reviewer approved this row in the queue — KeyDB's own verification. */
+  verifiedAt?: string
+  /** Discord display name of that reviewer. */
+  verifiedBy?: string
 }
 
 // Camelot wheel mapping: number -> [minor key (A), major key (B)].

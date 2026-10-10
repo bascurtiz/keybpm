@@ -253,8 +253,17 @@ export function About() {
   "soundcloud": "https://soundcloud.com/…/…",    // optional: artwork thumbnail + link
   "genre": null, "label": null, "release": null, "year": null,
   "source": "duuzu's key & bpm database v10",
-  "lastVerified": "2025-06-15"
+  "lastVerified": "2025-06-15",  // when the source last refreshed the row
+  "verifiedAt": "2026-10-10",   // optional: date a reviewer approved it here
+  "verifiedBy": "Bas Curtiz"     // optional: who that reviewer was
 }`}</pre>
+
+      <P>
+        <strong>Verified</strong> means one thing: a reviewer approved the row through KeyBPM&apos;s own queue, and
+        that date and their name stay on the track. Rows nobody has reviewed show no verification at all — the
+        imported <code className="font-mono text-xs text-text">lastVerified</code> is the sheet&apos;s refresh date,
+        so it appears next to the source as “as of …” rather than claiming a check that never happened.
+      </P>
 
       <H2>Camelot compatibility</H2>
       <p className="text-sm text-text-muted">
