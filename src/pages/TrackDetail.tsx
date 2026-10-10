@@ -229,8 +229,10 @@ export function TrackDetail() {
           )}
           {/* Community rows are attributed to the Discord member who submitted
               them (stamped by the API from their session); the sheet's own
-              rows keep their source. */}
+              rows keep their source. A later correction is recorded as an
+              editor, never as a new contributor. */}
           <DataRow label="Source" value={track.submittedBy ?? track.source} />
+          {track.lastEditedBy && <DataRow label="Edited by" value={track.lastEditedBy} />}
           {track.confidence !== null && <DataRow label="Confidence" value={formatConfidence(track.confidence)} />}
           <DataRow label="Verified" value={formatDate(track.lastVerified)} />
           {track.notes && <DataRow label="Note" value={track.notes} />}

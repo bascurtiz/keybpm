@@ -121,6 +121,8 @@ Two flags matter for a hand-collected SoundCloud batch, because uploads are user
 | `tuning` | Cents sharp (+) / flat (−) |
 | `tags` | `instrumental`, `acapella`, `percussive` |
 | `keySource` / `bpmSource` | Per-value provenance (e.g. key from MusicalKeyCNN) |
+| `submittedBy` / `submittedByDiscordId` | Discord member who contributed the row — a later correction never takes this over |
+| `lastEditedBy` / `lastEditedByDiscordId` | Discord member whose **correction** last changed the row |
 | `notes` | Free-text caveats (key changes, time signatures…) |
 | `youtube` | Watch URL — table/detail show its thumbnail; click opens the video |
 
@@ -193,6 +195,10 @@ KEYBPM_API_URL=http://127.0.0.1:8787 KEYBPM_APPLY_TOKEN=… npm run data:apply-q
 
 Merges approved submissions into `data/tracks.json`, refreshes CSV, marks them `applied`. Commit and redeploy the Pages site.
 
+Queue rows are folded in **oldest first**: `add` rows are inserted before the `correct` rows that target them, and a correction is a *patch* — fields it leaves unstated keep their existing value. Without that order a correction to a track that only existed in the queue found nothing to patch, so the original add (empty BPM) won and the track stayed tempo-less in live search. `scripts/lib/merge_queue.mjs` holds that logic; `npm test` covers it.
+
+Attribution is not patchable: the queue stamps every submission with its author, so a moderator correcting someone else's row would otherwise replace the contributor's name. `submittedBy` stays with the original submitter and the editor is recorded in `lastEditedBy` (shown as **Edited by** on the track page). A correction also keeps the record's `source` instead of relabelling it "Community".
+
 Approved rows stay listed under **Approved & applied** at the bottom of `/review`, where a moderator gets a **Remove** button: it hard-deletes the queue row (`DELETE /api/submissions/:id`, mod-only), so an `approved` track leaves live search/overlay immediately. An `applied` row is already in `data/tracks.json` — delete it there too and redeploy.
 
 ### Production
@@ -205,6 +211,8 @@ Approved rows stay listed under **Approved & applied** at the bottom of `/review
 4. Set `MOD_DISCORD_IDS` to your Discord snowflake so the first login is `mod`. Promote others on `/review`.
 
 Roles: `user` (submit), `trusted` (approve), `mod` (approve, reject, remove, set roles).
+
+Tracks submitted through the queue live in the overlay until they are applied, so a later correction to one of them is enough to fix its BPM/key live — no redeploy needed.
 
 ## Deploy (free)
 

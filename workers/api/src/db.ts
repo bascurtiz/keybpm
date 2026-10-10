@@ -70,7 +70,13 @@ export async function insertSubmission(
 
 export async function listSubmissions(
   env: Env,
-  opts: { status?: string | string[]; discordId?: string; limit?: number },
+  opts: {
+    status?: string | string[]
+    discordId?: string
+    limit?: number
+    /** `asc` = oldest first; the overlay/apply paths fold rows in that order. */
+    order?: 'asc' | 'desc'
+  },
 ): Promise<SubmissionRow[]> {
   const limit = Math.min(opts.limit ?? 100, 200)
   const statuses = (Array.isArray(opts.status) ? opts.status : opts.status ? [opts.status] : [])
@@ -88,9 +94,14 @@ export async function listSubmissions(
     binds.push(opts.discordId)
   }
 
+  // `asc` also breaks ties on rowid: created_at has second resolution, so two
+  // rows from the same second would otherwise come back in an arbitrary order
+  // (and a correction must never precede the add it corrects).
+  const orderBy = opts.order === 'asc' ? 'created_at ASC, rowid ASC' : 'created_at DESC'
+
   const { results } = await env.DB.prepare(
     `SELECT * FROM submissions${where.length ? ` WHERE ${where.join(' AND ')}` : ''}
-     ORDER BY created_at DESC LIMIT ?`,
+     ORDER BY ${orderBy} LIMIT ?`,
   )
     .bind(...binds, limit)
     .all<SubmissionRow>()

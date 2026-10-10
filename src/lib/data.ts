@@ -79,6 +79,10 @@ function normalizeTrack(raw: unknown): Track | null {
   if (submittedBy) track.submittedBy = submittedBy
   const submittedByDiscordId = str(r.submittedByDiscordId)
   if (submittedByDiscordId) track.submittedByDiscordId = submittedByDiscordId
+  const lastEditedBy = str(r.lastEditedBy)
+  if (lastEditedBy) track.lastEditedBy = lastEditedBy
+  const lastEditedByDiscordId = str(r.lastEditedByDiscordId)
+  if (lastEditedByDiscordId) track.lastEditedByDiscordId = lastEditedByDiscordId
   return track
 }
 
@@ -131,28 +135,84 @@ export const CATALOG_CHANGED = 'keydb:catalog-changed'
  */
 let version = 0
 
+/**
+ * Fold the approved queue over the base dataset.
+ *
+ * Order is load-bearing, and it is *not* the order the API returns (newest
+ * first):
+ *
+ *  1. `add` rows first, oldest → newest, so a track that exists only in the
+ *     queue is in the map before anything corrects it. Processing corrections
+ *     in wire order silently dropped them (`by.get(track_id)` was empty) and
+ *     then let the original `add` — with its empty BPM — win.
+ *  2. `correct` rows after, oldest → newest, so the latest correction is the
+ *     final word and can never be overwritten by the add it corrects.
+ *
+ * A correction is a patch: a null in its payload must not blank a field the
+ * target already has (the form only knows about the fields it shows).
+ *
+ * Attribution is not patchable at all: `submittedBy` is the member who
+ * contributed the track and survives every later correction — the editor is
+ * recorded in `lastEditedBy` instead, so a moderator fixing someone else's row
+ * never takes their name off it.
+ */
+const NOT_PATCHABLE = new Set([
+  'id',
+  'submittedBy',
+  'submittedByDiscordId',
+  'lastEditedBy',
+  'lastEditedByDiscordId',
+])
+function chronological(a: Submission, b: Submission): number {
+  return a.created_at.localeCompare(b.created_at)
+}
+
 function applyQueueOverlay(base: Track[]): Track[] {
   if (!queueOverlay.length) return base
   const by = new Map(base.map(t => [t.id, t]))
+  const ordered = [...queueOverlay].sort(chronological)
   const added: Track[] = []
-  for (const s of queueOverlay) {
-    const raw = s.payload
-    const normalized = normalizeTrack(raw)
-    if (!normalized) continue
-    if (s.kind === 'correct' && s.track_id) {
-      const existing = by.get(s.track_id)
-      if (!existing) continue
-      const next = { ...existing, ...normalized, id: existing.id }
-      by.set(existing.id, next)
-    } else {
-      if (by.has(normalized.id)) continue
-      by.set(normalized.id, normalized)
-      added.push(normalized)
-    }
+
+  for (const s of ordered) {
+    if (s.kind === 'correct') continue
+    const normalized = normalizeTrack(s.payload)
+    if (!normalized || by.has(normalized.id)) continue
+    by.set(normalized.id, normalized)
+    added.push(normalized)
   }
-  const corrected = base.map(t => by.get(t.id) ?? t)
-  const baseIds = new Set(corrected.map(t => t.id))
-  return [...added.filter(t => !baseIds.has(t.id)), ...corrected]
+
+  for (const s of ordered) {
+    if (s.kind !== 'correct' || !s.track_id) continue
+    const existing = by.get(s.track_id)
+    if (!existing) continue
+    // `id` is only needed to satisfy normalizeTrack; the patch target is track_id.
+    const patch = normalizeTrack({ id: s.track_id, ...s.payload })
+    if (!patch) continue
+    const next = { ...existing } as unknown as Record<string, unknown>
+    for (const [k, v] of Object.entries(patch)) {
+      if (NOT_PATCHABLE.has(k) || v === null || v === undefined) continue
+      next[k] = v
+    }
+    // The stamp on a correction payload is its author, not a new contributor.
+    const editor = patch.submittedBy
+    if (editor && editor !== existing.submittedBy) {
+      next.lastEditedBy = editor
+      if (patch.submittedByDiscordId) next.lastEditedByDiscordId = patch.submittedByDiscordId
+    }
+    by.set(existing.id, next as unknown as Track)
+  }
+
+  // Resolve every row through the map *after* both passes — a queue-added
+  // track must be picked up in its corrected form, not the object that was
+  // inserted before the correction ran.
+  const out: Track[] = []
+  const seen = new Set<string>()
+  for (const t of [...added, ...base]) {
+    if (seen.has(t.id)) continue
+    seen.add(t.id)
+    out.push(by.get(t.id) ?? t)
+  }
+  return out
 }
 
 function refresh(): void {

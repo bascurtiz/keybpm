@@ -348,8 +348,9 @@ export default {
       }
 
       // Public live overlay: approved (not yet written to tracks.json) appear in search.
+      // Oldest first: the client folds adds in before the corrections on them.
       if (path === '/api/overlay' && req.method === 'GET') {
-        const rows = await listSubmissions(env, { status: 'approved', limit: 500 })
+        const rows = await listSubmissions(env, { status: 'approved', limit: 500, order: 'asc' })
         return withCors(
           req,
           env,
@@ -368,7 +369,7 @@ export default {
         if (!tokenOk && !(user && user.role === 'mod')) {
           return withCors(req, env, err('Forbidden', 403))
         }
-        const rows = await listSubmissions(env, { status: 'approved', limit: 500 })
+        const rows = await listSubmissions(env, { status: 'approved', limit: 500, order: 'asc' })
         return withCors(req, env, json({ submissions: rows.map(serializeSubmission) }))
       }
 

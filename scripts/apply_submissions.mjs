@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { mergeQueue } from './lib/merge_queue.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const TRACKS = join(ROOT, 'data', 'tracks.json')
@@ -39,61 +40,10 @@ if (!Array.isArray(submissions) || submissions.length === 0) {
   process.exit(0)
 }
 
-const tracks = JSON.parse(readFileSync(TRACKS, 'utf8'))
-const byId = new Map(tracks.map(t => [t.id, t]))
-const appliedIds = []
-let added = 0
-let corrected = 0
+const incoming = JSON.parse(readFileSync(TRACKS, 'utf8'))
+const { tracks, added, corrected, appliedIds, skipped } = mergeQueue(incoming, submissions)
 
-for (const s of submissions) {
-  const payload = s.payload && typeof s.payload === 'object' ? s.payload : null
-  if (!payload) {
-    console.warn(`Skip ${s.id}: bad payload`)
-    continue
-  }
-
-  if (s.kind === 'correct' && s.track_id) {
-    const existing = byId.get(s.track_id)
-    if (!existing) {
-      console.warn(`Skip ${s.id}: track ${s.track_id} not found`)
-      continue
-    }
-    const next = {
-      ...existing,
-      ...payload,
-      id: existing.id,
-      source: payload.source || existing.source || 'Community',
-    }
-    // Don't let queue metadata wipe core fields incorrectly
-    delete next.submittedBy
-    delete next.submittedByDiscordId
-    if (payload.submittedBy) next.submittedBy = payload.submittedBy
-    if (payload.submittedByDiscordId) next.submittedByDiscordId = payload.submittedByDiscordId
-
-    const idx = tracks.findIndex(t => t.id === existing.id)
-    tracks[idx] = next
-    byId.set(next.id, next)
-    corrected++
-    appliedIds.push(s.id)
-  } else if (s.kind === 'add') {
-    const id = typeof payload.id === 'string' && payload.id ? payload.id : null
-    if (!id) {
-      console.warn(`Skip ${s.id}: add missing id`)
-      continue
-    }
-    if (byId.has(id)) {
-      console.warn(`Skip ${s.id}: id ${id} already exists`)
-      continue
-    }
-    const row = { ...payload, id, source: payload.source || 'Community' }
-    tracks.unshift(row)
-    byId.set(id, row)
-    added++
-    appliedIds.push(s.id)
-  } else {
-    console.warn(`Skip ${s.id}: unknown kind`)
-  }
-}
+for (const s of skipped) console.warn(`Skip ${s.id}: ${s.reason}`)
 
 if (!appliedIds.length) {
   console.log('Nothing applied.')

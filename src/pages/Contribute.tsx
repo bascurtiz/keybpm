@@ -123,7 +123,9 @@ export function Contribute() {
       release: original?.release ?? null,
       year: original?.year ?? null,
       duration: original?.duration ?? null,
-      source: 'Community',
+      // A correction edits a record, it does not re-attribute it: keep the
+      // dataset source instead of relabelling it "Community".
+      source: original?.source ?? 'Community',
       confidence: original?.confidence ?? null,
       lastVerified: original?.lastVerified ?? null,
       notes: notes.trim() || undefined,

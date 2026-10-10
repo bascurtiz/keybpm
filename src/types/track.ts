@@ -32,10 +32,18 @@ export interface Track {
   youtube?: string
   /** SoundCloud track URL (`https://soundcloud.com/user/track`). Artwork thumbnail resolved via the API worker (og:image). */
   soundcloud?: string
-  /** Discord display name when submitted via the queue. */
+  /** Discord display name of the member who contributed the track through the queue. */
   submittedBy?: string
   /** Discord snowflake of the submitter. */
   submittedByDiscordId?: string
+  /**
+   * Discord display name of the member whose **correction** most recently
+   * changed this row. A correction never takes over `submittedBy` — the first
+   * submitter keeps the credit, whoever edits it afterwards is recorded here.
+   */
+  lastEditedBy?: string
+  /** Discord snowflake of the last editor. */
+  lastEditedByDiscordId?: string
 }
 
 // Camelot wheel mapping: number -> [minor key (A), major key (B)].
