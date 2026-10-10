@@ -146,3 +146,46 @@ export async function apiOverlay(): Promise<Submission[]> {
     return []
   }
 }
+
+/**
+ * One reviewed queue row, flattened for the public activity feed. Values come
+ * from the submission payload (the track itself is read from the catalogue by
+ * `trackId`), so a row stays readable even after it is applied and leaves the
+ * overlay.
+ */
+export interface ActivityItem {
+  id: string
+  kind: 'add' | 'correct'
+  status: 'approved' | 'applied'
+  /** Track the row is about — the target of a correction, the proposed id of an add. */
+  trackId: string | null
+  artist: string | null
+  title: string | null
+  bpm: number | null
+  key: string | null
+  camelot: string | null
+  /** Who submitted the track (add) or made the edit (correct). */
+  by: string | null
+  createdAt: string
+  reviewedAt: string | null
+  /** Reviewer who approved it — a review is what verification means here. */
+  reviewer: string | null
+}
+
+/**
+ * Recent reviewed contributions, newest review first.
+ *
+ * `null` — not an empty array — when the API could not be reached or answered
+ * with an error: the feed must never present "silence" as "nothing ever
+ * happened" (a static deploy without the Worker has no queue to show).
+ */
+export async function apiActivity(limit = 30): Promise<ActivityItem[] | null> {
+  try {
+    const res = await fetch(apiUrl(`/api/activity?limit=${limit}`), { credentials: 'omit' })
+    if (!res.ok) return null
+    const data = (await res.json()) as { activity: ActivityItem[] }
+    return Array.isArray(data.activity) ? data.activity : null
+  } catch {
+    return null
+  }
+}

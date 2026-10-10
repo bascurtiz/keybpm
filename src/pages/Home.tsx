@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
 import { SearchBar } from '@/components/SearchBar'
-import { ArtTile } from '@/components/ArtTile'
+import { ActivityFeed } from '@/components/ActivityFeed'
 import { CamelotBadge } from '@/components/badges'
 import { stats, tracks, useCatalog } from '@/lib/data'
 import { ALL_CAMELOT_CODES, CAMELOT_TO_KEY } from '@/types/track'
-import { formatBpm, formatCount, shortKey, trackName } from '@/lib/format'
+import { formatCount, shortKey } from '@/lib/format'
 import { usePageMeta } from '@/lib/meta'
 import { useMemo } from 'react'
 
@@ -36,14 +36,6 @@ export function Home() {
     return ALL_CAMELOT_CODES
       .map(code => ({ code, keyName: CAMELOT_TO_KEY[code], count: map.get(code) ?? 0 }))
       .sort((a, b) => parseInt(a.code, 10) - parseInt(b.code, 10) || a.code.localeCompare(b.code))
-  }, [])
-
-  // A fresh handful of fully-tagged tracks on every visit.
-  const discover = useMemo(() => {
-    const pool = tracks.filter(t => t.bpm !== null && t.camelot && t.title)
-    const picks = new Set<number>()
-    while (picks.size < Math.min(6, pool.length)) picks.add(Math.floor(Math.random() * pool.length))
-    return [...picks].map(i => pool[i])
   }, [])
 
   return (
@@ -121,25 +113,10 @@ export function Home() {
         ))}
       </div>
 
-      {/* Discover */}
-      <SectionHead title="Discover" to="/browse" linkLabel="View all →" />
-      <div className="divide-y divide-line rounded-card border border-line bg-bg-card">
-        {discover.map(t => (
-          <div
-            key={t.id}
-            className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-hover"
-          >
-            <ArtTile track={t} />
-            <Link to={`/track/${t.id}`} className="min-w-0 flex-1">
-              <div className="truncate text-sm">{trackName(t)}</div>
-              <div className="truncate text-xs text-text-muted">
-                {t.key}{t.mode ? ` (${t.mode})` : ''} • {formatBpm(t.bpm)} BPM
-              </div>
-            </Link>
-            <CamelotBadge code={t.camelot} approximate={!!t.mode} className="shrink-0" />
-          </div>
-        ))}
-      </div>
+      {/* Community activity — what was added, corrected and verified lately.
+          Replaces the old random "Discover" draw: real, dated events from the
+          review queue, since the imported dataset has no per-row dates. */}
+      <ActivityFeed />
 
       <p className="mt-10 text-xs text-text-dim">
         Key &amp; BPM data from duuzu&apos;s song key &amp; bpm database (v10) — see{' '}

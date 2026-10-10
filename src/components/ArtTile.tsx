@@ -36,7 +36,21 @@ function artVariantFor(size: number): 't120x120' | 't500x500' {
   return size <= 48 ? 't120x120' : 't500x500'
 }
 
-export function ArtTile({ track, size = 44 }: { track: Track; size?: number }) {
+export function ArtTile({
+  track,
+  size = 44,
+  /**
+   * Set false when the tile sits inside a link (a feed row that opens the
+   * track): an `<a>` inside an `<a>` is invalid HTML and React rewrites the
+   * DOM to undo it. The artwork then stays decorative and the row's link
+   * handles the click.
+   */
+  link = true,
+}: {
+  track: Track
+  size?: number
+  link?: boolean
+}) {
   const id = youtubeId(track.youtube)
   const [broken, setBroken] = useState(false)
   const [scArt, setScArt] = useState<string | null>(null)
@@ -65,6 +79,29 @@ export function ArtTile({ track, size = 44 }: { track: Track; size?: number }) {
     ? `Watch ${trackName(track)} on YouTube`
     : `Open ${trackName(track)} on SoundCloud`
 
+  const img = (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setBroken(true)}
+      className="h-full w-full object-cover"
+    />
+  )
+
+  if (!link) {
+    return (
+      <span
+        aria-hidden
+        className="block shrink-0 overflow-hidden rounded-lg"
+        style={{ width: size, height: size }}
+      >
+        {img}
+      </span>
+    )
+  }
+
   return (
     <a
       href={href}
@@ -76,14 +113,7 @@ export function ArtTile({ track, size = 44 }: { track: Track; size?: number }) {
       className="relative z-[1] block shrink-0 overflow-hidden rounded-lg outline-none ring-offset-2 ring-offset-bg transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent"
       style={{ width: size, height: size }}
     >
-      <img
-        src={src}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        onError={() => setBroken(true)}
-        className="h-full w-full object-cover"
-      />
+      {img}
     </a>
   )
 }

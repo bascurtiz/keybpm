@@ -45,6 +45,35 @@ export function formatDate(iso: string | null): string {
   return `${m[3]} ${months[parseInt(m[2], 10) - 1]} ${m[1]}`
 }
 
+/**
+ * Timestamps come from two places: SQLite `datetime('now')` ("2026-10-10 18:02:53",
+ * always UTC) and plain `YYYY-MM-DD` dates. Parse both as UTC.
+ */
+function parseUtc(iso: string): number | null {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/)
+  if (!m) return null
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0))
+}
+
+/**
+ * "3 minutes ago" style recency for the activity feed: minutes, then hours,
+ * then days, and the plain date once it is older than a week ("10 Oct 2026").
+ * Dates show a day, not a moment, so they never read as seconds-old.
+ */
+export function formatRelative(iso: string | null, now = Date.now()): string {
+  if (!iso) return '—'
+  const ts = parseUtc(iso)
+  if (ts === null) return iso
+  const minutes = Math.floor((now - ts) / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`
+  return formatDate(iso.slice(0, 10))
+}
+
 /** 0.98 -> "98%". */
 export function formatConfidence(c: number | null): string {
   if (c === null) return '—'

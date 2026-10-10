@@ -108,6 +108,29 @@ export async function listSubmissions(
   return results ?? []
 }
 
+/**
+ * Reviewed rows (approved, or already applied), newest review first — the
+ * public activity feed.
+ *
+ * Ordered by `reviewed_at`, not `created_at`: the feed answers "what changed
+ * lately", and an `applied` row keeps its place in that history after
+ * `data:apply-queue` moves it out of the overlay.
+ */
+export async function listReviewed(
+  env: Env,
+  limit: number,
+): Promise<SubmissionRow[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM submissions
+     WHERE status IN ('approved', 'applied') AND reviewed_at IS NOT NULL
+     ORDER BY reviewed_at DESC, rowid DESC
+     LIMIT ?`,
+  )
+    .bind(limit)
+    .all<SubmissionRow>()
+  return results ?? []
+}
+
 export async function getSubmission(env: Env, id: string): Promise<SubmissionRow | null> {
   return env.DB.prepare('SELECT * FROM submissions WHERE id = ?').bind(id).first<SubmissionRow>()
 }

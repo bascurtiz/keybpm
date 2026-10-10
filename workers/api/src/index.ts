@@ -3,6 +3,7 @@ import {
   getSubmission,
   getUser,
   insertSubmission,
+  listReviewed,
   listSubmissions,
   markApplied,
   reviewSubmission,
@@ -51,6 +52,41 @@ async function reviewerNames(env: Env, rows: SubmissionRow[]): Promise<Map<strin
     for (const r of results ?? []) names.set(r.discord_id, r.username)
   }
   return names
+}
+
+/**
+ * Flatten one reviewed queue row for the public activity feed.
+ *
+ * The raw payload is *not* echoed: the feed only needs the headline values and
+ * the author, and the track page reads the real record. A malformed payload
+ * degrades to the queue metadata instead of failing the whole response.
+ */
+function activityEntry(row: SubmissionRow) {
+  let payload: Record<string, unknown> = {}
+  try {
+    const parsed: unknown = JSON.parse(row.payload)
+    if (parsed && typeof parsed === 'object') payload = parsed as Record<string, unknown>
+  } catch {
+    /* keep the queue metadata only */
+  }
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null)
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  return {
+    id: row.id,
+    kind: row.kind,
+    status: row.status,
+    // A correction targets an existing track; an add proposes its own id.
+    trackId: row.kind === 'correct' ? row.track_id : text(payload.id),
+    artist: text(payload.artist),
+    title: text(payload.title),
+    bpm: num(payload.bpm),
+    key: text(payload.key),
+    camelot: text(payload.camelot),
+    /** Who contributed the row (add) or made the edit (correct). */
+    by: text(payload.submittedBy),
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at,
+  }
 }
 
 /** Submissions plus the reviewer's name — the client stamps verification from it. */
@@ -381,6 +417,30 @@ export default {
           env,
           json({
             submissions: await serializeSubmissions(env, rows),
+          }),
+        )
+      }
+
+      // Public activity feed: the newest reviewed contributions — approved, or
+      // already applied into tracks.json. Powers the homepage's "what changed"
+      // sections. Everything listed here is public anyway (overlay + dataset).
+      if (path === '/api/activity' && req.method === 'GET') {
+        const raw = Number.parseInt(url.searchParams.get('limit') ?? '', 10)
+        const limit = Number.isFinite(raw) ? Math.min(Math.max(raw, 1), 60) : 30
+        const rows = await listReviewed(env, limit)
+        const names = await reviewerNames(env, rows)
+        // Deliberately uncached: the review flow bumps the catalog so the
+        // homepage re-reads this feed, and a cached copy would make the feed
+        // disagree with the overlay a moderator just approved. One indexed
+        // queue read per homepage view is cheap.
+        return withCors(
+          req,
+          env,
+          json({
+            activity: rows.map(row => ({
+              ...activityEntry(row),
+              reviewer: row.reviewer_id ? names.get(row.reviewer_id) ?? null : null,
+            })),
           }),
         )
       }
