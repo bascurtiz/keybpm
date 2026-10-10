@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '@/lib/AuthContext'
 import {
   apiApprove,
+  apiDeleteSubmission,
   apiListSubmissions,
   apiReject,
   apiSetRole,
@@ -29,6 +30,8 @@ function payloadSummary(p: Record<string, unknown>) {
 export function Review() {
   const { user, loading } = useAuth()
   const [items, setItems] = useState<Submission[]>([])
+  /** Approved / applied rows — the ones a mod may need to take back down. */
+  const [history, setHistory] = useState<Submission[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [promoteId, setPromoteId] = useState('')
   const [promoteRole, setPromoteRole] = useState<Role>('trusted')
@@ -46,9 +49,23 @@ export function Review() {
     document.title = 'Review — KeyBPM'
   }, [])
 
+  const loadHistory = useCallback(async () => {
+    try {
+      setHistory(await apiListSubmissions({ status: 'approved,applied' }))
+    } catch {
+      /* history is a convenience — the pending queue above still works */
+    }
+  }, [])
+
+  const isMod = user?.role === 'mod'
+
   useEffect(() => {
     if (user && canReview(user.role)) void load()
   }, [user, load])
+
+  useEffect(() => {
+    if (isMod) void loadHistory()
+  }, [isMod, loadHistory])
 
   if (!loading && (!user || !canReview(user.role))) {
     return <Navigate to="/contribute" replace />
@@ -60,7 +77,8 @@ export function Review() {
       await apiApprove(id)
       await reloadQueueOverlay()
       toast('Approved — live in search now')
-      await load()
+      // The row leaves the pending queue and lands in the history below.
+      await Promise.all([load(), loadHistory()])
     } catch {
       toast('Approve failed')
     } finally {
@@ -85,6 +103,32 @@ export function Review() {
       await load()
     } catch {
       toast('Reject failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Take a row out of the queue for good (mods only) — undoes an approval. */
+  async function remove(s: Submission) {
+    const p = payloadSummary(s.payload)
+    const what = s.kind === 'correct' ? 'correction' : 'track'
+    if (!window.confirm(`Remove this ${what} — ${p.artist} – ${p.title}? This cannot be undone.`)) return
+    setBusy(s.id)
+    try {
+      await apiDeleteSubmission(s.id)
+      // Clear any localStorage overlay written by older clients on submit.
+      const localId =
+        (typeof s.payload.id === 'string' && s.payload.id) || s.track_id || null
+      if (localId) removeContribution(localId)
+      await reloadQueueOverlay()
+      toast(
+        s.status === 'applied'
+          ? 'Queue row deleted — also remove it from data/tracks.json and redeploy'
+          : 'Removed — no longer in search',
+      )
+      await Promise.all([load(), loadHistory()])
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Remove failed')
     } finally {
       setBusy(null)
     }
@@ -187,7 +231,7 @@ export function Review() {
                     >
                       Approve
                     </button>
-                    {user?.role === 'mod' && (
+                    {isMod && (
                       <button
                         type="button"
                         className="btn-ghost px-3 py-1.5 text-xs"
@@ -205,7 +249,68 @@ export function Review() {
         </ul>
       )}
 
-      {user?.role === 'mod' && (
+      {isMod && (
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold">Approved &amp; applied</h2>
+          <p className="mt-1 text-xs text-text-dim">
+            Rows you approved earlier. <span className="text-text-muted">Remove</span> deletes the queue row —
+            an <span className="text-text-muted">approved</span> track drops out of live search straight away,
+            while an <span className="text-text-muted">applied</span> one is already in{' '}
+            <code className="font-mono text-xs">data/tracks.json</code> and must be deleted there too
+            (then redeploy).
+          </p>
+          {history.length === 0 ? (
+            <p className="mt-3 text-xs text-text-dim">Nothing removed or approved yet.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-line rounded-card border border-line bg-bg-card">
+              {history.map(s => {
+                const p = payloadSummary(s.payload)
+                const trackId =
+                  (typeof s.payload.id === 'string' && s.payload.id) || s.track_id || null
+                return (
+                  <li key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">
+                        {p.artist} – {p.title || '—'}
+                      </span>
+                      <span className="block truncate text-xs text-text-muted">
+                        {s.status === 'applied' ? 'applied · in data/tracks.json' : 'approved · live in search'}
+                        {' · '}
+                        {s.kind} · {p.bpm} BPM · {p.key}
+                        {p.camelot ? ` · ${p.camelot}` : ''}
+                        {' · '}
+                        {s.reviewed_at ?? s.created_at}
+                        {typeof s.payload.submittedBy === 'string' && s.payload.submittedBy
+                          ? ` · by ${s.payload.submittedBy}`
+                          : ''}
+                      </span>
+                    </div>
+                    {trackId && (
+                      <Link
+                        to={`/track/${trackId}`}
+                        className="text-xs text-accent hover:text-accent-hover"
+                      >
+                        Open
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-danger px-3 py-1.5 text-xs"
+                      disabled={busy === s.id}
+                      onClick={() => remove(s)}
+                      title="Delete this queue row permanently"
+                    >
+                      {busy === s.id ? 'Removing…' : 'Remove'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {isMod && (
         <section className="surface mt-10 p-4">
           <h2 className="text-sm font-semibold">Promote user</h2>
           <p className="mt-1 text-xs text-text-dim">

@@ -70,43 +70,41 @@ export async function insertSubmission(
 
 export async function listSubmissions(
   env: Env,
-  opts: { status?: string; discordId?: string; limit?: number },
+  opts: { status?: string | string[]; discordId?: string; limit?: number },
 ): Promise<SubmissionRow[]> {
   const limit = Math.min(opts.limit ?? 100, 200)
-  if (opts.status && opts.discordId) {
-    const { results } = await env.DB.prepare(
-      'SELECT * FROM submissions WHERE status = ? AND discord_id = ? ORDER BY created_at DESC LIMIT ?',
-    )
-      .bind(opts.status, opts.discordId, limit)
-      .all<SubmissionRow>()
-    return results ?? []
-  }
-  if (opts.status) {
-    const { results } = await env.DB.prepare(
-      'SELECT * FROM submissions WHERE status = ? ORDER BY created_at DESC LIMIT ?',
-    )
-      .bind(opts.status, limit)
-      .all<SubmissionRow>()
-    return results ?? []
+  const statuses = (Array.isArray(opts.status) ? opts.status : opts.status ? [opts.status] : [])
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  const where: string[] = []
+  const binds: string[] = []
+  if (statuses.length) {
+    where.push(`status IN (${statuses.map(() => '?').join(', ')})`)
+    binds.push(...statuses)
   }
   if (opts.discordId) {
-    const { results } = await env.DB.prepare(
-      'SELECT * FROM submissions WHERE discord_id = ? ORDER BY created_at DESC LIMIT ?',
-    )
-      .bind(opts.discordId, limit)
-      .all<SubmissionRow>()
-    return results ?? []
+    where.push('discord_id = ?')
+    binds.push(opts.discordId)
   }
+
   const { results } = await env.DB.prepare(
-    'SELECT * FROM submissions ORDER BY created_at DESC LIMIT ?',
+    `SELECT * FROM submissions${where.length ? ` WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY created_at DESC LIMIT ?`,
   )
-    .bind(limit)
+    .bind(...binds, limit)
     .all<SubmissionRow>()
   return results ?? []
 }
 
 export async function getSubmission(env: Env, id: string): Promise<SubmissionRow | null> {
   return env.DB.prepare('SELECT * FROM submissions WHERE id = ?').bind(id).first<SubmissionRow>()
+}
+
+/** Hard-delete a queue row. Returns the number of rows removed (0 = unknown id). */
+export async function deleteSubmission(env: Env, id: string): Promise<number> {
+  const r = await env.DB.prepare('DELETE FROM submissions WHERE id = ?').bind(id).run()
+  return r.meta.changes ?? 0
 }
 
 export async function reviewSubmission(

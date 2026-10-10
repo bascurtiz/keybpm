@@ -197,6 +197,12 @@
     @apply btn bg-bg-hover text-text border border-line hover:border-line-hover;
   }
 
+  /* Destructive action (delete a queue row): outline by default, tinted on
+     hover so it doesn't compete with the primary button next to it. */
+  .btn-danger {
+    @apply btn bg-bg-hover border border-line text-bad hover:border-bad hover:bg-bad/10;
+  }
+
   .input {
     @apply bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text
            placeholder:text-text-dim transition-colors duration-150

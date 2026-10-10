@@ -117,6 +117,22 @@ export function canReview(role: Role | undefined): boolean {
   return role === 'trusted' || role === 'mod'
 }
 
+/**
+ * Hard-delete a queue row (mods only) — undoes an approval or drops a test entry.
+ * Call `reloadQueueOverlay()` afterwards so the live catalogue drops the track.
+ */
+export async function apiDeleteSubmission(id: string): Promise<Submission> {
+  const res = await fetch(apiUrl(`/api/submissions/${id}`), {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(err.error || `Delete failed (${res.status})`)
+  }
+  return (await res.json()) as Submission
+}
+
 /** Approved-but-not-yet-in-tracks.json rows — public, powers live search after Approve. */
 export async function apiOverlay(): Promise<Submission[]> {
   try {

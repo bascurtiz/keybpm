@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { getTrack, useCatalog } from '@/lib/data'
 import { CAMELOT_WHEEL, KEY_TO_CAMELOT } from '@/types/track'
 import { slugId } from '@/lib/contributions'
+import { parseBpmInput } from '@/lib/bpm'
 import { canonicalYoutube } from '@/lib/youtube'
 import { canonicalSoundcloud } from '@/lib/soundcloud'
 import { toast } from '@/components/Toast'
@@ -95,17 +96,25 @@ export function Contribute() {
     return Number.isFinite(n) ? Math.round(n) : Number.NaN
   }, [tuning])
   const tuningInvalid = tuningValue !== undefined && !Number.isFinite(tuningValue)
-  const canSubmit = Boolean(artist.trim() && title.trim() && keyName && bpm.trim() && !tuningInvalid)
+  /** A bare `-` (the sheet's "unknown") is rejected here — `Number('-')` is NaN, which used to silently store `bpm: null`. */
+  const bpmParse = useMemo(() => parseBpmInput(bpm), [bpm])
+  const bpmError = bpmParse.ok ? null : bpmParse.error
+  const bpmInvalid = bpm.trim() !== '' && bpmError !== null
+  const canSubmit = Boolean(
+    artist.trim() && title.trim() && keyName && bpmParse.ok && !tuningInvalid,
+  )
 
   const previewTrack = useMemo<Track | null>(() => {
-    if (!canSubmit || !camelot) return null
-    const n = Number(bpm)
+    if (!canSubmit || !camelot || !bpmParse.ok) return null
     return {
       ...original,
       id: original?.id ?? slugId(artist, title),
       artist: artist.trim(),
       title: title.trim(),
-      bpm: Number.isFinite(n) && n > 0 ? n : null,
+      bpm: bpmParse.bpm,
+      // Approximate notation (`~128`) is worth keeping — the dataset stores it
+      // as `bpmRaw` next to the parsed number.
+      bpmRaw: bpmParse.approx ? bpm.trim() : undefined,
       key: keyName,
       camelot,
       tuning: tuningValue,
@@ -121,12 +130,16 @@ export function Contribute() {
       youtube: canonicalYoutube(mediaUrl) ?? undefined,
       soundcloud: canonicalSoundcloud(mediaUrl) ?? undefined,
     }
-  }, [canSubmit, camelot, artist, title, bpm, keyName, tuningValue, notes, mediaUrl, original])
+  }, [canSubmit, camelot, artist, title, bpm, bpmParse, keyName, tuningValue, notes, mediaUrl, original])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!user) {
       login()
+      return
+    }
+    if (bpmError) {
+      toast(bpmError)
       return
     }
     if (tuningInvalid) {
@@ -258,11 +271,13 @@ export function Contribute() {
           </Field>
           <Field label="BPM" required>
             <input
-              className="input w-full"
+              className={`input w-full ${bpmInvalid ? 'border-bad focus:border-bad focus:ring-bad' : ''}`}
               value={bpm}
               onChange={e => setBpm(e.target.value)}
               inputMode="decimal"
-              placeholder="e.g. 124 or 127.5"
+              autoComplete="off"
+              aria-invalid={bpmInvalid || undefined}
+              placeholder="e.g. 124, 127.5, 132,9 or ~128"
             />
           </Field>
           <Field label="Tuning (cents)">
@@ -308,7 +323,9 @@ export function Contribute() {
             ) : (
               <span>Select a key to derive its Camelot code</span>
             )}
-            {tuningInvalid ? (
+            {bpmError && bpmInvalid ? (
+              <span className="text-bad">{bpmError}</span>
+            ) : tuningInvalid ? (
               <span className="text-bad">Tuning must be a number of cents, e.g. +25 or -40</span>
             ) : (
               tuningValue !== undefined && (

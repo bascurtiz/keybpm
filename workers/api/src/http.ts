@@ -29,7 +29,7 @@ export function withCors(req: Request, env: Env, res: Response): Response {
   const headers = new Headers(res.headers)
   headers.set('Access-Control-Allow-Origin', origin)
   headers.set('Access-Control-Allow-Credentials', 'true')
-  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   headers.set('Vary', 'Origin')
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers })

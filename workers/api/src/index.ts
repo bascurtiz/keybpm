@@ -1,4 +1,15 @@
-import { getUser, insertSubmission, listSubmissions, getSubmission, reviewSubmission, setRole, upsertUser, markApplied } from './db'
+import {
+  deleteSubmission,
+  getSubmission,
+  getUser,
+  insertSubmission,
+  listSubmissions,
+  markApplied,
+  reviewSubmission,
+  setRole,
+  upsertUser,
+} from './db'
+import { parseBpmValue } from './validate'
 import { canonicalSoundcloud, fetchSoundcloudArtwork } from './artwork'
 import { err, json, optionsCors, publicOrigin, withCors, isSecure } from './http'
 import {
@@ -35,6 +46,19 @@ async function requireUser(req: Request, env: Env) {
 
 function canReview(role: Role): boolean {
   return role === 'trusted' || role === 'mod'
+}
+
+const STATUSES = new Set(['pending', 'approved', 'rejected', 'applied'])
+
+/** `?status=approved,applied` — the review page's history view asks for two at once. */
+function parseStatuses(raw: string | null): { statuses?: string[]; bad?: string } {
+  const list = (raw ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+  const bad = list.find(s => !STATUSES.has(s))
+  if (bad) return { bad }
+  return { statuses: list.length ? list : undefined }
 }
 
 export default {
@@ -179,8 +203,20 @@ export default {
         const title = typeof body.payload.title === 'string' ? body.payload.title.trim() : ''
         if (!artist || !title) return withCors(req, env, err('artist and title required'))
 
+        // A dash (or anything else that isn't one tempo) must never be stored
+        // as a track — the form blocks it too, but the API is public-ish.
+        const bpm = parseBpmValue(body.payload.bpm)
+        if (bpm === null) {
+          return withCors(
+            req,
+            env,
+            err('bpm must be a number, e.g. 124, 127.5, 132,9 or ~128'),
+          )
+        }
+
         const stamped = {
           ...body.payload,
+          bpm,
           submittedBy: user.username,
           submittedByDiscordId: user.discord_id,
         }
@@ -196,15 +232,16 @@ export default {
       if (path === '/api/submissions' && req.method === 'GET') {
         const user = await requireUser(req, env)
         if (!user) return withCors(req, env, err('Unauthorized', 401))
-        const status = url.searchParams.get('status') ?? undefined
+        const { statuses, bad } = parseStatuses(url.searchParams.get('status'))
+        if (bad) return withCors(req, env, err(`Unknown status: ${bad}`))
         const mine = url.searchParams.get('mine') === '1'
 
         let list: SubmissionRow[]
         if (mine || !canReview(user.role)) {
-          list = await listSubmissions(env, { discordId: user.discord_id, status })
+          list = await listSubmissions(env, { discordId: user.discord_id, status: statuses })
         } else {
           // Reviewers default to pending queue.
-          list = await listSubmissions(env, { status: status ?? 'pending' })
+          list = await listSubmissions(env, { status: statuses ?? 'pending' })
         }
         return withCors(req, env, json({ submissions: list.map(serializeSubmission) }))
       }
@@ -218,6 +255,21 @@ export default {
         if (!row || row.status !== 'approved') {
           return withCors(req, env, err('Not found or already reviewed', 404))
         }
+        return withCors(req, env, json(serializeSubmission(row)))
+      }
+
+      // Remove a queue row outright — for a test entry, or one a moderator
+      // approved by mistake. Mods only: this is the one irreversible action.
+      const removeMatch = path.match(/^\/api\/submissions\/([^/]+)$/)
+      if (removeMatch && req.method === 'DELETE') {
+        const user = await requireUser(req, env)
+        if (!user) return withCors(req, env, err('Unauthorized', 401))
+        if (user.role !== 'mod') return withCors(req, env, err('Forbidden', 403))
+        const id = removeMatch[1]
+        const row = await getSubmission(env, id)
+        if (!row) return withCors(req, env, err('Not found', 404))
+        const deleted = await deleteSubmission(env, id)
+        if (!deleted) return withCors(req, env, err('Not found', 404))
         return withCors(req, env, json(serializeSubmission(row)))
       }
 

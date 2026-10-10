@@ -129,6 +129,8 @@ The app validates every record on load: malformed optional fields are dropped, a
 ### Adding tracks
 
 1. Append a record to `data/tracks.json` (one record per line keeps diffs readable), or use **Contribute** (Discord login → review queue → `data:apply-queue`).
+
+**BPM field:** the Contribute form accepts exactly one tempo — `124`, `127.5`, a comma decimal (`132,9`, normalised to `132.9`), or the sheet's approximate notation `~128` / `≈128` / `128*` (stored as `bpm: 128` plus `bpmRaw: "~128"`). Anything else is refused with an inline error — a lone `-`, the sheet's "not known" placeholder, no longer saves as `bpm: null`. Multi-tempo notations (`80/160`, `128-130`) are rejected too; put those in `notes`. `src/lib/bpm.ts` holds the rule, `workers/api/src/validate.ts` enforces the same one server-side.
 2. Keep `camelot` consistent with `key` — the canonical mapping is in `src/types/track.ts`.
 3. Run `npm run data:csv` to refresh the CSV.
 4. IDs are slugs (`artist-title`) and must be unique. Note that re-running `data:import` overwrites manual edits to `tracks.json`.
@@ -191,6 +193,8 @@ KEYBPM_API_URL=http://127.0.0.1:8787 KEYBPM_APPLY_TOKEN=… npm run data:apply-q
 
 Merges approved submissions into `data/tracks.json`, refreshes CSV, marks them `applied`. Commit and redeploy the Pages site.
 
+Approved rows stay listed under **Approved & applied** at the bottom of `/review`, where a moderator gets a **Remove** button: it hard-deletes the queue row (`DELETE /api/submissions/:id`, mod-only), so an `approved` track leaves live search/overlay immediately. An `applied` row is already in `data/tracks.json` — delete it there too and redeploy.
+
 ### Production
 
 1. Deploy the Worker: `npm run api:deploy` (after remote D1 migrate + secrets).
@@ -200,7 +204,7 @@ Merges approved submissions into `data/tracks.json`, refreshes CSV, marks them `
    - **Split host:** set Pages env `VITE_API_BASE=https://keybpm-api.<account>.workers.dev` and `APP_ORIGIN` to the Pages URL; enable CORS via that origin (already allowed when it matches `APP_ORIGIN`).
 4. Set `MOD_DISCORD_IDS` to your Discord snowflake so the first login is `mod`. Promote others on `/review`.
 
-Roles: `user` (submit), `trusted` (approve), `mod` (approve, reject, set roles).
+Roles: `user` (submit), `trusted` (approve), `mod` (approve, reject, remove, set roles).
 
 ## Deploy (free)
 
