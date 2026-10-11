@@ -2,6 +2,8 @@
 
 **The open music Key & BPM database.** A fast, dark, DJ-friendly web app for searching tracks and filtering them by BPM, musical key, Camelot notation, genre, label and year — inspired by the useful parts of a well-maintained spreadsheet, without the spreadsheet.
 
+> 🧠 **100% vibe-coded.** No planning docs, no hand-typed boilerplate — every feature here was built by describing what I wanted and iterating until the build passed.
+
 - 🎧 Music-aware search: `128 11A`, `F#m 125-130`, `house 2023`, `label:nordlys`
 - 🎚 Dense, sortable track table with URL-driven filters (every view is shareable)
 - 🎹 Interactive Camelot Key Wheel with harmonic compatibility
