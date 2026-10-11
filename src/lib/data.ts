@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Track } from '@/types/track'
+import type { Track, TrackSource } from '@/types/track'
 import { CAMELOT_TO_KEY, KEY_TO_CAMELOT } from '@/types/track'
 import rawTracks from '../../data/tracks.json'
 import { DATA_CHANGED, mergeContributions } from '@/lib/contributions'
@@ -75,6 +75,26 @@ function normalizeTrack(raw: unknown): Track | null {
   if (youtube) track.youtube = youtube
   const soundcloud = canonicalSoundcloud(str(r.soundcloud) ?? str(r.sourceUrl))
   if (soundcloud) track.soundcloud = soundcloud
+  // Per-source key reports (consensus-engine rows). Unknown ids are kept — the
+  // UI falls back to a generic chip — but a malformed entry is dropped.
+  if (Array.isArray(r.sources)) {
+    const sources: TrackSource[] = []
+    const seen = new Set<string>()
+    for (const raw of r.sources) {
+      if (!raw || typeof raw !== 'object') continue
+      const s = raw as Record<string, unknown>
+      const id = str(s.id)
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      const rawKey = str(s.key)?.toUpperCase() ?? null
+      sources.push({
+        id,
+        key: rawKey && CAMELOT_TO_KEY[rawKey] ? rawKey : null,
+        url: str(s.url),
+      })
+    }
+    if (sources.length) track.sources = sources
+  }
   const submittedBy = str(r.submittedBy)
   if (submittedBy) track.submittedBy = submittedBy
   const submittedByDiscordId = str(r.submittedByDiscordId)
@@ -97,7 +117,7 @@ const BASE: Track[] = (Array.isArray(rawTracks) ? (rawTracks as unknown[]) : [])
 export const tracks: Track[] = []
 const byId = new Map<string, Track>()
 
-export const stats = { tracks: 0, artists: 0, labels: 0, withBpm: 0 }
+export const stats = { tracks: 0, artists: 0, labels: 0, withBpm: 0, withSources: 0 }
 export const allGenres: string[] = []
 export const allLabels: string[] = []
 export const allYears: number[] = []
@@ -261,6 +281,7 @@ function refresh(): void {
   stats.artists = new Set(merged.map(t => t.artist)).size
   stats.labels = new Set(merged.map(t => t.label).filter(Boolean)).size
   stats.withBpm = merged.filter(t => t.bpm !== null).length
+  stats.withSources = merged.filter(t => t.sources?.length).length
 
   fill(allGenres, uniqueSorted(merged.map(t => t.genre)) as string[])
   fill(allLabels, uniqueSorted(merged.map(t => t.label)) as string[])

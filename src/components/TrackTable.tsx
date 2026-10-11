@@ -2,31 +2,36 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { Track } from '@/types/track'
-import { BpmBadge, CamelotBadge, KeyBadge } from '@/components/badges'
+import { BpmBadge, CamelotBadge, KeyBadge, SourceBadges } from '@/components/badges'
 import { ArtTile } from '@/components/ArtTile'
-import { allGenres, allLabels, allYears } from '@/lib/data'
+import { allGenres, allLabels, allYears, stats } from '@/lib/data'
+import { trackSources } from '@/lib/sources'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import type { WheelMode } from '@/lib/wheelMode'
 
 export type SortKey = 'artist' | 'title' | 'bpm' | 'key' | 'camelot' | 'genre' | 'label' | 'year'
 export type SortDir = 'asc' | 'desc'
 
+/** `sources` is rendered but not sortable — it is a provenance column, not a facet. */
+type ColumnKey = SortKey | 'sources'
+
 interface Column {
-  key: SortKey
+  key: ColumnKey
   label: string
   width: string
   align?: 'right'
 }
 
 const COLUMNS: Column[] = [
-  { key: 'artist', label: 'Artist', width: '26%' },
-  { key: 'title', label: 'Title', width: '34%' },
-  { key: 'bpm', label: 'BPM', width: '84px', align: 'right' },
-  { key: 'key', label: 'Key', width: '112px', align: 'right' },
-  { key: 'camelot', label: 'Cam', width: '76px', align: 'right' },
-  { key: 'genre', label: 'Genre', width: '14%' },
-  { key: 'label', label: 'Label', width: '14%' },
-  { key: 'year', label: 'Year', width: '64px', align: 'right' },
+  { key: 'artist', label: 'Artist', width: '22%' },
+  { key: 'title', label: 'Title', width: '28%' },
+  { key: 'bpm', label: 'BPM', width: '80px', align: 'right' },
+  { key: 'key', label: 'Key', width: '104px', align: 'right' },
+  { key: 'camelot', label: 'Cam', width: '72px', align: 'right' },
+  { key: 'sources', label: 'Sources', width: '156px' },
+  { key: 'genre', label: 'Genre', width: '12%' },
+  { key: 'label', label: 'Label', width: '12%' },
+  { key: 'year', label: 'Year', width: '60px', align: 'right' },
 ]
 
 function columnsForNotation(notation: WheelMode): Column[] {
@@ -43,7 +48,8 @@ function visibleColumns(notation: WheelMode = 'camelot'): Column[] {
   return columnsForNotation(notation).filter(c =>
     (c.key !== 'genre' || allGenres.length > 0) &&
     (c.key !== 'label' || allLabels.length > 0) &&
-    (c.key !== 'year' || allYears.length > 0),
+    (c.key !== 'year' || allYears.length > 0) &&
+    (c.key !== 'sources' || stats.withSources > 0),
   )
 }
 
@@ -127,7 +133,7 @@ function DesktopTable({
   const padTop = items.length ? items[0].start - scrollMargin : 0
   const padBottom = items.length ? virtualizer.getTotalSize() - (items[items.length - 1].end - scrollMargin) : 0
 
-  const ariaSort = (key: SortKey): 'ascending' | 'descending' | 'none' =>
+  const ariaSort = (key: ColumnKey): 'ascending' | 'descending' | 'none' =>
     sort === key ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'
 
   return (
@@ -143,19 +149,23 @@ function DesktopTable({
               <th
                 key={col.key}
                 scope="col"
-                aria-sort={ariaSort(col.key)}
+                aria-sort={col.key === 'sources' ? 'none' : ariaSort(col.key)}
                 className={`px-3 py-2 text-xs font-medium text-text-muted ${col.align === 'right' ? 'text-right' : 'text-left'}`}
               >
-                <button
-                  type="button"
-                  onClick={() => onSort(col.key)}
-                  className="inline-flex items-center gap-1 transition-colors hover:text-text"
-                >
-                  {col.label}
-                  <span aria-hidden className={sort === col.key ? 'text-accent' : 'text-transparent'}>
-                    {dir === 'asc' ? '▲' : '▼'}
-                  </span>
-                </button>
+                {col.key === 'sources' ? (
+                  <span>{col.label}</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSort(col.key as SortKey)}
+                    className="inline-flex items-center gap-1 transition-colors hover:text-text"
+                  >
+                    {col.label}
+                    <span aria-hidden className={sort === col.key ? 'text-accent' : 'text-transparent'}>
+                      {dir === 'asc' ? '▲' : '▼'}
+                    </span>
+                  </button>
+                )}
               </th>
             ))}
           </tr>
@@ -216,6 +226,12 @@ function Cell({ col, t, keyNotation }: { col: Column; t: Track; keyNotation: Whe
           <CamelotBadge code={t.camelot} approximate={!!t.mode} notation={keyNotation} />
         </td>
       )
+    case 'sources':
+      return (
+        <td className="px-3 py-1.5">
+          <SourceBadges sources={trackSources(t)} track={t} max={4} />
+        </td>
+      )
     case 'genre':
       return <td className="truncate px-3 py-1.5 text-text-muted">{t.genre ?? '—'}</td>
     case 'label':
@@ -243,6 +259,7 @@ function MobileList({ tracks, keyNotation }: { tracks: Track[]; keyNotation: Whe
     >
       {virtualizer.getVirtualItems().map(item => {
         const t = tracks[item.index]
+        const sources = trackSources(t)
         return (
           <li
             key={t.id}
@@ -262,6 +279,9 @@ function MobileList({ tracks, keyNotation }: { tracks: Track[]; keyNotation: Whe
                   <CamelotBadge code={t.camelot} approximate={!!t.mode} notation={keyNotation} />
                   {t.year && <span>· {t.year}</span>}
                   {t.label && <span className="truncate">· {t.label}</span>}
+                  {sources.length > 0 && (
+                    <SourceBadges sources={sources} track={t} max={4} className="ml-auto shrink-0" />
+                  )}
                 </div>
               </Link>
             </div>

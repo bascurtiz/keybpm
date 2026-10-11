@@ -1,5 +1,6 @@
 import type { Track } from '@/types/track'
 import { normalizeCamelot } from '@/lib/camelot'
+import { sourceLabel, sourceMeta, trackSources } from '@/lib/sources'
 import { bpmCandidates, bpmInRange } from '@/lib/bpm'
 
 /**
@@ -191,6 +192,9 @@ function haystackOf(track: Track): string {
     h = [
       track.artist, track.title, track.genre ?? '', track.label ?? '', track.release ?? '',
       track.mode ?? '', ...(track.tags ?? []),
+      // Source names/codes ("songgalaxy", "SG", "duuzu", "DZ") so a query can
+      // surface every track a given key service covers.
+      ...trackSources(track).flatMap(s => [sourceLabel(s.id), sourceMeta(s.id).code, s.id]),
     ].join(' ').toLowerCase()
     haystacks.set(track, h)
   }

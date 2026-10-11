@@ -1,3 +1,17 @@
+/**
+ * One third-party key report attached to a track (AGENTS §4). The consensus
+ * engine exports *which* services state a key for a track, and each may state
+ * a different one — so the value and the link live per source, not on the row.
+ */
+export interface TrackSource {
+  /** Stable source id as the consensus engine writes it, e.g. "songgalaxy". */
+  id: string
+  /** Camelot code this source states, when it gave one. */
+  key: string | null
+  /** Direct link to the source's page for this track, when the export had one. */
+  url: string | null
+}
+
 export interface Track {
   id: string
   artist: string
@@ -36,6 +50,8 @@ export interface Track {
   youtube?: string
   /** SoundCloud track URL (`https://soundcloud.com/user/track`). Artwork thumbnail resolved via the API worker (og:image). */
   soundcloud?: string
+  /** Per-source key reports from the multi-source consensus engine (AGENTS §4). */
+  sources?: TrackSource[]
   /** Discord display name of the member who contributed the track through the queue. */
   submittedBy?: string
   /** Discord snowflake of the submitter. */

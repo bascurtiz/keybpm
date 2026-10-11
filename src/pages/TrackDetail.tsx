@@ -5,7 +5,8 @@ import { getTrack, tracks, useCatalog } from '@/lib/data'
 import { getCompatibleKeys, keyRelation, camelotColor } from '@/lib/camelot'
 import { findMixes, DEFAULT_MIX_OPTIONS } from '@/lib/mix'
 import { CAMELOT_TO_KEY } from '@/types/track'
-import { BpmBadge, CamelotBadge, KeyBadge } from '@/components/badges'
+import { BpmBadge, CamelotBadge, KeyBadge, SourceBadge } from '@/components/badges'
+import { sourceHref, sourceMeta, sourceStatedKey, trackSources } from '@/lib/sources'
 import { ArtTile } from '@/components/ArtTile'
 import { EmptyState } from '@/components/EmptyState'
 import { CopyIcon, PencilIcon, SearchIcon, SoundcloudIcon, YoutubeIcon } from '@/components/icons'
@@ -103,6 +104,9 @@ export function TrackDetail() {
     )
   }
 
+  // Consensus rows carry their own `sources`; imported rows (duuzu's sheet) are
+  // derived from their primary `source` so every track shows a provenance chip.
+  const sources = trackSources(track)
   const compatible = track.camelot ? getCompatibleKeys(track.camelot) : []
   const releaseRows = [
     ['Release', track.release],
@@ -258,6 +262,57 @@ export function TrackDetail() {
           {track.notes && <DataRow label="Note" value={track.notes} />}
         </section>
       </div>
+
+      {/* Multi-source provenance (AGENTS §4/§17): which services state a key for
+          this track, each with its own value and a link out. A source that
+          disagrees with the consensus key says so rather than looking unanimous. */}
+      {sources.length > 0 && (
+        <section className="mt-8">
+          <H2
+            right={
+              <span className="text-xs font-normal text-text-muted">
+                {sources.length} source{sources.length === 1 ? '' : 's'} stating a key
+              </span>
+            }
+          >
+            Sources
+          </H2>
+          <ul className="surface divide-y divide-line overflow-hidden">
+            {sources.map(s => {
+              const meta = sourceMeta(s.id)
+              const href = sourceHref(s, track)
+              const stated = sourceStatedKey(s.key)
+              const differs = !!s.key && !!track.camelot && s.key !== track.camelot
+              return (
+                <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <SourceBadge source={s} track={track} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{meta.name}</span>
+                    {differs && (
+                      <span className="block text-xs text-text-dim">
+                        states {s.key} — differs from this track's {track.camelot}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-text-muted">
+                    {stated ?? 'no key stated'}
+                  </span>
+                  {href && (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-accent transition-colors hover:text-accent-hover"
+                    >
+                      Open ↗
+                    </a>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {track.camelot && <>
       {/* Compatible keys */}

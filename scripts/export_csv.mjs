@@ -13,13 +13,16 @@ const tracks = JSON.parse(readFileSync(join(ROOT, 'data', 'tracks.json'), 'utf8'
 const COLUMNS = [
   'id', 'artist', 'title', 'bpm', 'bpmRaw', 'key', 'camelot', 'mode', 'keyRaw', 'tuning',
   'tags', 'genre', 'label', 'release', 'year', 'duration', 'source', 'confidence',
-  'lastVerified', 'notes', 'youtube', 'soundcloud', 'submittedBy', 'submittedByDiscordId',
-  'lastEditedBy', 'lastEditedByDiscordId', 'verifiedAt', 'verifiedBy',
+  'lastVerified', 'notes', 'youtube', 'soundcloud', 'sources', 'submittedBy',
+  'submittedByDiscordId', 'lastEditedBy', 'lastEditedByDiscordId', 'verifiedAt', 'verifiedBy',
 ]
 
 const esc = (v) => {
   if (v === null || v === undefined) return ''
-  const s = Array.isArray(v) ? v.join('|') : String(v)
+  // `sources` is an array of objects — JSON-serialise each so the cell round-trips.
+  const s = Array.isArray(v)
+    ? v.map((x) => (x !== null && typeof x === 'object' ? JSON.stringify(x) : String(x))).join('|')
+    : String(v)
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
 }
 

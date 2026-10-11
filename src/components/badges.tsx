@@ -1,5 +1,7 @@
 import { camelotColor, camelotToOpenKey } from '@/lib/camelot'
 import { modeAbbr, shortKey } from '@/lib/format'
+import { sourceHref, sourceMeta, sourceTooltip } from '@/lib/sources'
+import type { TrackSource } from '@/types/track'
 import type { WheelMode } from '@/lib/wheelMode'
 
 /** Compact BPM display — mono, right-aligned in tables. */
@@ -37,6 +39,89 @@ export function KeyBadge({
     <span className={`font-mono ${className}`} title={mode ? `${keyName} (${mode})` : keyName}>
       {short ? shortKey(keyName) : keyName}
       {mode && <span className="ml-1 text-[0.85em] text-text-dim">{short ? modeAbbr(mode) : mode}</span>}
+    </span>
+  )
+}
+
+/**
+ * One source chip — the source's two-letter code in its brand colour, linking
+ * to the page that states the key. Colour is decorative; the code, the tooltip
+ * and the aria-label all carry the meaning (§25). `stopPropagation` keeps a
+ * chip click from also opening the surrounding (clickable) table row.
+ */
+export function SourceBadge({
+  source,
+  track,
+  className = '',
+}: {
+  source: TrackSource
+  track: { artist: string; title: string; camelot?: string | null }
+  className?: string
+}) {
+  const meta = sourceMeta(source.id)
+  const label = sourceTooltip(source, track.camelot ?? null)
+  const chip = (
+    <span
+      className="inline-flex h-5 min-w-[1.75rem] items-center justify-center rounded border px-1 font-mono text-[11px] font-bold leading-none text-text"
+      style={{ backgroundColor: `${meta.color}26`, borderColor: meta.color }}
+    >
+      {meta.code}
+    </span>
+  )
+  const href = sourceHref(source, track)
+  if (!href) {
+    return (
+      <span className={className} title={label} aria-label={label}>
+        {chip}
+      </span>
+    )
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={label}
+      aria-label={label}
+      onClick={e => e.stopPropagation()}
+      className={`inline-flex transition-transform hover:scale-110 hover:brightness-125 ${className}`}
+    >
+      {chip}
+    </a>
+  )
+}
+
+/**
+ * A track's source chips. `max` caps how many show ("+N" covers the rest) for
+ * dense rows; 0 shows them all.
+ */
+export function SourceBadges({
+  sources,
+  track,
+  max = 0,
+  className = '',
+}: {
+  sources?: TrackSource[]
+  track: { artist: string; title: string; camelot?: string | null }
+  max?: number
+  className?: string
+}) {
+  if (!sources || sources.length === 0) return null
+  const shown = max > 0 ? sources.slice(0, max) : sources
+  const extra = sources.length - shown.length
+  return (
+    <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
+      {shown.map(s => (
+        <SourceBadge key={s.id} source={s} track={track} />
+      ))}
+      {extra > 0 && (
+        <span
+          className="font-mono text-[11px] text-text-dim"
+          title={`${extra} more source${extra === 1 ? '' : 's'}`}
+        >
+          +{extra}
+        </span>
+      )}
     </span>
   )
 }

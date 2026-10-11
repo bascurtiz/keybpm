@@ -4,13 +4,16 @@ import type { Track } from '@/types/track'
 const COLUMNS: (keyof Track)[] = [
   'id', 'artist', 'title', 'bpm', 'bpmRaw', 'key', 'camelot', 'mode', 'keyRaw', 'tuning',
   'tags', 'genre', 'label', 'release', 'year', 'duration', 'source', 'confidence',
-  'lastVerified', 'notes', 'youtube', 'soundcloud', 'submittedBy', 'submittedByDiscordId',
-  'lastEditedBy', 'lastEditedByDiscordId', 'verifiedAt', 'verifiedBy',
+  'lastVerified', 'notes', 'youtube', 'soundcloud', 'sources', 'submittedBy',
+  'submittedByDiscordId', 'lastEditedBy', 'lastEditedByDiscordId', 'verifiedAt', 'verifiedBy',
 ]
 
 const esc = (v: unknown): string => {
   if (v === null || v === undefined) return ''
-  const s = Array.isArray(v) ? v.join('|') : String(v)
+  const s = Array.isArray(v)
+    // `sources` is an array of objects — serialise each so the CSV round-trips.
+    ? v.map(x => (x !== null && typeof x === 'object' ? JSON.stringify(x) : String(x))).join('|')
+    : String(v)
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

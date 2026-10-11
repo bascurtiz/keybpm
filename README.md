@@ -25,6 +25,7 @@ npm run build     # type-check + production build → dist/
 npm run preview   # serve the production build
 npm run typecheck # tsc --noEmit
 npm run data:import # re-import duuzu's sheet export → data/tracks.json + data/tracks.csv
+npm run data:consensus -- path/to/keybpm_consensus_new_tracks.csv  # merge a Key Consensus Engine export
 npm run data:csv    # re-export data/tracks.csv from the JSON
 npm run data:seed     # regenerate the small fictional test set → data/seed-tracks.json
 npm run data:soundiiz # unique Artist - Title list for Soundiiz YouTube matching → data/soundiiz/
@@ -39,7 +40,7 @@ Vite proxies `/api` and `/auth` to `http://127.0.0.1:8787` in dev. Copy `.env.ex
 
 The dataset lives in **`data/tracks.json`** (canonical) and **`data/tracks.csv`** — plain, portable files you can diff in Git, load in Python, or consume from other tools. The app imports the JSON at build time (as its own cacheable chunk); no database, no API server.
 
-**Source:** ~19,150 tracks from *duuzu's song key & bpm 'database'* v10 (15 June 2025), keys and tempos worked out by ear. Credit for the data goes to duuzu — get their permission before publishing it.
+**Source:** ~19,150 tracks from *duuzu's song key & bpm 'database'* v10 (15 June 2025), keys and tempos worked out by ear, plus 8,833 tracks from a ten-source **Key Consensus Engine** export (see below). Credit for the sheet goes to duuzu — get their permission before publishing it.
 
 ### Importing a new sheet version
 
@@ -90,6 +91,21 @@ Two flags matter for a hand-collected SoundCloud batch, because uploads are user
 - `--input=<file>` lists the `Artist - Title` rows that were actually searched, so a loose hit can only land on a row that was looked up rather than anywhere in the catalogue.
 - `--report=<file.tsv>` writes three review files next to it: the accepted matches (lowest score first), `-rejected.tsv` (rows turned down, with their most plausible catalogue row and the guard that stopped it — `export-remix` means the upload is a remix of the track the row claims to be, and so on) and `-unmatched.tsv` (searched rows that got no link, which is the input for another round).
 
+### Key Consensus Engine import
+
+A separate pipeline (`project-consensus-keys`) cross-references ten key databases — CamelotSound, HookTheory, MusicNotes, Karaoke-Version, SongGalaxy, SongKeyFinder, Isolated Tracks, Harmonic Keys, KeyFinder PDF, FMAK v2 — and exports every track whose key at least three of them agree on (`keybpm_consensus_new_tracks.csv`):
+
+```bash
+npm run data:consensus -- "path/to/keybpm_consensus_new_tracks.csv"
+npm run data:csv   # refresh data/tracks.csv
+```
+
+`scripts/import_consensus.mjs` re-checks every row against the current `data/tracks.json` using the engine's own normalisation (accents, brackets and `feat.` stripped, leading `The` dropped), so a row that already exists is skipped — re-running the import is a no-op. `--dry` reports what would be added without writing.
+
+Imported rows keep provenance in their `source` string rather than a `sources` array, so the app also renders a chip for that: duuzu's rows show a `DZ` chip whose tooltip states the sheet's key and whose link opens the sheet. `src/lib/sources.ts` holds that mapping — no per-row data is invented.
+
+Each accepted row keeps its per-source reports in `sources` (`[{ id, key, url }]`). The app renders these as the coloured source chips (`SG`, `HK`, …) in the track table and on the track page: hovering shows the source's full name plus the key it states, and clicking opens its page — the direct link from the export, or the source's own search page when it had none. A source whose key differs from the consensus key is called out rather than shown as unanimous. `confidence` is the share of reporting sources that agreed, and `notes` spells the split out.
+
 ### Schema
 
 ```json
@@ -126,6 +142,7 @@ Two flags matter for a hand-collected SoundCloud batch, because uploads are user
 | `verifiedAt` / `verifiedBy` | Date and reviewer of the queue approval that verified the row — the only thing "Verified" means |
 | `notes` | Free-text caveats (key changes, time signatures…) |
 | `youtube` | Watch URL — table/detail show its thumbnail; click opens the video |
+| `sources` | Per-source key reports from the consensus engine: `[{ id, key, url }]` — rendered as clickable source chips with the source's stated key |
 
 The app validates every record on load: malformed optional fields are dropped, and a record without an `id` or `artist` is skipped instead of crashing the app.
 
