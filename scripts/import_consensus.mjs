@@ -25,7 +25,7 @@
  * not from the export's `key_<source>` columns: an export column is the first
  * record the engine's fuzzy cluster matched for that source, which can be a
  * different song (`key_isolated_tracks = 6B` on a `Glee – Santa Baby` row is
- * Isolated Tracks' key for `Glee – Baby`) or another section of the same song.
+ * Isolated-Tracks' key for `Glee – Baby`) or another section of the same song.
  * Reading it as "what this source states for this track" produced provenance
  * that contradicted itself — sources shown as disagreeing when they had in fact
  * agreed. See scripts/lib/consensus_sources.mjs.
@@ -35,7 +35,8 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   consensusProvenance,
-  isAttributable,
+  MIN_VERIFIED_SOURCES,
+  meetsVerifiedConsensus,
   mergeExportRows,
   normalizeTrack,
   readSourceIndex,
@@ -213,8 +214,24 @@ const stats = {
   bpmConflict: 0,
   provenanceFixed: 0,
   provenanceFixedIds: [],
-  unattributable: 0,
-  unattributableIds: [],
+  belowFloor: 0,
+  belowFloorIds: [],
+}
+
+/**
+ * The sources the engine counted as *agreeing* — its `Source_Count`, falling back
+ * to its own `Consensus_Sources` list. Not the `All_Reporting_Sources` list the
+ * import reads as `reporting`: that one also holds the sources that stated
+ * another key, and counting those would overstate the vote.
+ */
+function countedByEngine(rows, reporting) {
+  for (const r of rows) {
+    const n = Number.parseInt(col(r, 'Source_Count'), 10)
+    if (Number.isFinite(n) && n > 0) return n
+    const list = splitList(col(r, 'Consensus_Sources'))
+    if (list.length) return list.length
+  }
+  return reporting.length
 }
 
 /**
@@ -243,7 +260,15 @@ function provenanceFor(norm, row, { artist, title, camelot }) {
       const found = findMatchDetails(details, { artist, title, urls: reporting.map(urlFor).filter(Boolean) })
       if (found && found.camelot === camelot) match = found
     }
-    return consensusProvenance(index, { artist, title, camelot, reporting, urlFor, match })
+    return consensusProvenance(index, {
+      artist,
+      title,
+      camelot,
+      reporting,
+      urlFor,
+      match,
+      counted: countedByEngine(rows, reporting),
+    })
   }
   const sources = reporting.map(id => {
     const srcKeyRaw = col(row, `key_${id}`).toUpperCase()
@@ -319,11 +344,16 @@ for (const row of rows) {
 
   const provenance = provenanceFor(dedupeKey, row, { artist, title, camelot })
 
-  // No listing and no evidence accounts for this key → not imported. A row that
-  // cannot be traced to any source database is not a key we can stand behind.
-  if (!isAttributable(provenance)) {
-    stats.unattributable++
-    if (stats.unattributableIds.length < 10) stats.unattributableIds.push(`${artist} – ${title} (${camelot})`)
+  // Fewer than three sources state this key in their own right → not imported.
+  // The engine's rule needs three sourced votes, and a row that cannot show
+  // three is one this database cannot stand behind (see MIN_VERIFIED_SOURCES).
+  if (!meetsVerifiedConsensus(provenance)) {
+    stats.belowFloor++
+    if (stats.belowFloorIds.length < 10) {
+      stats.belowFloorIds.push(
+        `${artist} – ${title} (${camelot}) — ${provenance.agree} of ${provenance.total} listed sources state it`,
+      )
+    }
     continue
   }
 
@@ -353,9 +383,9 @@ console.log(`Read ${rows.length} rows from ${inputPath}`)
 console.log(`  snapshot date:      ${snapshotDate}`)
 console.log(`  already in dataset: ${stats.duplicate}`)
 console.log(`  duplicate within file: ${stats.duplicateInFile}`)
-console.log(`  skipped (no artist): ${stats.noArtist} · without a key: ${stats.noKey} · no source accounts for the key: ${stats.unattributable}`)
-if (stats.unattributable) {
-  console.log(`    ${stats.unattributableIds.join('; ')}`)
+console.log(`  skipped (no artist): ${stats.noArtist} · without a key: ${stats.noKey} · below the ${MIN_VERIFIED_SOURCES}-source floor: ${stats.belowFloor}`)
+if (stats.belowFloor) {
+  console.log(`    ${stats.belowFloorIds.join('; ')}`)
 }
 console.log(`  NEW tracks:         ${added.length}`)
 console.log(`  provenance restated on existing rows: ${stats.provenanceFixed}`)

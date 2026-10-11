@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArtTile } from '@/components/ArtTile'
 import { CamelotBadge } from '@/components/badges'
 import { useActivity, recentActivity, recentImports } from '@/lib/activity'
+import { orderFeed } from '@/lib/activityOrder'
 import { getTrack, tracks, useCatalog } from '@/lib/data'
 import { primarySourceId, sourceMeta } from '@/lib/sources'
 import type { ActivityItem } from '@/lib/api'
@@ -15,7 +16,7 @@ import { formatBpm, formatRelative, shortKey, trackName } from '@/lib/format'
  *
  * Two kinds of entry share the list. A queue row is a contribution that went
  * live, labeled with what it did (`added` / `edited`), who did it and when,
- * plus the reviewer who cleared it. An import row is a track a CSV pipeline
+ * and who contributed it (not who approved it). An import row is a track a CSV pipeline
  * brought in (duuzu's sheet, a consensus-engine export): those never went
  * through the queue, so listing them is the only thing that stops thousands of
  * new tracks from appearing with no event attached. Both link to their track
@@ -91,11 +92,12 @@ function ActivityRow({ item }: { item: ActivityItem }) {
     .filter(Boolean)
     .join(' · ')
 
-  // A review is what verification means in KeyBPM, so every row here was
-  // verified — only add the reviewer's name when it is not the same person.
-  const by = [item.by, item.reviewer && item.reviewer !== item.by ? `✓ ${item.reviewer}` : null]
-    .filter(Boolean)
-    .join(' · ')
+  // Only the contributor. A review is what verification means in KeyBPM, so
+  // every row here *was* reviewed — crediting the moderator would put their
+  // name on every line of the feed, which is not what it is for. The reviewer
+  // still travels with the record (`verifiedBy`, shown on the track page); the
+  // API keeps returning it on this payload for callers that want it.
+  const by = item.by
 
   const body = (
     <>
@@ -137,23 +139,23 @@ export function ActivityFeed() {
   const version = useCatalog()
   const [limit, setLimit] = useState(FEED_LIMIT)
 
-  // Newest first across both kinds. An imported track sorts at its snapshot
-  // date's start — the only time signal a row carries — so a fresh import sits
-  // above anything older and below contributions made the same day.
+  // Newest first across both kinds. The two kinds date themselves differently
+  // — a queue row to the second, an import to the day of its snapshot — so
+  // `orderFeed` parses both to a UTC instant before comparing; sorting the
+  // strings directly put every same-day import above every same-day
+  // contribution (§ activityOrder.ts).
   const rows = useMemo<FeedRow[]>(() => {
     const queue: FeedRow[] = recentActivity(items, limit).map(item => ({
       kind: 'queue',
-      when: item.createdAt ?? '',
+      when: item.createdAt,
       item,
     }))
     const imports: FeedRow[] = recentImports(tracks, limit).map(track => ({
       kind: 'import',
-      when: `${track.lastVerified}T00:00:00Z`,
+      when: track.lastVerified ?? '',
       track,
     }))
-    return [...queue, ...imports]
-      .sort((a, b) => b.when.localeCompare(a.when))
-      .slice(0, limit)
+    return orderFeed([...queue, ...imports], limit)
   }, [items, version, limit])
 
   // An import can be thousands of tracks deep, so the list grows on demand

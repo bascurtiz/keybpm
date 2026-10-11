@@ -13,7 +13,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   consensusProvenance,
-  isAttributable,
+  MIN_VERIFIED_SOURCES,
+  meetsVerifiedConsensus,
   normalizeTrack,
   readCsvTable,
   readSourceIndex,
@@ -102,7 +103,7 @@ it('every key a source lists for a track is kept', () => {
 })
 
 it('a source that states the consensus key is credited with it, not with a sibling\'s key', () => {
-  // The Glee – Santa Baby regression: Isolated Tracks also has "Glee – Baby" at
+  // The Glee – Santa Baby regression: Isolated-Tracks also has "Glee – Baby" at
   // 6B, and the export's key_isolated_tracks column carried that instead.
   const { sources, agree, dissent, notes, confidence } = consensusProvenance(index, {
     artist: 'Glee',
@@ -136,6 +137,40 @@ it('a source that states another key is called a dissenter, with the value it st
   assert.equal(dissent, 1)
   assert.match(notes, /not corroborated/)
   assert.equal(confidence, undefined)
+})
+
+it('a record says how many sources drove the consensus when fewer could be matched', () => {
+  // Live case: Deadmau5 – Ghost N Stuff (Matroda Remix). The engine counted
+  // CamelotSound, Karaoke-Version and MusicNotes; only CamelotSound's listing
+  // holds that remix (the other two list `Ghosts 'n' Stuff`), so the record
+  // carries one chip — and "Key agreed by 1 of 1 reporting sources" read as if
+  // one source backed a key that three did.
+  const { notes, agree, confidence } = consensusProvenance(index, {
+    artist: 'Glee',
+    title: 'Santa Baby',
+    camelot: '3B',
+    reporting: ['isolated_tracks', 'hooktheory'],
+    urlFor: () => '',
+    counted: 3,
+  })
+  assert.equal(agree, 1)
+  assert.equal(
+    notes,
+    'Key agreed by 3 sources in the consensus run; this track appears in 1 of their listings.',
+  )
+  assert.equal(confidence, 1)
+})
+
+it('an engine count no larger than the matched listings leaves the note alone', () => {
+  const { notes } = consensusProvenance(index, {
+    artist: 'Glee',
+    title: 'Santa Baby',
+    camelot: '3B',
+    reporting: ['isolated_tracks', 'hooktheory'],
+    urlFor: () => '',
+    counted: 1,
+  })
+  assert.equal(notes, 'Key agreed by 1 of 1 reporting sources.')
 })
 
 it('a multi-key source that states the consensus key is credited with that key', () => {
@@ -211,7 +246,29 @@ it('a source is credited from the engine\'s evidence when its listing cannot be 
   assert.equal(notes, 'Key agreed by 1 of 1 reporting sources.')
 })
 
-it('a row whose key no source accounts for is not attributable', () => {
+it('a key needs three sourced votes, not one, to be published', () => {
+  // The dataset's floor is the engine's own rule (min_sources=3) applied to the
+  // votes that can actually be traced. Live case: the engine counted three
+  // sources for `Deadmau5 – Ghost N Stuff (Matroda Remix)` while only
+  // CamelotSound lists that remix — the other two list the original — so one
+  // chip and a row that read "agreed by 1 of 1 reporting sources". Such a row is
+  // no longer annotated, it is dropped: 35 of them were in the dataset.
+  assert.equal(MIN_VERIFIED_SOURCES, 3)
+  assert.equal(meetsVerifiedConsensus({ agree: 2 }), false)
+  assert.equal(meetsVerifiedConsensus({ agree: 3 }), true)
+
+  const oneSource = consensusProvenance(index, {
+    artist: 'Glee',
+    title: 'Santa Baby',
+    camelot: '3B',
+    reporting: ['isolated_tracks'],
+    urlFor: () => '',
+  })
+  assert.equal(oneSource.agree, 1)
+  assert.equal(meetsVerifiedConsensus(oneSource), false, 'one source is not a consensus')
+})
+
+it('a row whose key no source accounts for is dropped', () => {
   // The engine can accept a key no source of ours can be named for: three of its
   // cluster's records stated it, but none of them is this track in any listing
   // and there is no evidence record either. Such a row is not imported.
@@ -223,16 +280,7 @@ it('a row whose key no source accounts for is not attributable', () => {
     urlFor: () => '',
   })
   assert.deepEqual(unattributable.sources, [])
-  assert.equal(isAttributable(unattributable), false, 'dropped, not annotated')
-
-  const attributable = consensusProvenance(index, {
-    artist: 'Glee',
-    title: 'Santa Baby',
-    camelot: '3B',
-    reporting: ['isolated_tracks'],
-    urlFor: () => '',
-  })
-  assert.equal(isAttributable(attributable), true)
+  assert.equal(meetsVerifiedConsensus(unattributable), false, 'dropped, not annotated')
 })
 
 it('evidence for another key does not override the listings', () => {

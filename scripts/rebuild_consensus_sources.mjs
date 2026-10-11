@@ -9,7 +9,7 @@
  * The bug this fixes: `import_consensus.mjs` read the export's `key_<source>`
  * column as "the key this source states for this track" and recomputed
  * agreement from it. That column is the first record the engine's fuzzy cluster
- * matched for the source, so it can be a *different song* — Isolated Tracks'
+ * matched for the source, so it can be a *different song* — Isolated-Tracks'
  * `6B` on the `Glee – Santa Baby` row is its key for `Glee – Baby` — or, for a
  * multi-key source, a different section of the same song (HookTheory). Reports
  * written from it therefore claimed sources contradict a key they had in fact
@@ -18,6 +18,13 @@
  * agreed.
  *
  * See scripts/lib/consensus_sources.mjs for why the CSVs are the authority.
+ * It also enforces the dataset's floor: a record whose key fewer than three
+ * sources state (in their own listing, or in the engine's evidence for them) is
+ * **removed** — the engine needs three sourced votes, and the rows that cleared
+ * its count on evidence nobody can trace are not keys this database publishes
+ * (35 of them came from the engine's fuzzy clusters pairing a track with a
+ * near-miss pressing; see MIN_VERIFIED_SOURCES).
+ *
  * Running twice is a no-op.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -25,7 +32,8 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   consensusProvenance,
-  isAttributable,
+  MIN_VERIFIED_SOURCES,
+  meetsVerifiedConsensus,
   mergeExportRows,
   normalizeTrack,
   readCsvTable,
@@ -91,8 +99,12 @@ const conflictingTracks = merged.filter(e => e.conflict).length
 
 /** normalised "artist title" → the provenance we want that record to carry. */
 const rebuilt = new Map()
-/** Normalised keys of the tracks no source accounts for — removed on --apply. */
-const unattributable = new Set()
+/**
+ * Normalised keys of the tracks whose key fewer than three sources state —
+ * removed on --apply. The engine needs three sourced votes and so does this
+ * database; a row that cannot show three does not belong in the dataset.
+ */
+const belowFloor = new Set()
 const stats = {
   rows: 0,
   noKey: 0,
@@ -105,7 +117,7 @@ const stats = {
   multiKeySources: 0,
   agreeCounts: {},
   lowAgreement: [],
-  unattributable: [],
+  belowFloor: [],
   duplicateTracks,
   conflictingTracks,
   mergedTracks: exportRows.size,
@@ -138,6 +150,20 @@ for (const entry of merged) {
     else { match = found; detailStats.joined++ }
   }
 
+  // The engine's own agreeing-source count (`Source_Count`), so a record whose
+  // counted sources could not all be matched still says how many drove the
+  // consensus. `All_Reporting_Sources` — what `reporting` holds — also names the
+  // sources that stated another key, so it cannot stand in for the vote.
+  const counted = (() => {
+    for (const r of entry.rows) {
+      const n = Number.parseInt(col(r, 'Source_Count'), 10)
+      if (Number.isFinite(n) && n > 0) return n
+      const list = splitList(col(r, 'Consensus_Sources'))
+      if (list.length) return list.length
+    }
+    return reporting.length
+  })()
+
   const { sources, agree, dissent, total, notes, confidence } = consensusProvenance(index, {
     artist,
     title,
@@ -145,6 +171,7 @@ for (const entry of merged) {
     reporting,
     urlFor,
     match,
+    counted,
   })
   stats.sourcesKept += sources.length
   stats.multiKeySources += sources.filter(s => s.keys).length
@@ -158,14 +185,17 @@ for (const entry of merged) {
     const states = sources.filter(s => s.key === camelot).map(s => s.id)
     const other = sources.filter(s => s.key !== camelot).map(s => `${s.id}:${s.key}`)
     stats.lowAgreement.push(
-      `${artist} – ${title} (${camelot}) — engine counted ${col(entry.rows[0], 'Source_Count')} as ${engineSaid}; `
+      `${artist} – ${title} (${camelot}) — engine counted ${counted} as ${engineSaid}; `
       + `lists state it: ${states.join('/') || 'none'}; other values: ${other.join(', ') || 'none'}`,
     )
   }
 
-  if (!isAttributable({ sources })) {
-    stats.unattributable.push(`${artist} – ${title} (${camelot})`)
-    unattributable.add(norm)
+  if (!meetsVerifiedConsensus({ agree })) {
+    stats.belowFloor.push(
+      `${artist} – ${title} (${camelot}) — ${agree} of ${total} listed sources state it`
+      + ` (${sources.map(s => (s.key === camelot ? s.id : `${s.id}:${s.key}`)).join(', ') || 'no listing'}); engine counted ${counted}`,
+    )
+    belowFloor.add(norm)
     continue
   }
 
@@ -179,8 +209,8 @@ console.log(`  key verifiable in a listing: ${stats.verified.toLocaleString('en-
 console.log(`  NOT verifiable:          ${stats.rowsUnverifiable.toLocaleString('en-US')}`)
 console.log(`  with a dissenting source: ${stats.rowsWithDissent.toLocaleString('en-US')}`)
 console.log(`  source entries:          ${stats.sourcesKept.toLocaleString('en-US')} (${stats.multiKeySources.toLocaleString('en-US')} multi-key, gaining a keys[] list)`)
-console.log(`  no source accounts for the key (not imported): ${stats.unattributable.length}`)
-for (const r of stats.unattributable.slice(0, 10)) console.log(`    · ${r}`)
+console.log(`  below the ${MIN_VERIFIED_SOURCES}-source floor (not imported): ${stats.belowFloor.length}`)
+for (const r of stats.belowFloor.slice(0, 10)) console.log(`    · ${r}`)
 if (details) {
   console.log(`  matched to engine evidence: ${detailStats.joined.toLocaleString('en-US')} tracks (${detailStats.none} no detail row, ${detailStats.mismatchedKey} of another key)`)
 }
@@ -208,7 +238,7 @@ for (const track of tracks) {
   if (track.source !== SOURCE) continue
   const norm = normalizeTrack(track.artist, track.title)
   // Imported before this rule existed: the record goes, the note does not stay.
-  if (unattributable.has(norm)) {
+  if (belowFloor.has(norm)) {
     dropped.push(track)
     continue
   }
@@ -250,7 +280,7 @@ if (changed.length && changed.length <= 10) {
   console.log(`  changed ids:             ${changed.map(c => c.track.id).join(', ')}`)
 }
 if (dropped.length) {
-  console.log(`  to remove (no source accounts for the key): ${dropped.length}`)
+  console.log(`  to remove (fewer than ${MIN_VERIFIED_SOURCES} sources state the key): ${dropped.length}`)
   for (const t of dropped) console.log(`    · ${t.id} — ${t.artist} – ${t.title} (${t.camelot})`)
 }
 if (untouched.length) {

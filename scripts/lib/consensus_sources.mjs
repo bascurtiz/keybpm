@@ -382,19 +382,35 @@ export function mergeExportRows(rows, pick) {
 }
 
 /**
- * Whether a consensus row may enter the dataset at all: at least one source
- * listing or evidence record has to account for the key it claims.
+ * How many sources must state a track's key for it to enter the dataset.
  *
- * The engine accepts a key when three of its clusters' sources state it; if not
- * one of them can be named for the track — its listings do not have the track
- * under any spelling, and its evidence cannot be joined — then the row's key
- * cannot be traced to any source database, and a key with no traceable source is
- * not what this database is for. Such rows are not imported (`2Pac & Snoop Dogg
- * – 2 Of Americaz Most Wanted (Lp)`, the only one, used to sit in the dataset
- * saying so in a note; a note is not provenance).
+ * The engine's own rule (`compute_cluster_consensus(min_sources=3)`), applied
+ * to the evidence this database can point at — a source's own listing, or the
+ * engine's per-record evidence for it. Only those can be checked by anyone
+ * reading a row, and the engine's count is not a substitute for them: its fuzzy
+ * cluster spans near-miss songs, so its three votes can be about a different
+ * pressing. `Deadmau5 – Ghost N Stuff (Matroda Remix)` was counted on
+ * CamelotSound, Karaoke-Version and MusicNotes, but the other two list
+ * `Ghosts 'n' Stuff` (the original) — one traced vote, not three.
+ *
+ * A row below the floor is dropped, not annotated: it is the same call the
+ * engine makes, and a key this database cannot tie to three sources is one it
+ * should not publish. This is deliberately stricter than "some source backs
+ * it" — a single source's guess is not a consensus.
  */
-export function isAttributable(provenance) {
-  return provenance.sources.length > 0
+export const MIN_VERIFIED_SOURCES = 3
+
+/**
+ * Whether a row's key is stated by enough sources to be published: three of
+ * them, by their own listings or the engine's evidence for them.
+ *
+ * A source that lists the track under another key does not count — `agree`
+ * holds the sources that state the consensus key, so three *mentions* are not
+ * enough (the 3 rows that listed three sources but stated the key twice were
+ * dropped with the rest).
+ */
+export function meetsVerifiedConsensus(provenance) {
+  return provenance.agree >= MIN_VERIFIED_SOURCES
 }
 
 /**
@@ -406,8 +422,16 @@ export function isAttributable(provenance) {
  * source can never be shown as contradicting a key it stated. A source that
  * lists it under another key keeps that value, and a source whose listing has no
  * row for the track is left out entirely — it has said nothing about it.
+ *
+ * That last rule is why `counted` is passed in. Dropping the sources we cannot
+ * trace makes the *record* understate the consensus: the engine accepts a key
+ * only when three of its sources state it, so a row whose remaining listings
+ * are one strong match would otherwise read "Key agreed by 1 of 1 reporting
+ * sources" — indistinguishable from a key one source backed. `counted` is the
+ * engine's own agreeing-source count (`Source_Count` in its export), and the
+ * note says so when it exceeds what could be matched.
  */
-export function consensusProvenance(index, { artist, title, camelot, reporting, urlFor, match }) {
+export function consensusProvenance(index, { artist, title, camelot, reporting, urlFor, match, counted }) {
   // The engine's own evidence for this track, when it could be joined. A detail
   // entry states another key for the same URL/name → it is another track, and
   // the listings fall back to doing the attribution.
@@ -439,9 +463,15 @@ export function consensusProvenance(index, { artist, title, camelot, reporting, 
   const total = sources.length
   const agree = camelot ? sources.filter(s => s.key === camelot).length : 0
   const dissent = sources.filter(s => s.key && s.key !== camelot).length
+  // The engine's vote. `counted` is only ever larger than `total` (evidence can
+  // credit a source the export never listed, never the other way round), so the
+  // two are merged rather than trusted in one direction.
+  const engineCount = Number.isFinite(counted) ? Math.max(counted, total) : total
+  const dissentClause = dissent > 0 ? ` ${dissent} disagree${dissent === 1 ? 's' : ''} with this key.` : ''
   const notes = agree > 0
-    ? `Key agreed by ${agree} of ${total} reporting sources.`
-      + (dissent > 0 ? ` ${dissent} disagree${dissent === 1 ? 's' : ''} with this key.` : '')
+    ? engineCount > total
+      ? `Key agreed by ${engineCount} sources in the consensus run; this track appears in ${total} of their listings.${dissentClause}`
+      : `Key agreed by ${agree} of ${total} reporting sources.${dissentClause}`
     : total === 0
       // Nothing to point at: the key comes from the engine's cluster, which no
       // listing we can read accounts for. Said plainly rather than as a conflict.

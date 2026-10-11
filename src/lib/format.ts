@@ -48,8 +48,12 @@ export function formatDate(iso: string | null): string {
 /**
  * Timestamps come from two places: SQLite `datetime('now')` ("2026-10-10 18:02:53",
  * always UTC) and plain `YYYY-MM-DD` dates. Parse both as UTC.
+ *
+ * Exported because these two shapes have to be *compared*, not just printed:
+ * the activity feed orders rows carrying one of each against each other, and
+ * comparing the strings themselves is not ordering (§ activityOrder.ts).
  */
-function parseUtc(iso: string): number | null {
+export function parseUtc(iso: string): number | null {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/)
   if (!m) return null
   return Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0))

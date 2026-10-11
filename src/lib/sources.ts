@@ -45,14 +45,14 @@ export const SOURCE_META: Record<string, SourceMeta> = {
     url: 'http://www.camelotsound.com/',
     listing: true,
     description:
-      'A long-running DJ harmonic-mixing index: artist, title, tempo and a Camelot keycode per record, made to chain tracks by key. Listed here are the entries that also reached the consensus export — the tracks that carry a CS chip in this database.',
+      'A long-running DJ harmonic-mixing index: artist, title, tempo and a Camelot keycode per record, made to chain tracks by key. The site recommends Mixed In Key "for quick and easy keying" and offers its own database as "more accurate information on many of the same songs" — i.e. these keys are the listings\' own, keyed by ear in the first place rather than imported from the software it points you at. Listed here are the entries that also reached the consensus export — the tracks that carry a CS chip in this database.',
   },
   hooktheory: { code: 'HT', name: 'HookTheory', color: '#00A3CF' },
   karaoke_version: { code: 'KV', name: 'Karaoke-Version', color: '#D3007D' },
   musicnotes: { code: 'MN', name: 'MusicNotes', color: '#4E6D8D' },
   songgalaxy: { code: 'SG', name: 'SongGalaxy', color: '#E43F5A' },
   songkeyfinder: { code: 'SK', name: 'SongKeyFinder', color: '#A8B2C1' },
-  isolated_tracks: { code: 'IT', name: 'Isolated Tracks', color: '#4CB6CB' },
+  isolated_tracks: { code: 'IT', name: 'Isolated-Tracks', color: '#4CB6CB' },
   harmonickeys: {
     code: 'HK',
     name: 'Harmonic Keys',
@@ -69,7 +69,7 @@ export const SOURCE_META: Record<string, SourceMeta> = {
     url: 'https://www.ibrahimshaath.co.uk/keyfinder/KeyFinderV2Dataset.pdf',
     listing: true,
     description:
-      "The KeyFinder V2 dataset: tracks analysed with Ibrahim Sha'ath's open-source key-detection software, each with the musical key it reported — shown here as the Camelot position of that key. Only its tracks that are also in this database are listed.",
+      "Ibrahim Sha'ath's key database, published alongside his open-source KeyFinder: tracks keyed by ear as a ground-truth set for evaluating key-detection software. These are the human annotations such software is measured against, not its output — each key shown here as its Camelot position. Only its tracks that are also in this database are listed.",
   },
   fmak_v2: {
     code: 'FM',
