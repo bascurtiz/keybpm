@@ -307,8 +307,10 @@ export function TrackDetail() {
                       </span>
                     )}
                     {/* A source that keys more than one section or arrangement
-                        says so, instead of looking like it states one key. */}
-                    {others && <span className="block font-mono text-xs text-text-dim">{others}</span>}
+                        says so, instead of looking like it states one key. Set
+                        exactly like the note above it — same size, colour and
+                        body font — so the row reads as one line of prose. */}
+                    {others && <span className="block text-xs text-text-dim">{others}</span>}
                   </span>
                   <span className="shrink-0 font-mono text-xs text-text-muted">
                     {stated ?? 'no key stated'}

@@ -35,11 +35,13 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   consensusProvenance,
+  isAttributable,
   mergeExportRows,
   normalizeTrack,
   readSourceIndex,
   splitList,
 } from './lib/consensus_sources.mjs'
+import { findMatchDetails, readMatchDetails } from './lib/match_details.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const argv = process.argv.slice(2)
@@ -63,6 +65,20 @@ if (index.files.length) {
   console.log(`Source listings: ${index.files.length} files, ${index.rows.toLocaleString('en-US')} keyed rows from ${SOURCES_DIR}`)
 } else {
   console.log(`! No source listings found in ${SOURCES_DIR} — falling back to the export's own key_<source> columns.`)
+}
+
+// The engine's per-record evidence (scripts/export_match_details.py), written
+// next to the export. Optional — without it attribution joins the listings.
+const matchFlag = argv.find(a => a.startsWith('--match-details='))
+const MATCH_DETAILS = matchFlag
+  ? resolve(matchFlag.slice('--match-details='.length))
+  : resolve(dirname(inputPath), 'keybpm_consensus_match_details.csv')
+let details = null
+if (existsSync(MATCH_DETAILS)) {
+  details = readMatchDetails(MATCH_DETAILS)
+  console.log(`Match details: ${details.records.toLocaleString('en-US')} agreeing records over ${details.tracks.toLocaleString('en-US')} tracks from ${MATCH_DETAILS}`)
+} else {
+  console.log(`! No match details at ${MATCH_DETAILS} — attribution falls back to the source listings.`)
 }
 
 /** Consensus key → canonical musical key (mirrors CAMELOT_TO_KEY in src/types/track.ts). */
@@ -197,6 +213,8 @@ const stats = {
   bpmConflict: 0,
   provenanceFixed: 0,
   provenanceFixedIds: [],
+  unattributable: 0,
+  unattributableIds: [],
 }
 
 /**
@@ -219,7 +237,13 @@ function provenanceFor(norm, row, { artist, title, camelot }) {
       }
       return ''
     }
-    return consensusProvenance(index, { artist, title, camelot, reporting, urlFor })
+    // The engine's per-record evidence, when its export is next to this one.
+    let match = null
+    if (details) {
+      const found = findMatchDetails(details, { artist, title, urls: reporting.map(urlFor).filter(Boolean) })
+      if (found && found.camelot === camelot) match = found
+    }
+    return consensusProvenance(index, { artist, title, camelot, reporting, urlFor, match })
   }
   const sources = reporting.map(id => {
     const srcKeyRaw = col(row, `key_${id}`).toUpperCase()
@@ -295,6 +319,14 @@ for (const row of rows) {
 
   const provenance = provenanceFor(dedupeKey, row, { artist, title, camelot })
 
+  // No listing and no evidence accounts for this key → not imported. A row that
+  // cannot be traced to any source database is not a key we can stand behind.
+  if (!isAttributable(provenance)) {
+    stats.unattributable++
+    if (stats.unattributableIds.length < 10) stats.unattributableIds.push(`${artist} – ${title} (${camelot})`)
+    continue
+  }
+
   let base = slug(`${artist} ${title}`) || `consensus-${hash(dedupeKey)}`
   if (base.length > 80) base = base.slice(0, 80).replace(/-+$/, '')
   let id = base
@@ -321,7 +353,10 @@ console.log(`Read ${rows.length} rows from ${inputPath}`)
 console.log(`  snapshot date:      ${snapshotDate}`)
 console.log(`  already in dataset: ${stats.duplicate}`)
 console.log(`  duplicate within file: ${stats.duplicateInFile}`)
-console.log(`  skipped (no artist): ${stats.noArtist} · without a key: ${stats.noKey}`)
+console.log(`  skipped (no artist): ${stats.noArtist} · without a key: ${stats.noKey} · no source accounts for the key: ${stats.unattributable}`)
+if (stats.unattributable) {
+  console.log(`    ${stats.unattributableIds.join('; ')}`)
+}
 console.log(`  NEW tracks:         ${added.length}`)
 console.log(`  provenance restated on existing rows: ${stats.provenanceFixed}`)
 if (stats.provenanceFixed && stats.provenanceFixed <= 10) {

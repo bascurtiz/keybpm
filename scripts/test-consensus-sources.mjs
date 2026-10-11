@@ -13,11 +13,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   consensusProvenance,
+  isAttributable,
   normalizeTrack,
   readCsvTable,
   readSourceIndex,
   statementForTrack,
 } from './lib/consensus_sources.mjs'
+import { findMatchDetails, readMatchDetails } from './lib/match_details.mjs'
 
 let suite = 0
 function it(name, fn) {
@@ -154,6 +156,105 @@ it('quoted commas in a listing do not shift its columns', () => {
   const table = readCsvTable('a,b,c\n"Earth, Wind & Fire",September,C,120\n')
   assert.equal(table[1][0], 'Earth, Wind & Fire')
   assert.equal(table[1][3], '120')
+})
+
+// ---- the engine's per-record evidence (export_match_details.py) -------------
+
+const DETAILS = join(dir, 'match_details.csv')
+writeFileSync(DETAILS, [
+  'track_norm;artist;title;camelot;source;record_artist;record_title;record_key_camelot;record_raw;record_url',
+  // Semicolon-separated, so a comma inside a field is literal content.
+  '10 000 maniacs these are days;10,000 Maniacs;These Are Days;5B;karaoke_version;10,000 Maniacs;These Are Days;5B;E♭;https://example.test/these-are-days',
+  // A source whose record is spelled differently from the export's name.
+  'gigi d agostino lamour toujours;Gigi D\'Agostino;lamour toujours;10B;songkeyfinder;Gigi D’Agostino;L’amour toujours;10B;d-major;https://example.test/lamour-toujours',
+].join('\n') + '\n')
+const details = readMatchDetails(DETAILS)
+
+it('match details read as a semicolon file, commas and all', () => {
+  assert.equal(details.records, 2)
+  assert.equal(details.byNorm.get('10 000 maniacs these are days').artist, '10,000 Maniacs')
+})
+
+it('the engine\'s evidence is found by the record url it matched', () => {
+  const found = findMatchDetails(details, {
+    artist: 'Gigi D’Agostino',
+    title: 'L’amour toujours (single version)',
+    urls: ['https://example.test/lamour-toujours'],
+  })
+  assert.equal(found.camelot, '10B')
+  assert.equal(found.sources.get('songkeyfinder').title, 'L’amour toujours')
+})
+
+it('a source is credited from the engine\'s evidence when its listing cannot be joined', () => {
+  // Gigi D'Agostino's listing rows are spelled `L'amour Toujours`, which none of
+  // the name/url/title joins reach — the evidence file names them outright.
+  const found = findMatchDetails(details, {
+    artist: "Gigi D'Agostino",
+    title: 'lamour toujours',
+    urls: ['https://example.test/lamour-toujours'],
+  })
+  const { sources, agree, dissent, notes } = consensusProvenance(index, {
+    artist: "Gigi D'Agostino",
+    title: 'lamour toujours',
+    camelot: '10B',
+    reporting: ['songkeyfinder'],
+    urlFor: () => '',
+    match: found,
+  })
+  assert.deepEqual(sources, [{
+    id: 'songkeyfinder',
+    key: '10B',
+    url: 'https://example.test/lamour-toujours',
+  }])
+  assert.equal(agree, 1)
+  assert.equal(dissent, 0)
+  assert.equal(notes, 'Key agreed by 1 of 1 reporting sources.')
+})
+
+it('a row whose key no source accounts for is not attributable', () => {
+  // The engine can accept a key no source of ours can be named for: three of its
+  // cluster's records stated it, but none of them is this track in any listing
+  // and there is no evidence record either. Such a row is not imported.
+  const unattributable = consensusProvenance(index, {
+    artist: '2Pac & Snoop Dogg',
+    title: "2 Of Americaz Most Wanted (Lp)",
+    camelot: '2A',
+    reporting: ['camelotsound', 'hooktheory', 'karaoke_version', 'musicnotes'],
+    urlFor: () => '',
+  })
+  assert.deepEqual(unattributable.sources, [])
+  assert.equal(isAttributable(unattributable), false, 'dropped, not annotated')
+
+  const attributable = consensusProvenance(index, {
+    artist: 'Glee',
+    title: 'Santa Baby',
+    camelot: '3B',
+    reporting: ['isolated_tracks'],
+    urlFor: () => '',
+  })
+  assert.equal(isAttributable(attributable), true)
+})
+
+it('evidence for another key does not override the listings', () => {
+  const found = findMatchDetails(details, {
+    artist: "Gigi D'Agostino",
+    title: 'lamour toujours',
+    urls: ['https://example.test/lamour-toujours'],
+  })
+  // Details and dataset disagree about the key: the listings decide, and they
+  // have nothing for this track — so nothing is credited, and the note says so
+  // instead of claiming a conflict nobody stated.
+  const { sources, agree, notes } = consensusProvenance(index, {
+    artist: "Gigi D'Agostino",
+    title: 'lamour toujours',
+    camelot: '11A',
+    reporting: ['songkeyfinder'],
+    urlFor: () => '',
+    match: found,
+  })
+  assert.deepEqual(sources, [])
+  assert.equal(agree, 0)
+  assert.match(notes, /No source listing accounts for this key/)
 })
 
 console.log(`\n${suite} tests passed`)

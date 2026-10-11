@@ -20,17 +20,19 @@
  * See scripts/lib/consensus_sources.mjs for why the CSVs are the authority.
  * Running twice is a no-op.
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   consensusProvenance,
+  isAttributable,
   mergeExportRows,
   normalizeTrack,
   readCsvTable,
   readSourceIndex,
   splitList,
 } from './lib/consensus_sources.mjs'
+import { findMatchDetails, readMatchDetails } from './lib/match_details.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const argv = process.argv.slice(2)
@@ -45,13 +47,28 @@ const CONSENSUS_DIR = (() => {
 })()
 const consensusPath = p => (isAbsolute(p) ? p : resolve(ROOT, p))
 const SOURCES_DIR = consensusPath(join(CONSENSUS_DIR, 'data', 'sources'))
-const EXPORT = consensusPath(join(CONSENSUS_DIR, 'data', 'exports', 'keybpm_consensus_new_tracks.csv'))
+const EXPORTS_DIR = consensusPath(join(CONSENSUS_DIR, 'data', 'exports'))
+const EXPORT = join(EXPORTS_DIR, 'keybpm_consensus_new_tracks.csv')
+// The engine's per-record evidence (scripts/export_match_details.py). Optional:
+// without it attribution falls back to joining the source listings.
+const matchFlag = argv.find(a => a.startsWith('--match-details='))
+const MATCH_DETAILS = matchFlag
+  ? consensusPath(matchFlag.slice('--match-details='.length))
+  : join(EXPORTS_DIR, 'keybpm_consensus_match_details.csv')
 
 const SOURCE = 'key consensus engine'
 
 console.log(`Indexing source listings from ${SOURCES_DIR}`)
 const index = readSourceIndex(SOURCES_DIR)
 console.log(`  ${index.files.length} listings · ${index.rows.toLocaleString('en-US')} keyed rows · ${index.byTrack.size.toLocaleString('en-US')} tracks\n`)
+
+const details = existsSync(MATCH_DETAILS) ? readMatchDetails(MATCH_DETAILS) : null
+if (details) {
+  console.log(`Match details: ${details.records.toLocaleString('en-US')} agreeing records over ${details.tracks.toLocaleString('en-US')} tracks from ${MATCH_DETAILS}`)
+} else {
+  console.log(`! No match details at ${MATCH_DETAILS} — attribution falls back to the source listings.`)
+}
+const detailStats = { joined: 0, mismatchedKey: 0, none: 0 }
 
 const table = readCsvTable(readFileSync(EXPORT, 'utf8'))
 const header = table[0].map(h => h.trim())
@@ -74,6 +91,8 @@ const conflictingTracks = merged.filter(e => e.conflict).length
 
 /** normalised "artist title" → the provenance we want that record to carry. */
 const rebuilt = new Map()
+/** Normalised keys of the tracks no source accounts for — removed on --apply. */
+const unattributable = new Set()
 const stats = {
   rows: 0,
   noKey: 0,
@@ -85,8 +104,8 @@ const stats = {
   rowsUnverifiable: 0,
   multiKeySources: 0,
   agreeCounts: {},
-  emptySources: [],
   lowAgreement: [],
+  unattributable: [],
   duplicateTracks,
   conflictingTracks,
   mergedTracks: exportRows.size,
@@ -107,12 +126,25 @@ for (const entry of merged) {
     return ''
   }
 
+  let match = null
+  if (details) {
+    const found = findMatchDetails(details, {
+      artist,
+      title,
+      urls: reporting.map(urlFor).filter(Boolean),
+    })
+    if (!found) detailStats.none++
+    else if (found.camelot !== camelot) detailStats.mismatchedKey++
+    else { match = found; detailStats.joined++ }
+  }
+
   const { sources, agree, dissent, total, notes, confidence } = consensusProvenance(index, {
     artist,
     title,
     camelot,
     reporting,
     urlFor,
+    match,
   })
   stats.sourcesKept += sources.length
   stats.multiKeySources += sources.filter(s => s.keys).length
@@ -130,7 +162,12 @@ for (const entry of merged) {
       + `lists state it: ${states.join('/') || 'none'}; other values: ${other.join(', ') || 'none'}`,
     )
   }
-  if (sources.length === 0) stats.emptySources.push(`${artist} – ${title} (${camelot})`)
+
+  if (!isAttributable({ sources })) {
+    stats.unattributable.push(`${artist} – ${title} (${camelot})`)
+    unattributable.add(norm)
+    continue
+  }
 
   rebuilt.set(norm, { sources, confidence, notes, artist, title, camelot })
 }
@@ -142,10 +179,13 @@ console.log(`  key verifiable in a listing: ${stats.verified.toLocaleString('en-
 console.log(`  NOT verifiable:          ${stats.rowsUnverifiable.toLocaleString('en-US')}`)
 console.log(`  with a dissenting source: ${stats.rowsWithDissent.toLocaleString('en-US')}`)
 console.log(`  source entries:          ${stats.sourcesKept.toLocaleString('en-US')} (${stats.multiKeySources.toLocaleString('en-US')} multi-key, gaining a keys[] list)`)
-console.log(`  rows listing no source at all: ${stats.emptySources.length}`)
+console.log(`  no source accounts for the key (not imported): ${stats.unattributable.length}`)
+for (const r of stats.unattributable.slice(0, 10)) console.log(`    · ${r}`)
+if (details) {
+  console.log(`  matched to engine evidence: ${detailStats.joined.toLocaleString('en-US')} tracks (${detailStats.none} no detail row, ${detailStats.mismatchedKey} of another key)`)
+}
 console.log(`  tracks carried by more than one export row: ${stats.duplicateTracks} (${stats.conflictingTracks} of them stating a different key)`)
 console.log(`  tracks after merging:    ${stats.mergedTracks.toLocaleString('en-US')}`)
-for (const r of stats.emptySources.slice(0, 10)) console.log(`    · ${r}`)
 console.log('  agreement spread (sources stating the consensus key → rows):')
 for (const n of Object.keys(stats.agreeCounts).map(Number).sort((a, b) => a - b)) {
   console.log(`    ${n} → ${stats.agreeCounts[n].toLocaleString('en-US')}`)
@@ -159,13 +199,20 @@ console.log('')
 const tracks = JSON.parse(readFileSync(join(ROOT, 'data', 'tracks.json'), 'utf8'))
 const changed = []
 const untouched = []
+const dropped = []
 let sourcesRemoved = 0
 let sourcesNew = 0
 const exampleChanges = []
 
 for (const track of tracks) {
   if (track.source !== SOURCE) continue
-  const want = rebuilt.get(normalizeTrack(track.artist, track.title))
+  const norm = normalizeTrack(track.artist, track.title)
+  // Imported before this rule existed: the record goes, the note does not stay.
+  if (unattributable.has(norm)) {
+    dropped.push(track)
+    continue
+  }
+  const want = rebuilt.get(norm)
   if (!want) {
     untouched.push(`${track.artist} – ${track.title}`)
     continue
@@ -202,6 +249,10 @@ console.log(`  source entries added:    ${sourcesNew}`)
 if (changed.length && changed.length <= 10) {
   console.log(`  changed ids:             ${changed.map(c => c.track.id).join(', ')}`)
 }
+if (dropped.length) {
+  console.log(`  to remove (no source accounts for the key): ${dropped.length}`)
+  for (const t of dropped) console.log(`    · ${t.id} — ${t.artist} – ${t.title} (${t.camelot})`)
+}
 if (untouched.length) {
   console.log(`  no export row (left alone): ${untouched.length}`)
   for (const t of untouched.slice(0, 5)) console.log(`    · ${t}`)
@@ -229,8 +280,11 @@ if (!APPLY) {
     else track.confidence = want.confidence
     track.notes = want.notes
   }
-  const out = '[\n' + tracks.map(t => JSON.stringify(t)).join(',\n') + '\n]\n'
+  const droppedIds = new Set(dropped.map(t => t.id))
+  const kept = droppedIds.size ? tracks.filter(t => !droppedIds.has(t.id)) : tracks
+  const out = '[\n' + kept.map(t => JSON.stringify(t)).join(',\n') + '\n]\n'
   writeFileSync(join(ROOT, 'data', 'tracks.json'), out)
-  console.log(`Wrote data/tracks.json — ${changed.length.toLocaleString('en-US')} records updated.`)
-  console.log('Run `npm run data:csv` to refresh data/tracks.csv.')
+  console.log(`Wrote data/tracks.json — ${changed.length.toLocaleString('en-US')} records updated, ${dropped.length} removed.`)
+  console.log('Run `npm run data:csv` to refresh data/tracks.csv, and `npm run data:source-keys`')
+  console.log('if a removed track was anchored in a source listing page.')
 }

@@ -17,10 +17,15 @@
  * is also what makes a source chip deep-linkable: the chip points at
  * `/source/<id>#<trackId>` and the page highlights that row.
  *
- * CamelotSound is limited to the entries that also appear in the consensus
- * export (`keybpm_consensus_new_tracks.csv`) with CamelotSound among their
- * reporting sources — the only ones that can carry a `CS` chip in the app —
- * which is also what keeps the page a sane size.
+ * The anchor set is the dataset's own chips (§4): every track whose `sources`
+ * carry this source gets a row, stating the key that chip's tooltip states. The
+ * export's `key_<source>` column is not the authority for either — it is the
+ * first record the engine's fuzzy cluster matched, which can be another song or
+ * another section of the same one (see rebuild_consensus_sources.mjs), and the
+ * evidence layer records source reports the `Consensus_Sources` column does not.
+ * CamelotSound is otherwise limited to the entries that also appear in the
+ * consensus export (`keybpm_consensus_new_tracks.csv`) — its 35k-row CSV is far
+ * too broad to publish — which is what keeps the page a sane size.
  *
  * Usage:
  *   npm run data:source-keys
@@ -29,6 +34,7 @@
 import { readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { anchorChips } from './lib/source_listings.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DRY = process.argv.includes('--dry')
@@ -145,6 +151,32 @@ function datasetIndex() {
 }
 
 /**
+ * The chips the app renders for a published source: dataset id → the Camelot
+ * the chip's tooltip states.
+ *
+ * It is the listing's anchor set, and the key each anchor must state. A chip
+ * deep-links to `/source/<id>#<track-id>` whenever the source publishes a
+ * listing, so a listing missing that row lands the click on nothing: 148
+ * CamelotSound chips were anchored on rows its export-only selection never
+ * built. Where the row existed, the export's key disagreed with the chip on 43
+ * of them.
+ */
+function readDatasetChips() {
+  const tracks = JSON.parse(readFileSync(join(ROOT, 'data', 'tracks.json'), 'utf8'))
+  const bySource = new Map()
+  for (const source of SOURCES) bySource.set(source.id, new Map())
+  for (const track of tracks) {
+    for (const report of track.sources ?? []) {
+      const map = bySource.get(report.id)
+      const camelot = String(report.key ?? '').toUpperCase()
+      if (!map || !validCamelot(camelot) || map.has(track.id)) continue
+      map.set(track.id, { artist: track.artist, title: track.title, camelot })
+    }
+  }
+  return bySource
+}
+
+/**
  * What the export says, per source: for every track whose `Consensus_Sources`
  * lists the source (the same column the app builds its chips from), the
  * dataset id, the track's spelling as the dataset has it, and the key that
@@ -188,6 +220,7 @@ function readExport(dataset) {
 
 // ---- Build ------------------------------------------------------------------
 const dataset = datasetIndex()
+const datasetChips = readDatasetChips()
 const exported = readExport(dataset)
 const outDir = join(ROOT, 'data', 'source-keys')
 if (!DRY) mkdirSync(outDir, { recursive: true })
@@ -225,9 +258,9 @@ for (const source of SOURCES) {
   }
 
   // Rows the export names that the source's own CSV does not have (the engine
-  // recorded a stated key anyway) — they are added so every chip in the app has
-  // a row to land on. CamelotSound's page is *only* these export-named tracks,
-  // because its 35k-row CSV is far too broad to publish.
+  // recorded a stated key anyway) — CamelotSound's page is *only* these
+  // export-named tracks, because its 35k-row CSV is far too broad to publish.
+  // The dataset's chips are added on top of them (see chipsAdded below).
   const extras = []
   for (const [key, info] of exportMap) {
     if (!info.camelot || byNorm.has(key)) continue
@@ -270,10 +303,15 @@ for (const source of SOURCES) {
     const wanted = stated.get(row[3])
     if (wanted && row[2] === wanted && existing[2] !== wanted) byTrack.set(row[3], row)
   }
+
+  // Then the app's own chips, which are what the page has to answer for.
+  const chips = datasetChips.get(source.id)
+  const { added: chipsAdded, reKeyed: chipsReKeyed } = anchorChips(byTrack, chips)
+
   const payloadRows = [...byTrack.values()]
   payloadRows.sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]))
 
-  const chipIds = new Set([...exportMap.values()].map(v => v.id).filter(Boolean))
+  const chipIds = new Set(chips.keys())
   const anchored = new Set(payloadRows.map(r => r[3]))
   const anchorsMissing = [...chipIds].filter(id => !anchored.has(id)).length
 
@@ -287,13 +325,15 @@ for (const source of SOURCES) {
   const bytes = Buffer.byteLength(json)
 
   const considered = selected.length + extras.length
-  const dropped = considered - payloadRows.length - duplicates
+  const dropped = considered - payloadRows.length + chipsAdded - duplicates
   console.log(`${source.id}  (${source.csv})`)
   console.log(`  rows in csv:        ${rows.length}${noKey ? ` (${noKey} without a Camelot key)` : ''}`)
   console.log(`  considered:         ${considered}${extras.length ? ` (${selected.length} from the csv + ${extras.length} from the export)` : ''}${source.onlyInExport ? ' (only what the export lists)' : ''}`)
   console.log(`  published:          ${payloadRows.length} (all in data/tracks.json)`)
   console.log(`  dropped:            ${dropped} — no matching track in the database`)
   if (duplicates) console.log(`  collapsed:          ${duplicates} repeat${duplicates === 1 ? '' : 's'} of a track this source lists twice`)
+  if (chipsAdded) console.log(`  added for a chip:   ${chipsAdded} — the app renders this source but the export did not name it`)
+  if (chipsReKeyed) console.log(`  re-keyed to the chip: ${chipsReKeyed} — the export stated another key`)
   console.log(`  chips not anchored: ${anchorsMissing} of ${chipIds.size}`)
   console.log(`  size:               ${(bytes / 1024).toFixed(0)} KB`)
 

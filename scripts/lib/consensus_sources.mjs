@@ -87,8 +87,12 @@ export function normalizeTrack(artist, title) {
   return a && t ? `${a} ${t}` : a || t
 }
 
-/** One CSV line → fields, honouring quoted commas and doubled quotes. */
-export function parseCsvLine(line) {
+/**
+ * One delimited line → fields, honouring quoted delimiters and doubled quotes.
+ * The engine writes some exports with `;` (its data contains commas —
+ * `10,000 Maniacs` — so a comma delimiter would need the field quoted).
+ */
+export function parseCsvLine(line, delimiter = ',') {
   const out = []
   let field = ''
   let quoted = false
@@ -100,7 +104,7 @@ export function parseCsvLine(line) {
       } else field += c
     } else if (c === '"') {
       quoted = true
-    } else if (c === ',') {
+    } else if (c === delimiter) {
       out.push(field)
       field = ''
     } else {
@@ -378,6 +382,22 @@ export function mergeExportRows(rows, pick) {
 }
 
 /**
+ * Whether a consensus row may enter the dataset at all: at least one source
+ * listing or evidence record has to account for the key it claims.
+ *
+ * The engine accepts a key when three of its clusters' sources state it; if not
+ * one of them can be named for the track — its listings do not have the track
+ * under any spelling, and its evidence cannot be joined — then the row's key
+ * cannot be traced to any source database, and a key with no traceable source is
+ * not what this database is for. Such rows are not imported (`2Pac & Snoop Dogg
+ * – 2 Of Americaz Most Wanted (Lp)`, the only one, used to sit in the dataset
+ * saying so in a note; a note is not provenance).
+ */
+export function isAttributable(provenance) {
+  return provenance.sources.length > 0
+}
+
+/**
  * The provenance block for one consensus row — the single definition of what a
  * `key consensus engine` record says about where its key came from, used both
  * when importing a row and when repairing one already in the dataset.
@@ -387,18 +407,33 @@ export function mergeExportRows(rows, pick) {
  * lists it under another key keeps that value, and a source whose listing has no
  * row for the track is left out entirely — it has said nothing about it.
  */
-export function consensusProvenance(index, { artist, title, camelot, reporting, urlFor }) {
+export function consensusProvenance(index, { artist, title, camelot, reporting, urlFor, match }) {
+  // The engine's own evidence for this track, when it could be joined. A detail
+  // entry states another key for the same URL/name → it is another track, and
+  // the listings fall back to doing the attribution.
+  const evidence = match && match.camelot === camelot ? match : null
+
   const sources = []
   for (const id of reporting) {
     if (sources.some(s => s.id === id)) continue
+    const stated = evidence?.sources.get(id) ?? null
     const statement = statementForTrack(index, { artist, title, sourceId: id, url: urlFor?.(id) })
-    if (!statement) continue
-    const agrees = !!camelot && statement.keys.includes(camelot)
+    if (!stated && !statement) continue
+    // Evidence first: the engine counted this source, so it stated the key even
+    // if the listing row it used is spelled differently than this track.
+    const agrees = !!stated || (!!camelot && !!statement && statement.keys.includes(camelot))
     const key = agrees ? camelot : statement.keys[0]
-    const source = { id, key, url: statement.urls[key] || null }
+    const source = { id, key, url: stated?.url ?? statement?.urls[key] ?? null }
     // A source that keys several sections/arrangements keeps every one of them.
-    if (statement.keys.length > 1) source.keys = statement.keys
+    if (statement && statement.keys.length > 1) source.keys = statement.keys
     sources.push(source)
+  }
+
+  // A source the engine counted that the export never listed (the two runs can
+  // disagree about a cluster) is still evidence, so it is added rather than lost.
+  for (const [id, stated] of evidence?.sources ?? []) {
+    if (sources.some(s => s.id === id)) continue
+    sources.push({ id, key: camelot, url: stated.url })
   }
 
   const total = sources.length
@@ -407,7 +442,11 @@ export function consensusProvenance(index, { artist, title, camelot, reporting, 
   const notes = agree > 0
     ? `Key agreed by ${agree} of ${total} reporting sources.`
       + (dissent > 0 ? ` ${dissent} disagree${dissent === 1 ? 's' : ''} with this key.` : '')
-    : 'Consensus key not corroborated by the listed sources — each states another key.'
+    : total === 0
+      // Nothing to point at: the key comes from the engine's cluster, which no
+      // listing we can read accounts for. Said plainly rather than as a conflict.
+      ? 'No source listing accounts for this key — taken from the consensus export.'
+      : 'Consensus key not corroborated by the listed sources — each states another key.'
 
   return {
     sources,
