@@ -1,61 +1,68 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArtTile } from '@/components/ArtTile'
 import { CamelotBadge } from '@/components/badges'
-import { useActivity, recentActivity, importBatches, type ImportBatch } from '@/lib/activity'
+import { useActivity, recentActivity, recentImports } from '@/lib/activity'
 import { getTrack, tracks, useCatalog } from '@/lib/data'
-import { sourceMeta } from '@/lib/sources'
+import { primarySourceId, sourceMeta } from '@/lib/sources'
 import type { ActivityItem } from '@/lib/api'
-import { formatBpm, formatCount, formatRelative, shortKey, trackName } from '@/lib/format'
+import type { Track } from '@/types/track'
+import { formatBpm, formatRelative, shortKey, trackName } from '@/lib/format'
 
 /**
  * Community activity: what the community added, corrected and had verified
- * lately — one merged, newest-first list.
+ * lately — one merged, newest-first list, one row per track.
  *
  * Two kinds of entry share the list. A queue row is a contribution that went
  * live, labeled with what it did (`added` / `edited`), who did it and when,
- * plus the reviewer who cleared it; it links to the track it is about and
- * carries the track's Camelot chip on the right, because the key is what a DJ
- * scans a track list for. A batch row is a dataset import (duuzu's sheet, a
- * consensus-engine export): those rows never went through the queue, so
- * showing them here is the only thing that stops thousands of new tracks from
- * appearing out of nowhere.
+ * plus the reviewer who cleared it. An import row is a track a CSV pipeline
+ * brought in (duuzu's sheet, a consensus-engine export): those never went
+ * through the queue, so listing them is the only thing that stops thousands of
+ * new tracks from appearing with no event attached. Both link to their track
+ * and carry its Camelot chip on the right, because the key is what a DJ scans
+ * a track list for.
  */
 
-/** A feed entry: one queue row or one imported batch. */
+/** A feed entry: one queue row or one imported track. */
 type FeedRow =
   | { kind: 'queue'; when: string; item: ActivityItem }
-  | { kind: 'import'; when: string; batch: ImportBatch }
+  | { kind: 'import'; when: string; track: Track }
 
-/** How many entries the feed shows before it stops being scannable. */
+/** Entries shown before the feed stops being scannable, and per "Show more". */
 const FEED_LIMIT = 8
+const FEED_STEP = 24
 
 /**
- * One imported batch. The chip is the source's, so a duuzu import shows the
- * same green `DZ` the table uses, and an unmapped source gets a generic chip.
+ * One imported track, in the same shape as a queue row: what it is, its BPM and
+ * key, when its snapshot landed, and which source it came from instead of who
+ * submitted it — provenance is the only "by" an import has.
  */
-function ImportRow({ batch }: { batch: ImportBatch }) {
-  const meta = sourceMeta(batch.sourceId)
+function ImportRow({ track }: { track: Track }) {
+  const values = [
+    track.bpm !== null ? `${formatBpm(track.bpm)} BPM` : null,
+    track.key ? shortKey(track.key) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  // `sourceMeta` also handles the unmapped case (the consensus engine itself),
+  // turning the raw string into a readable name.
+  const sourceLabel = sourceMeta(primarySourceId(track.source) ?? track.source).name
+
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
-      <span
-        aria-hidden
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border font-mono text-[11px] font-bold leading-none"
-        style={{ backgroundColor: `${meta.color}26`, borderColor: meta.color }}
-      >
-        {meta.code}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm">{formatCount(batch.count)} tracks imported</span>
-        <span className="flex flex-wrap items-center gap-x-2 text-xs">
-          <span className="font-mono text-text-muted" title={batch.source}>
-            {batch.name}
+    <li>
+      <Link to={`/track/${track.id}`} className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-bg-hover sm:px-4">
+        <ArtSlot track={track} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm">{trackName(track)}</span>
+          <span className="flex flex-wrap items-center gap-x-2 text-xs">
+            {values && <span className="font-mono text-text-muted">{values}</span>}
+            <span className="text-text-dim" title={track.source}>
+              imported {formatRelative(track.lastVerified)} · {sourceLabel}
+            </span>
           </span>
-          <span className="text-text-dim">imported {formatRelative(batch.date)}</span>
         </span>
-      </span>
-      {/* Keeps the right edge aligned with the Camelot chips of the rows above. */}
-      <span aria-hidden className="min-w-[3.25rem] shrink-0" />
+        <CamelotBadge code={track.camelot} approximate={!!track.mode} className="shrink-0" />
+      </Link>
     </li>
   )
 }
@@ -128,25 +135,34 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 export function ActivityFeed() {
   const { status, items } = useActivity()
   const version = useCatalog()
+  const [limit, setLimit] = useState(FEED_LIMIT)
 
-  // Newest first across both kinds. A batch is stamped at the end of its
-  // snapshot day: a fresh import is a big event, and it would be buried by
-  // same-day queue rows if it sorted at midnight.
+  // Newest first across both kinds. An imported track sorts at its snapshot
+  // date's start — the only time signal a row carries — so a fresh import sits
+  // above anything older and below contributions made the same day.
   const rows = useMemo<FeedRow[]>(() => {
-    const queue: FeedRow[] = recentActivity(items, FEED_LIMIT).map(item => ({
+    const queue: FeedRow[] = recentActivity(items, limit).map(item => ({
       kind: 'queue',
       when: item.createdAt ?? '',
       item,
     }))
-    const imports: FeedRow[] = importBatches(tracks, 3).map(batch => ({
+    const imports: FeedRow[] = recentImports(tracks, limit).map(track => ({
       kind: 'import',
-      when: `${batch.date}T23:59:59Z`,
-      batch,
+      when: `${track.lastVerified}T00:00:00Z`,
+      track,
     }))
     return [...queue, ...imports]
       .sort((a, b) => b.when.localeCompare(a.when))
-      .slice(0, FEED_LIMIT)
-  }, [items, version])
+      .slice(0, limit)
+  }, [items, version, limit])
+
+  // An import can be thousands of tracks deep, so the list grows on demand
+  // instead of burying the rest of the homepage.
+  const hasMore = useMemo(
+    () =>
+      recentActivity(items, limit + 1).length + recentImports(tracks, limit + 1).length > limit,
+    [items, version, limit],
+  )
 
   return (
     <section>
@@ -158,8 +174,7 @@ export function ActivityFeed() {
       </h2>
 
       <p className="mb-3 -mt-1.5 text-xs text-text-dim">
-        The newest additions, corrections and reviews from the community queue, plus the bulk imports
-        that grow the database.
+        The newest tracks from the community queue and from the bulk imports that grow the database.
       </p>
 
       {status === 'loading' && (
@@ -178,7 +193,7 @@ export function ActivityFeed() {
             <ul className="divide-y divide-line">
               {rows.map(row =>
                 row.kind === 'import' ? (
-                  <ImportRow key={row.batch.id} batch={row.batch} />
+                  <ImportRow key={row.track.id} track={row.track} />
                 ) : (
                   <ActivityRow key={row.item.id} item={row.item} />
                 ),
@@ -189,6 +204,17 @@ export function ActivityFeed() {
               Nothing contributed yet — add the first track, or fix a wrong BPM.
             </p>
           ) : null}
+          {rows.length > 0 && hasMore && (
+            <div className="border-t border-line px-3 py-2 sm:px-4">
+              <button
+                type="button"
+                onClick={() => setLimit(l => l + FEED_STEP)}
+                className="btn-ghost px-3 py-1.5 text-xs"
+              >
+                Show {FEED_STEP} more
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

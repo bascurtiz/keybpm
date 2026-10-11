@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiActivity, type ActivityItem } from '@/lib/api'
 import { useCatalog } from '@/lib/data'
-import { primarySourceId, sourceMeta } from '@/lib/sources'
 import type { Track } from '@/types/track'
 
 /**
@@ -10,7 +9,7 @@ import type { Track } from '@/types/track'
  * Two sources, merged by date in the component: the newest reviewed queue rows
  * from the API's `/api/activity` (which keeps `applied` rows too, so an entry
  * stays in the history after `data:apply-queue` writes it into tracks.json),
- * and the dataset imports in `importBatches` — the rows a CSV pipeline brought
+ * and the imported tracks in `recentImports` — the rows a CSV pipeline brought
  * in, which never touch the queue but do carry a source and a snapshot date.
  *
  * Successful responses are cached per catalog version: the feed only changes
@@ -84,56 +83,35 @@ export function useActivity(): ActivityState {
  * print timestamps that run backwards down the list.
  */
 /**
- * A bulk import: every track that arrived together from one source snapshot.
+ * Tracks that arrived in a bulk import, newest first — one row per track.
  *
  * The queue only knows what was submitted through the app, so the imports that
- * actually grow the database (duuzu's sheet, a consensus-engine export) are
- * invisible in `/api/activity`. They do carry provenance and a snapshot date,
- * so the feed can report them as batch rows instead of letting 8,833 new
- * tracks appear with no event attached.
+ * grow the database (duuzu's sheet, a consensus-engine export) are invisible in
+ * `/api/activity`. Each imported record does carry its snapshot date in
+ * `lastVerified`, so the feed can list them individually instead of rolling
+ * thousands of new tracks into one bare count.
+ *
+ * There is no per-track time inside a snapshot, so rows come out in reverse
+ * dataset order — the order the import appended them, last first — and the
+ * snapshot date is what places them among the queue rows.
  */
-export interface ImportBatch {
-  kind: 'import'
-  id: string
-  /** The record's own `source` string, kept verbatim as the identity. */
-  source: string
-  /** Source id the chip is drawn from ("duuzu", or the string itself). */
-  sourceId: string
-  /** Display name of that source. */
-  name: string
-  count: number
-  /** Snapshot date (`lastVerified`, `YYYY-MM-DD`) — the batch's sort key. */
-  date: string
-}
-
-/**
- * Imported batches, newest snapshot first. Grouped by source + snapshot date,
- * which is exactly the pair a re-import restates: running the same import twice
- * still shows one batch, with the dataset's real count.
- */
-export function importBatches(source: Track[], limit = 3): ImportBatch[] {
-  const groups = new Map<string, ImportBatch>()
+export function recentImports(source: Track[], limit = 8): Track[] {
+  const byDate = new Map<string, Track[]>()
   for (const t of source) {
     const date = t.lastVerified
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
-    const key = `${t.source}|${date}`
-    const batch = groups.get(key)
-    if (batch) {
-      batch.count++
-      continue
-    }
-    const sourceId = primarySourceId(t.source) ?? t.source
-    groups.set(key, {
-      kind: 'import',
-      id: `import:${key}`,
-      source: t.source,
-      sourceId,
-      name: sourceMeta(sourceId).name,
-      count: 1,
-      date,
-    })
+    const rows = byDate.get(date)
+    if (rows) rows.push(t)
+    else byDate.set(date, [t])
   }
-  return [...groups.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit)
+
+  const out: Track[] = []
+  for (const date of [...byDate.keys()].sort((a, b) => b.localeCompare(a))) {
+    const rows = byDate.get(date) as Track[]
+    for (let i = rows.length - 1; i >= 0 && out.length < limit; i--) out.push(rows[i])
+    if (out.length >= limit) break
+  }
+  return out
 }
 
 export function recentActivity(items: ActivityItem[], limit = 6): ActivityItem[] {
