@@ -1,4 +1,5 @@
 import { CAMELOT_TO_KEY, type Track, type TrackSource } from '@/types/track'
+import { isMajorKey, keyRelation } from '@/lib/camelot'
 import { shortKey } from '@/lib/format'
 
 /**
@@ -100,6 +101,102 @@ export function primarySourceId(source: string): string | null {
 }
 
 /**
+ * Sources that key a *section* of a song rather than the whole of it: their
+ * page anchors each section separately, so "Intro and Verse" can be in C major
+ * while the "Chorus" is in A minor — two keys, one source, both correct.
+ *
+ * The exports carry the section *name* as the URL fragment
+ * (`…#Intro%20and%20Verse`), but the sites' own anchors are the slug of that
+ * name (`#intro-and-verse`) — verified against live pages: with the raw
+ * fragment the Zedd track above opens on its Chorus (A minor), with the slug it
+ * opens on Intro and Verse (C major). A fragment the page cannot resolve is
+ * silently ignored and the site's default section is shown instead, which is
+ * how a source stating `8B` ends up displaying `8A`. Only sources whose anchor
+ * scheme has been checked are listed here; nothing is guessed.
+ */
+const SECTION_ANCHOR_SOURCES = new Set(['hooktheory'])
+
+/** The section a source URL points at ("Intro and Verse"), or null when none. */
+export function sourceSection(url: string | null | undefined): string | null {
+  if (!url) return null
+  const hash = url.indexOf('#')
+  if (hash < 0) return null
+  const raw = url.slice(hash + 1).trim()
+  if (!raw) return null
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
+/** Lowercase, hyphenated form of a section name — the shape these sites use as ids. */
+function anchorSlug(section: string): string {
+  return section
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+/**
+ * A source URL whose section anchor can actually be followed. A section-keyed
+ * source gets the slug its site uses, so clicking a row opens the section that
+ * states the key the row prints; for every other source the URL is untouched.
+ */
+export function repairSectionAnchor(id: string, url: string | null | undefined): string | null {
+  if (!url || !SECTION_ANCHOR_SOURCES.has(id)) return url ?? null
+  const section = sourceSection(url)
+  if (!section) return url
+  const slug = anchorSlug(section)
+  if (!slug || slug === section) return url
+  return `${url.slice(0, url.indexOf('#'))}#${slug}`
+}
+
+/**
+ * The other keys a source lists for the track, beyond its primary one — empty
+ * for the usual single-key source. A section-keyed source can state several.
+ */
+export function sourceOtherKeys(source: TrackSource): string[] {
+  if (!source.keys?.length) return []
+  return source.keys.filter(k => k !== source.key)
+}
+
+/**
+ * "also lists 9B, 7B +5" — the other keys a multi-key source lists, capped so
+ * one source cannot push a track page's Sources list out of shape. The full list
+ * is always available in the tooltip.
+ */
+export function sourceOtherKeysLabel(source: TrackSource, max = 3): string | null {
+  const others = sourceOtherKeys(source)
+  if (!others.length) return null
+  const shown = others.slice(0, max).join(', ')
+  const extra = others.length - Math.min(max, others.length)
+  return extra > 0 ? `also lists ${shown} +${extra}` : `also lists ${shown}`
+}
+
+/**
+ * Why a source's key is not the track's key — or null when it agrees (or when
+ * either key is unknown), because then there is nothing to explain.
+ *
+ * A relative major/minor is the common case and the least alarming one: `8A`
+ * and `8B` are the same seven notes with a different tonal centre, so a source
+ * that reports one for a track keyed in the other is not contradicting it. The
+ * wording says that instead of flatly reading as a conflict (§17).
+ */
+export function sourceDissentNote(
+  source: TrackSource,
+  trackCamelot: string | null | undefined,
+): string | null {
+  if (!trackCamelot || !source.key || source.key === trackCamelot) return null
+  if (keyRelation(trackCamelot, source.key) === 'relative') {
+    return `relative ${isMajorKey(source.key) ? 'major' : 'minor'}, same seven notes as this track's ${trackCamelot}`
+  }
+  return `differs from this track's ${trackCamelot}`
+}
+
+/**
  * The chips to show for a track: its per-source key reports when the record
  * carries them, otherwise its own primary `source` as a single report (duuzu's
  * rows state a key just like any consensus source does).
@@ -188,7 +285,7 @@ export function sourceHref(
   if (hasSourcePage(source.id) && track.id) {
     return `/source/${source.id}#${track.id}`
   }
-  return source.url ?? sourceSearchUrl(source.id, track.artist, track.title)
+  return repairSectionAnchor(source.id, source.url) ?? sourceSearchUrl(source.id, track.artist, track.title)
 }
 
 /**
@@ -198,12 +295,15 @@ export function sourceHref(
  */
 export function sourceTooltip(source: TrackSource, consensusCamelot?: string | null): string {
   const stated = sourceStatedKey(source.key)
+  const section = sourceSection(source.url)
   const parts = [
     sourceLabel(source.id),
     stated ? `Stated Key: ${stated}` : 'Stated Key: not given',
   ]
-  if (consensusCamelot && source.key && source.key !== consensusCamelot) {
-    parts.push(`differs from track key ${consensusCamelot}`)
-  }
+  if (section) parts.push(`section: ${section}`)
+  const others = sourceOtherKeys(source)
+  if (others.length) parts.push(`also lists ${others.join(', ')}`)
+  const note = sourceDissentNote(source, consensusCamelot)
+  if (note) parts.push(note)
   return parts.join(' — ')
 }

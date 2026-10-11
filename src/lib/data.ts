@@ -87,10 +87,21 @@ function normalizeTrack(raw: unknown): Track | null {
       if (!id || seen.has(id)) continue
       seen.add(id)
       const rawKey = str(s.key)?.toUpperCase() ?? null
+      // Every key the source lists for the track (§4) — HookTheory keys each
+      // section, MusicNotes each arrangement. Unknown codes are dropped rather
+      // than shown; the primary `key` alone is enough for single-key sources.
+      const keys: string[] = []
+      if (Array.isArray(s.keys)) {
+        for (const listed of s.keys) {
+          const code = str(listed)?.toUpperCase() ?? null
+          if (code && CAMELOT_TO_KEY[code] && !keys.includes(code)) keys.push(code)
+        }
+      }
       sources.push({
         id,
         key: rawKey && CAMELOT_TO_KEY[rawKey] ? rawKey : null,
         url: str(s.url),
+        ...(keys.length > 1 ? { keys } : {}),
       })
     }
     if (sources.length) track.sources = sources

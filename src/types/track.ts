@@ -6,10 +6,19 @@
 export interface TrackSource {
   /** Stable source id as the consensus engine writes it, e.g. "songgalaxy". */
   id: string
-  /** Camelot code this source states, when it gave one. */
+  /**
+   * Camelot code this source states for the track — the consensus key when the
+   * source states it, otherwise the first key it does state.
+   */
   key: string | null
   /** Direct link to the source's page for this track, when the export had one. */
   url: string | null
+  /**
+   * Every key the source lists for the track, in listing order — set only when
+   * it states more than one (§4). HookTheory keys each analysed section (the
+   * verse in C major, the chorus in A minor), MusicNotes lists each arrangement.
+   */
+  keys?: string[]
 }
 
 export interface Track {

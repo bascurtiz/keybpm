@@ -6,7 +6,15 @@ import { getCompatibleKeys, keyRelation, camelotColor } from '@/lib/camelot'
 import { findMixes, DEFAULT_MIX_OPTIONS } from '@/lib/mix'
 import { CAMELOT_TO_KEY } from '@/types/track'
 import { BpmBadge, CamelotBadge, KeyBadge, SourceBadge } from '@/components/badges'
-import { sourceHref, sourceMeta, sourceStatedKey, trackSources } from '@/lib/sources'
+import {
+  sourceDissentNote,
+  sourceHref,
+  sourceMeta,
+  sourceOtherKeysLabel,
+  sourceSection,
+  sourceStatedKey,
+  trackSources,
+} from '@/lib/sources'
 import { ArtTile } from '@/components/ArtTile'
 import { EmptyState } from '@/components/EmptyState'
 import { CopyIcon, PencilIcon, SearchIcon, SoundcloudIcon, YoutubeIcon } from '@/components/icons'
@@ -282,17 +290,25 @@ export function TrackDetail() {
               const meta = sourceMeta(s.id)
               const href = sourceHref(s, track)
               const stated = sourceStatedKey(s.key)
-              const differs = !!s.key && !!track.camelot && s.key !== track.camelot
+              const section = sourceSection(s.url)
+              // Null unless the source states a key other than the track's — a
+              // relative major/minor reads as "same notes", not as a conflict.
+              const dissent = sourceDissentNote(s, track.camelot)
+              const others = sourceOtherKeysLabel(s)
               return (
                 <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
                   <SourceBadge source={s} track={track} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{meta.name}</span>
-                    {differs && (
+                    {dissent && (
                       <span className="block text-xs text-text-dim">
-                        states {s.key} — differs from this track's {track.camelot}
+                        states {stated ?? s.key}
+                        {section ? ` in its “${section}” section` : ''} — {dissent}
                       </span>
                     )}
+                    {/* A source that keys more than one section or arrangement
+                        says so, instead of looking like it states one key. */}
+                    {others && <span className="block font-mono text-xs text-text-dim">{others}</span>}
                   </span>
                   <span className="shrink-0 font-mono text-xs text-text-muted">
                     {stated ?? 'no key stated'}

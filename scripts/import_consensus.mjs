@@ -19,12 +19,27 @@
  *
  * Per-source votes are kept on each record as `sources` (see src/types/track.ts)
  * so the UI can show which key services reported the track, what each states,
- * and link out to it. The row's key is the consensus key; a source that
- * disagrees keeps its own value.
+ * and link out to it.
+ *
+ * Those votes are read from the sources' own listings (`data/sources/*.csv`),
+ * not from the export's `key_<source>` columns: an export column is the first
+ * record the engine's fuzzy cluster matched for that source, which can be a
+ * different song (`key_isolated_tracks = 6B` on a `Glee – Santa Baby` row is
+ * Isolated Tracks' key for `Glee – Baby`) or another section of the same song.
+ * Reading it as "what this source states for this track" produced provenance
+ * that contradicted itself — sources shown as disagreeing when they had in fact
+ * agreed. See scripts/lib/consensus_sources.mjs.
  */
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  consensusProvenance,
+  mergeExportRows,
+  normalizeTrack,
+  readSourceIndex,
+  splitList,
+} from './lib/consensus_sources.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const argv = process.argv.slice(2)
@@ -36,6 +51,19 @@ if (!INPUT) {
   process.exit(1)
 }
 const inputPath = isAbsolute(INPUT) ? INPUT : resolve(ROOT, INPUT)
+
+// The per-source listings live next to the export in the engine's repo. They are
+// read for the sources' real keys; when absent, the export's columns are used.
+const sourcesFlag = argv.find(a => a.startsWith('--sources='))
+const SOURCES_DIR = sourcesFlag
+  ? resolve(sourcesFlag.slice('--sources='.length))
+  : resolve(dirname(inputPath), '..', 'sources')
+const index = existsSync(SOURCES_DIR) ? readSourceIndex(SOURCES_DIR) : { byTrack: new Map(), byUrl: new Map(), files: [], rows: 0 }
+if (index.files.length) {
+  console.log(`Source listings: ${index.files.length} files, ${index.rows.toLocaleString('en-US')} keyed rows from ${SOURCES_DIR}`)
+} else {
+  console.log(`! No source listings found in ${SOURCES_DIR} — falling back to the export's own key_<source> columns.`)
+}
 
 /** Consensus key → canonical musical key (mirrors CAMELOT_TO_KEY in src/types/track.ts). */
 const CAMELOT_TO_KEY = {
@@ -77,32 +105,9 @@ function parseCsv(text) {
 }
 
 // ---- Track normalisation (mirrors core/track_normalizer.py) -----------------
-const stripAccents = s => s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-const RE_FEAT = /\b(feat\.?|ft\.?|featuring)\b[\s\S]*/i
-const RE_BRACKETS = /[([{][\s\S]*?[)\]}]/g
-const RE_NON_ALPHANUM = /[^\p{L}\p{N}_\s]+/gu
-const RE_WHITESPACE = /\s+/g
-const RE_LEADING_THE = /^the\s+/i
-
-const cleanArtist = artist => {
-  let s = stripAccents(String(artist ?? '')).toLowerCase().trim()
-  s = s.replace(RE_LEADING_THE, '')
-  s = s.replace(RE_FEAT, '')
-  s = s.replace(RE_NON_ALPHANUM, ' ')
-  return s.replace(RE_WHITESPACE, ' ').trim()
-}
-const cleanTitle = title => {
-  let s = stripAccents(String(title ?? '')).toLowerCase().trim()
-  s = s.replace(RE_BRACKETS, ' ')
-  s = s.replace(RE_FEAT, '')
-  s = s.replace(RE_NON_ALPHANUM, ' ')
-  return s.replace(RE_WHITESPACE, ' ').trim()
-}
-const normalizeKey = (artist, title) => {
-  const a = cleanArtist(artist)
-  const t = cleanTitle(title)
-  return a && t ? `${a} ${t}` : a || t
-}
+// One implementation, shared with the provenance repair script, so a row is
+// matched against the dataset and against the source listings the same way.
+const normalizeKey = normalizeTrack
 
 // ---- ids / urls -------------------------------------------------------------
 function slug(s) {
@@ -162,6 +167,16 @@ const col = (row, name) => {
 
 const snapshotDate = statSync(inputPath).mtime.toISOString().slice(0, 10)
 
+// Duplicate export rows for one track (a spelling difference splits the sources
+// that corroborate it) are merged, so neither tool drops half the evidence.
+const exportRows = mergeExportRows(table.slice(1), row => ({
+  artist: col(row, 'Artist'),
+  title: col(row, 'Title'),
+  camelot: col(row, 'Camelot').toUpperCase(),
+  reporting: splitList(col(row, 'All_Reporting_Sources') || col(row, 'Consensus_Sources')),
+  row,
+}))
+
 const existing = JSON.parse(readFileSync(join(ROOT, 'data', 'tracks.json'), 'utf8'))
 const takenIds = new Set(existing.map(t => t.id))
 /** normalised "artist title" -> the record already in the dataset (for BPM backfill). */
@@ -173,7 +188,57 @@ for (const t of existing) {
 
 const added = []
 const seenInFile = new Set()
-const stats = { duplicate: 0, duplicateInFile: 0, noArtist: 0, noKey: 0, bpmFilled: 0, bpmConflict: 0 }
+const stats = {
+  duplicate: 0,
+  duplicateInFile: 0,
+  noArtist: 0,
+  noKey: 0,
+  bpmFilled: 0,
+  bpmConflict: 0,
+  provenanceFixed: 0,
+  provenanceFixedIds: [],
+}
+
+/**
+ * The row's provenance: per-source keys, the agreement sentence and confidence.
+ * With no listings to read, the export's own columns are the only evidence —
+ * they can name one key per source, so a source that agreed on another of its
+ * keys looks like a dissenter. `scripts/rebuild_consensus_sources.mjs` exists to
+ * rebuild records imported that way.
+ */
+function provenanceFor(norm, row, { artist, title, camelot }) {
+  const entry = exportRows.get(norm)
+  const reporting = entry?.reporting ?? splitList(col(row, 'All_Reporting_Sources') || col(row, 'Consensus_Sources'))
+  if (index.byTrack.size > 0) {
+    // `url_<source>` may sit on either of a track's duplicate export rows.
+    const rows = entry?.rows ?? [row]
+    const urlFor = id => {
+      for (const r of rows) {
+        const url = col(r, `url_${id}`)
+        if (url) return url
+      }
+      return ''
+    }
+    return consensusProvenance(index, { artist, title, camelot, reporting, urlFor })
+  }
+  const sources = reporting.map(id => {
+    const srcKeyRaw = col(row, `key_${id}`).toUpperCase()
+    return { id, key: validCamelot(srcKeyRaw) ? srcKeyRaw : null, url: col(row, `url_${id}`) || null }
+  })
+  const agree = camelot ? sources.filter(s => s.key === camelot).length : 0
+  const dissent = sources.filter(s => s.key && s.key !== camelot).length
+  return {
+    sources,
+    agree,
+    dissent,
+    total: sources.length,
+    notes: agree > 0
+      ? `Key agreed by ${agree} of ${sources.length} reporting sources.`
+        + (dissent > 0 ? ` ${dissent} disagree${dissent === 1 ? 's' : ''} with this key.` : '')
+      : 'Consensus key not corroborated by the listed sources — each states another key.',
+    confidence: sources.length > 0 && agree > 0 ? Math.round((agree / sources.length) * 100) / 100 : undefined,
+  }
+}
 
 for (const row of rows) {
   const artist = col(row, 'Artist')
@@ -185,6 +250,11 @@ for (const row of rows) {
   if (seenInFile.has(dedupeKey)) { stats.duplicateInFile++; continue }
 
   const bpm = parseExportBpm(col(row, 'BPM'))
+  const camelotRaw = col(row, 'Camelot').toUpperCase()
+  const camelot = validCamelot(camelotRaw) ? camelotRaw : null
+  const key = camelot ? CAMELOT_TO_KEY[camelot] ?? null : null
+  if (!camelot) stats.noKey++
+
   const matched = byKey.get(dedupeKey)
   if (matched) {
     // Already in the dataset — keep the row, but take the tempo the engine now
@@ -198,38 +268,32 @@ for (const row of rows) {
         stats.bpmConflict++
       }
     }
+    // Its provenance is restated too: a row imported before the listings were
+    // read carries the export's cluster-derived keys, which claimed sources
+    // disagreed with keys they had stated.
+    if (matched.source === SOURCE) {
+      const provenance = provenanceFor(dedupeKey, row, { artist, title, camelot: matched.camelot ?? camelot })
+      const next = JSON.stringify({ sources: provenance.sources, confidence: provenance.confidence ?? null, notes: provenance.notes })
+      const current = JSON.stringify({
+        sources: matched.sources ?? [],
+        confidence: matched.confidence ?? null,
+        notes: matched.notes ?? null,
+      })
+      if (next !== current) {
+        if (provenance.sources.length) matched.sources = provenance.sources
+        else delete matched.sources
+        if (provenance.confidence === undefined) delete matched.confidence
+        else matched.confidence = provenance.confidence
+        matched.notes = provenance.notes
+        stats.provenanceFixed++
+        if (stats.provenanceFixedIds.length < 10) stats.provenanceFixedIds.push(matched.id)
+      }
+    }
     continue
   }
   seenInFile.add(dedupeKey)
 
-  const camelotRaw = col(row, 'Camelot').toUpperCase()
-  const camelot = validCamelot(camelotRaw) ? camelotRaw : null
-  const key = camelot ? CAMELOT_TO_KEY[camelot] ?? null : null
-  if (!camelot) stats.noKey++
-
-  // Per-source votes: the export names the reporting sources and gives each its
-  // own camelot key + link. A source with no key is still listed (no stated key).
-  const sourceIds = col(row, 'Consensus_Sources')
-    .split(',').map(s => s.trim()).filter(Boolean)
-  const seenSources = new Set()
-  const sources = []
-  for (const id of sourceIds) {
-    if (seenSources.has(id)) continue
-    seenSources.add(id)
-    const srcKeyRaw = col(row, `key_${id}`).toUpperCase()
-    const url = col(row, `url_${id}`)
-    sources.push({
-      id,
-      key: validCamelot(srcKeyRaw) ? srcKeyRaw : null,
-      url: url || null,
-    })
-  }
-
-  // `Consensus_Sources` lists every source that stated a key (not only the ones
-  // that agree with the winning key), so agreement has to be recounted here.
-  const total = Number.parseInt(col(row, 'Total_Sources_Reporting'), 10) || sources.length
-  const agree = camelot ? sources.filter(s => s.key === camelot).length : 0
-  const dissent = sources.filter(s => s.key && s.key !== camelot).length
+  const provenance = provenanceFor(dedupeKey, row, { artist, title, camelot })
 
   let base = slug(`${artist} ${title}`) || `consensus-${hash(dedupeKey)}`
   if (base.length > 80) base = base.slice(0, 80).replace(/-+$/, '')
@@ -239,23 +303,14 @@ for (const row of rows) {
   takenIds.add(id)
 
   const record = { id, artist, title, bpm, key, camelot, source: SOURCE }
-  // Confidence = share of the sources that looked at the track and agree on the
-  // key — the honest reading of "how settled is this key".
-  if (total > 0 && agree > 0) record.confidence = Math.round((agree / total) * 100) / 100
+  // Confidence = share of the sources listed for this track that state its key
+  // — the honest reading of "how settled is this key" (§17).
+  if (provenance.confidence !== undefined) record.confidence = provenance.confidence
   record.lastVerified = snapshotDate
-  let notes
-  if (agree > 0) {
-    notes = `Key agreed by ${agree} of ${total} reporting sources.`
-    if (dissent > 0) notes += ` ${dissent} disagree${dissent === 1 ? 's' : ''} with this key.`
-  } else {
-    // A handful of export rows list only sources that contradict the winning
-    // key. Say so instead of claiming a confidence nobody reported.
-    notes = `Consensus key not corroborated by the listed sources — each states another key.`
-  }
-  record.notes = notes
+  record.notes = provenance.notes
   const youtube = canonicalYoutube(col(row, 'YouTube'))
   if (youtube) record.youtube = youtube
-  if (sources.length) record.sources = sources
+  if (provenance.sources.length) record.sources = provenance.sources
 
   added.push(record)
 }
@@ -268,13 +323,17 @@ console.log(`  already in dataset: ${stats.duplicate}`)
 console.log(`  duplicate within file: ${stats.duplicateInFile}`)
 console.log(`  skipped (no artist): ${stats.noArtist} · without a key: ${stats.noKey}`)
 console.log(`  NEW tracks:         ${added.length}`)
+console.log(`  provenance restated on existing rows: ${stats.provenanceFixed}`)
+if (stats.provenanceFixed && stats.provenanceFixed <= 10) {
+  console.log(`    ${stats.provenanceFixedIds.join(', ')}`)
+}
 console.log(`  BPM filled in:      ${stats.bpmFilled}`)
 console.log(`  BPM left as-is (differs from export): ${stats.bpmConflict}`)
 console.log(`  dataset:            ${existing.length} -> ${merged.length}`)
 
 if (DRY) {
   console.log('--dry: nothing written.')
-} else if (added.length === 0 && stats.bpmFilled === 0) {
+} else if (added.length === 0 && stats.bpmFilled === 0 && stats.provenanceFixed === 0) {
   console.log('Nothing to write — dataset already matches the export.')
 } else {
   const out = '[\n' + merged.map(t => JSON.stringify(t)).join(',\n') + '\n]\n'
