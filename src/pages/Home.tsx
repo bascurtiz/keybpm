@@ -6,10 +6,41 @@ import { stats, tracks, useCatalog } from '@/lib/data'
 import { ALL_CAMELOT_CODES, CAMELOT_TO_KEY } from '@/types/track'
 import { formatCount, shortKey } from '@/lib/format'
 import { usePageMeta } from '@/lib/meta'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const HOME_DESCRIPTION =
   'Real tracks. Real people. Real musical data. Help build the most accurate, community-driven database for key, bpm and more.'
+
+/** Count from 0 to `target` on mount (~900ms, ease-out). Honors reduced motion. */
+function useCountUp(target: number, duration = 900): number {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setValue(target)
+      return
+    }
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / duration)
+      setValue(Math.round(target * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, duration])
+  return value
+}
+
+function HeroStat({ value, label }: { value: number; label: string }) {
+  const animated = useCountUp(value)
+  return (
+    <div>
+      <div className="text-xl font-semibold leading-tight tabular-nums sm:text-[26px]">{formatCount(animated)}</div>
+      <div className="text-xs text-text-muted">{label}</div>
+    </div>
+  )
+}
 
 /** Prototype's `<h2>Title<a>View all →</a></h2>` section header. */
 function SectionHead({ title, to, linkLabel }: { title: string; to: string; linkLabel: string }) {
@@ -86,10 +117,7 @@ export function Home() {
           }`}
         >
           {heroStats.map(s => (
-            <div key={s.label}>
-              <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(s.value)}</div>
-              <div className="text-xs text-text-muted">{s.label}</div>
-            </div>
+            <HeroStat key={s.label} value={s.value} label={s.label} />
           ))}
         </div>
       </div>
