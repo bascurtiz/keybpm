@@ -1,22 +1,22 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { Track } from '@/types/track'
 import { BpmBadge, CamelotBadge, KeyBadge, SourceBadges } from '@/components/badges'
 import { ArtTile } from '@/components/ArtTile'
 import { allGenres, allLabels, allYears, stats } from '@/lib/data'
-import { trackSources } from '@/lib/sources'
+import { sourceMeta, trackSources } from '@/lib/sources'
+import type { TrackSource } from '@/types/track'
 import { useMediaQuery } from '@/lib/useMediaQuery'
+import { useScrollMargin } from '@/lib/useScrollMargin'
 import type { WheelMode } from '@/lib/wheelMode'
 
-export type SortKey = 'artist' | 'title' | 'bpm' | 'key' | 'camelot' | 'genre' | 'label' | 'year'
+export type SortKey =
+  | 'artist' | 'title' | 'bpm' | 'key' | 'camelot' | 'sources' | 'genre' | 'label' | 'year'
 export type SortDir = 'asc' | 'desc'
 
-/** `sources` is rendered but not sortable — it is a provenance column, not a facet. */
-type ColumnKey = SortKey | 'sources'
-
 interface Column {
-  key: ColumnKey
+  key: SortKey
   label: string
   width: string
   align?: 'right'
@@ -44,28 +44,13 @@ const ROW_H = 44
 const MOBILE_ROW_H = 78
 
 /** Columns that the dataset actually fills — an all-dash column is noise. */
-function visibleColumns(notation: WheelMode = 'camelot'): Column[] {
+function visibleColumns(notation: WheelMode = 'camelot', showSources = true): Column[] {
   return columnsForNotation(notation).filter(c =>
     (c.key !== 'genre' || allGenres.length > 0) &&
     (c.key !== 'label' || allLabels.length > 0) &&
     (c.key !== 'year' || allYears.length > 0) &&
-    (c.key !== 'sources' || stats.withSources > 0),
+    (c.key !== 'sources' || (showSources && stats.withSources > 0)),
   )
-}
-
-/** Document-relative top of `el`, kept current as content above it changes height. */
-function useScrollMargin(ref: React.RefObject<HTMLElement>): number {
-  const [margin, setMargin] = useState(0)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const measure = () => setMargin(el.getBoundingClientRect().top + window.scrollY)
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(document.body)
-    return () => ro.disconnect()
-  }, [ref])
-  return margin
 }
 
 /**
@@ -79,6 +64,7 @@ export function TrackTable({
   onSort,
   caption,
   keyNotation = 'camelot',
+  showSources = true,
 }: {
   tracks: Track[]
   sort: SortKey
@@ -87,6 +73,11 @@ export function TrackTable({
   caption?: string
   /** When `openkey`, Cam column becomes Open and shows 1m/1d labels. */
   keyNotation?: WheelMode
+  /**
+   * Show the provenance (source chips) column. Off on the key wheel, where the
+   * question is "what is in this key" and 8 chips per row are only noise.
+   */
+  showSources?: boolean
 }) {
   const isDesktop = useMediaQuery('(min-width: 768px)')
   return isDesktop ? (
@@ -97,9 +88,10 @@ export function TrackTable({
       onSort={onSort}
       caption={caption}
       keyNotation={keyNotation}
+      showSources={showSources}
     />
   ) : (
-    <MobileList tracks={tracks} keyNotation={keyNotation} />
+    <MobileList tracks={tracks} keyNotation={keyNotation} showSources={showSources} />
   )
 }
 
@@ -110,6 +102,7 @@ function DesktopTable({
   onSort,
   caption,
   keyNotation,
+  showSources,
 }: {
   tracks: Track[]
   sort: SortKey
@@ -117,11 +110,12 @@ function DesktopTable({
   onSort: (key: SortKey) => void
   caption?: string
   keyNotation: WheelMode
+  showSources: boolean
 }) {
   const navigate = useNavigate()
   const bodyRef = useRef<HTMLTableSectionElement>(null)
   const scrollMargin = useScrollMargin(bodyRef)
-  const columns = visibleColumns(keyNotation)
+  const columns = visibleColumns(keyNotation, showSources)
 
   const virtualizer = useWindowVirtualizer({
     count: tracks.length,
@@ -133,7 +127,7 @@ function DesktopTable({
   const padTop = items.length ? items[0].start - scrollMargin : 0
   const padBottom = items.length ? virtualizer.getTotalSize() - (items[items.length - 1].end - scrollMargin) : 0
 
-  const ariaSort = (key: ColumnKey): 'ascending' | 'descending' | 'none' =>
+  const ariaSort = (key: SortKey): 'ascending' | 'descending' | 'none' =>
     sort === key ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'
 
   return (
@@ -149,23 +143,20 @@ function DesktopTable({
               <th
                 key={col.key}
                 scope="col"
-                aria-sort={col.key === 'sources' ? 'none' : ariaSort(col.key)}
+                aria-sort={ariaSort(col.key)}
                 className={`px-3 py-2 text-xs font-medium text-text-muted ${col.align === 'right' ? 'text-right' : 'text-left'}`}
               >
-                {col.key === 'sources' ? (
-                  <span>{col.label}</span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onSort(col.key as SortKey)}
-                    className="inline-flex items-center gap-1 transition-colors hover:text-text"
-                  >
-                    {col.label}
-                    <span aria-hidden className={sort === col.key ? 'text-accent' : 'text-transparent'}>
-                      {dir === 'asc' ? '▲' : '▼'}
-                    </span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => onSort(col.key)}
+                  title={col.key === 'sources' ? 'Sort by how many sources corroborate the key' : undefined}
+                  className="inline-flex items-center gap-1 transition-colors hover:text-text"
+                >
+                  {col.label}
+                  <span aria-hidden className={sort === col.key ? 'text-accent' : 'text-transparent'}>
+                    {dir === 'asc' ? '▲' : '▼'}
+                  </span>
+                </button>
               </th>
             ))}
           </tr>
@@ -241,7 +232,15 @@ function Cell({ col, t, keyNotation }: { col: Column; t: Track; keyNotation: Whe
   }
 }
 
-function MobileList({ tracks, keyNotation }: { tracks: Track[]; keyNotation: WheelMode }) {
+function MobileList({
+  tracks,
+  keyNotation,
+  showSources,
+}: {
+  tracks: Track[]
+  keyNotation: WheelMode
+  showSources: boolean
+}) {
   const listRef = useRef<HTMLUListElement>(null)
   const scrollMargin = useScrollMargin(listRef)
   const virtualizer = useWindowVirtualizer({
@@ -259,7 +258,7 @@ function MobileList({ tracks, keyNotation }: { tracks: Track[]; keyNotation: Whe
     >
       {virtualizer.getVirtualItems().map(item => {
         const t = tracks[item.index]
-        const sources = trackSources(t)
+        const sources = showSources ? trackSources(t) : []
         return (
           <li
             key={t.id}
@@ -295,6 +294,16 @@ function MobileList({ tracks, keyNotation }: { tracks: Track[]; keyNotation: Whe
 /** Sort comparator used by Browse and Mix Finder. Nulls/empties sort last, always. */
 export function compareTracks(a: Track, b: Track, key: SortKey, dir: SortDir): number {
   const mul = dir === 'asc' ? 1 : -1
+  if (key === 'sources') {
+    // Provenance sorts by how many sources report a key, then by which sources
+    // (a stable alphabetical signature), so equal counts never shuffle randomly.
+    const av = trackSources(a)
+    const bv = trackSources(b)
+    if (!av.length && !bv.length) return 0
+    if (!av.length) return 1
+    if (!bv.length) return -1
+    return (av.length - bv.length || sourceSignature(av).localeCompare(sourceSignature(bv))) * mul
+  }
   if (key === 'camelot') {
     const av = a.camelot
     const bv = b.camelot
@@ -314,3 +323,8 @@ export function compareTracks(a: Track, b: Track, key: SortKey, dir: SortDir): n
 }
 
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
+
+/** "CS HT SG" — the codes of a track's sources, alphabetical. */
+function sourceSignature(sources: TrackSource[]): string {
+  return sources.map(s => sourceMeta(s.id).code).sort().join(' ')
+}

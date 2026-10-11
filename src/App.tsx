@@ -4,6 +4,7 @@ import { Header } from '@/components/Header'
 import { Home } from '@/pages/Home'
 import { Browse } from '@/pages/Browse'
 import { TrackDetail } from '@/pages/TrackDetail'
+import { SourcePage } from '@/pages/SourcePage'
 import { KeyWheelPage } from '@/pages/KeyWheelPage'
 import { MixFinder } from '@/pages/MixFinder'
 import { About } from '@/pages/About'
@@ -14,12 +15,19 @@ import { EmptyState } from '@/components/EmptyState'
 import { Toast } from '@/components/Toast'
 import { Link } from 'react-router-dom'
 
-/** Reset scroll on navigation — SPA routes don't do this natively. */
+/**
+ * Reset scroll on navigation — SPA routes don't do this natively.
+ *
+ * A hash is an exception: it means the route is opening on a specific row (a
+ * source listing deep-link, `/source/camelotsound#<track-id>`), and the page
+ * scrolls itself there. Yanking it back to the top would land the user at the
+ * wrong end of a 35k-row listing.
+ */
 function ScrollToTop() {
-  const { pathname } = useLocation()
+  const { pathname, hash } = useLocation()
   useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [pathname])
+    if (!hash) window.scrollTo(0, 0)
+  }, [pathname, hash])
   return null
 }
 
@@ -54,6 +62,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/browse" element={<Browse />} />
             <Route path="/track/:id" element={<TrackDetail />} />
+            <Route path="/source/:id" element={<SourcePage />} />
             <Route path="/contribute" element={<Contribute />} />
             <Route path="/review" element={<Review />} />
             <Route path="/key" element={<KeyWheelPage />} />

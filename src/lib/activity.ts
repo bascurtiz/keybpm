@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { apiActivity, type ActivityItem } from '@/lib/api'
 import { useCatalog } from '@/lib/data'
+import { primarySourceId, sourceMeta } from '@/lib/sources'
+import type { Track } from '@/types/track'
 
 /**
- * The community activity feed: the newest reviewed queue rows, newest first.
+ * The community activity feed.
  *
- * The imported dataset (19k rows from duuzu's sheet) carries no timestamps, so
- * "what was added or fixed lately" can only come from the submission queue —
- * the API's `/api/activity`, which keeps `applied` rows too, so an entry stays
- * in the history after `data:apply-queue` writes it into tracks.json.
+ * Two sources, merged by date in the component: the newest reviewed queue rows
+ * from the API's `/api/activity` (which keeps `applied` rows too, so an entry
+ * stays in the history after `data:apply-queue` writes it into tracks.json),
+ * and the dataset imports in `importBatches` — the rows a CSV pipeline brought
+ * in, which never touch the queue but do carry a source and a snapshot date.
  *
  * Successful responses are cached per catalog version: the feed only changes
  * when a row is reviewed, which is exactly what bumps the version (the review
@@ -80,6 +83,59 @@ export function useActivity(): ActivityState {
  * because the row shows "added/edited … ago" — ordering by review time would
  * print timestamps that run backwards down the list.
  */
+/**
+ * A bulk import: every track that arrived together from one source snapshot.
+ *
+ * The queue only knows what was submitted through the app, so the imports that
+ * actually grow the database (duuzu's sheet, a consensus-engine export) are
+ * invisible in `/api/activity`. They do carry provenance and a snapshot date,
+ * so the feed can report them as batch rows instead of letting 8,833 new
+ * tracks appear with no event attached.
+ */
+export interface ImportBatch {
+  kind: 'import'
+  id: string
+  /** The record's own `source` string, kept verbatim as the identity. */
+  source: string
+  /** Source id the chip is drawn from ("duuzu", or the string itself). */
+  sourceId: string
+  /** Display name of that source. */
+  name: string
+  count: number
+  /** Snapshot date (`lastVerified`, `YYYY-MM-DD`) — the batch's sort key. */
+  date: string
+}
+
+/**
+ * Imported batches, newest snapshot first. Grouped by source + snapshot date,
+ * which is exactly the pair a re-import restates: running the same import twice
+ * still shows one batch, with the dataset's real count.
+ */
+export function importBatches(source: Track[], limit = 3): ImportBatch[] {
+  const groups = new Map<string, ImportBatch>()
+  for (const t of source) {
+    const date = t.lastVerified
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    const key = `${t.source}|${date}`
+    const batch = groups.get(key)
+    if (batch) {
+      batch.count++
+      continue
+    }
+    const sourceId = primarySourceId(t.source) ?? t.source
+    groups.set(key, {
+      kind: 'import',
+      id: `import:${key}`,
+      source: t.source,
+      sourceId,
+      name: sourceMeta(sourceId).name,
+      count: 1,
+      date,
+    })
+  }
+  return [...groups.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit)
+}
+
 export function recentActivity(items: ActivityItem[], limit = 6): ActivityItem[] {
   // Track id, falling back to the queue row's own id — always unique, so an
   // entry with no track reference is never merged with another.

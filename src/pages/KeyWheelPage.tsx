@@ -137,6 +137,8 @@ export function KeyWheelPage() {
                   <h2 className="text-lg font-semibold">Tracks in {selectedLabel}</h2>
                   <span className="font-mono text-xs tabular-nums text-text-dim">{keyTracks.length}</span>
                 </div>
+                {/* No source chips here: this view is about the key itself, and
+                    every row would carry the same pile of provenance badges. */}
                 <TrackTable
                   tracks={keyTracks}
                   sort={sort}
@@ -144,6 +146,7 @@ export function KeyWheelPage() {
                   onSort={onSort}
                   caption={`Tracks in ${selectedLabel}`}
                   keyNotation={wheelMode}
+                  showSources={false}
                 />
               </div>
             </>

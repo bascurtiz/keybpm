@@ -30,6 +30,16 @@ export function Home() {
 
   // Track counts per Camelot position, in wheel order (1A 1B 2A 2B …) so
   // relative major/minor pairs sit side by side.
+  // Hero numbers: coverage of the two fields a DJ looks up. `labels` only joins
+  // them once the dataset actually has labels — an empty stat is noise.
+  const heroStats = [
+    { value: stats.tracks, label: 'tracks' },
+    { value: stats.artists, label: 'artists' },
+    { value: stats.withBpm, label: 'with BPM' },
+    { value: stats.withKey, label: 'with key' },
+    ...(stats.labels > 0 ? [{ value: stats.labels, label: 'labels' }] : []),
+  ]
+
   const keyCounts = useMemo(() => {
     const map = new Map<string, number>()
     for (const t of tracks) if (t.camelot) map.set(t.camelot, (map.get(t.camelot) ?? 0) + 1)
@@ -70,26 +80,17 @@ export function Home() {
           <Link to="/tool" className="btn-ghost">Key Tool</Link>
         </div>
 
-        <div className="mt-7 grid grid-cols-3 gap-3 border-t border-line pt-5 sm:mt-8 sm:gap-4 sm:pt-6">
-          <div>
-            <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.tracks)}</div>
-            <div className="text-xs text-text-muted">tracks</div>
-          </div>
-          <div>
-            <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.artists)}</div>
-            <div className="text-xs text-text-muted">artists</div>
-          </div>
-          {stats.labels > 0 ? (
-            <div>
-              <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.labels)}</div>
-              <div className="text-xs text-text-muted">labels</div>
+        <div
+          className={`mt-7 grid grid-cols-2 gap-3 border-t border-line pt-5 sm:mt-8 sm:gap-4 sm:pt-6 ${
+            heroStats.length > 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'
+          }`}
+        >
+          {heroStats.map(s => (
+            <div key={s.label}>
+              <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(s.value)}</div>
+              <div className="text-xs text-text-muted">{s.label}</div>
             </div>
-          ) : (
-            <div>
-              <div className="text-xl font-semibold leading-tight sm:text-[26px]">{formatCount(stats.withBpm)}</div>
-              <div className="text-xs text-text-muted">with BPM</div>
-            </div>
-          )}
+          ))}
         </div>
       </div>
 

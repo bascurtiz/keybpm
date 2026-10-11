@@ -93,7 +93,7 @@ Two flags matter for a hand-collected SoundCloud batch, because uploads are user
 
 ### Key Consensus Engine import
 
-A separate pipeline (`project-consensus-keys`) cross-references ten key databases — CamelotSound, HookTheory, MusicNotes, Karaoke-Version, SongGalaxy, SongKeyFinder, Isolated Tracks, Harmonic Keys, KeyFinder PDF, FMAK v2 — and exports every track whose key at least three of them agree on (`keybpm_consensus_new_tracks.csv`):
+A separate pipeline (`project-consensus-keys`) cross-references ten key databases — CamelotSound, HookTheory, MusicNotes, Karaoke-Version, SongGalaxy, SongKeyFinder, Isolated Tracks, Harmonic Keys, KeyFinder, FMAK v2 — and exports every track whose key at least three of them agree on (`keybpm_consensus_new_tracks.csv`):
 
 ```bash
 npm run data:consensus -- "path/to/keybpm_consensus_new_tracks.csv"
@@ -104,7 +104,25 @@ npm run data:csv   # refresh data/tracks.csv
 
 Imported rows keep provenance in their `source` string rather than a `sources` array, so the app also renders a chip for that: duuzu's rows show a `DZ` chip whose tooltip states the sheet's key and whose link opens the sheet. `src/lib/sources.ts` holds that mapping — no per-row data is invented.
 
-Each accepted row keeps its per-source reports in `sources` (`[{ id, key, url }]`). The app renders these as the coloured source chips (`SG`, `HK`, …) in the track table and on the track page: hovering shows the source's full name plus the key it states, and clicking opens its page — the direct link from the export, or the source's own search page when it had none. A source whose key differs from the consensus key is called out rather than shown as unanimous. `confidence` is the share of reporting sources that agreed, and `notes` spells the split out.
+Each accepted row keeps its per-source reports in `sources` (`[{ id, key, url }]`). The app renders these as the coloured source chips (`SG`, `HK`, …) in the track table and on the track page: hovering shows the source's full name plus the key it states, and clicking opens its page — the direct link from the export, or the source's own search page when it had none. The **Sources** column is sortable (`?sort=sources&dir=desc`): most-corroborated first, ties broken by which sources reported, so the best-attested rows rank first and duuzu's single-source rows come last. A source whose key differs from the consensus key is called out rather than shown as unanimous. `confidence` is the share of reporting sources that agreed, and `notes` spells the split out.
+
+### Source key listings (`/source/:id`)
+
+A chip (`CS`, `KF`, `HK`, `FM`) says "this source states a key" — the listing pages are where that can be checked against the source's own full list.
+
+```bash
+npm run data:source-keys   # project-consensus-keys CSVs -> data/source-keys/*.json
+```
+
+The script reads each source's CSV in `project-consensus-keys/data/sources/` (per-source CSV and export paths overridable with `CONSENSUS_DIR` / `CONSENSUS_EXPORT`) and writes one compact JSON per published source — rows are `[artist, title, camelot, trackId]`, where `trackId` is the matching record in `data/tracks.json`. Listings are lazy-loaded (`src/lib/sourceKeys.ts` uses `import.meta.glob`), so the 60–210 KB files are only fetched when their page is opened.
+
+That id is what makes a chip deep-linkable: chips for listed sources point at `/source/camelotsound#the-beatles-in-my-life` (a client-side route, no new tab), and the page scrolls to that row and highlights it — the list is virtualized, so the row is not in the DOM until then. The track page's Sources list links the same way (its "Open ↗" row for that source is a client-side link). The page header states the source's canonical URL, what it publishes, how many entries are listed and the snapshot date, then lists artist – title – Camelot key (plus the musical key) with a filter box and a "Track →" link for entries the database also holds.
+
+**Only entries whose track is in `data/tracks.json` are published** — a listing row nobody can open in the app is a dead end, and these sources reach far beyond the catalogue. The script reports what it dropped for that reason (currently KeyFinder 777 of 1,185, Harmonic Keys 3,074 of 3,628, FMAK v2 5,332 of 5,336 rows), which keeps every `CS`/`KF`/`HK`/`FM` chip anchored on a row that exists.
+
+CamelotSound is narrower still, because its 35k-row CSV is deliberately not published in full: its page carries the 954 entries the consensus export lists (the tracks that can hold a `CS` chip), while KeyFinder, Harmonic Keys and FMAK v2 add any track the export names that their CSV lacks. A source that lists one track twice under two different keys — Harmonic Keys does, for 35 of them — collapses to a single row, using the key the export recorded, so a listing is one row per track and a chip's anchor is never ambiguous.
+
+Adding another source is three steps: add it to `SOURCES` in `scripts/import_source_keys.mjs`, set `listing: true` and a `description` (plus the canonical `url`) in `SOURCE_META` in `src/lib/sources.ts`, and run `npm run data:source-keys`. A source whose key differs from the track's consensus key is not hidden by this — the listing shows what the source itself states.
 
 ### Schema
 
@@ -234,7 +252,9 @@ Roles: `user` (submit), `trusted` (approve), `mod` (approve, reject, remove, set
 
 Tracks submitted through the queue live in the overlay until they are applied, so a later correction to one of them is enough to fix its BPM/key live — no redeploy needed.
 
-**Activity feed.** `GET /api/activity` (public, `?limit=` up to 60) returns the newest reviewed rows, newest review first, with the reviewer's name — `approved` and `applied` alike, so an entry stays in the history after `data:apply-queue` writes it into `data/tracks.json`. The homepage reads it for the **Community activity** list (`src/components/ActivityFeed.tsx`, `src/lib/activity.ts`): one row per track, labelled `added` or `edited`, with who did it, when, and the reviewer who cleared it. A track that was added and then corrected twice is one entry, and the **add wins**: the row credits whoever put the track in the database (`added … · TheHolyT-Bo`) rather than the later editor. A track that only ever lived in the dataset lists its newest correction. Rows are ordered by the kept row's contribution time, so the "… ago" stamps run newest to oldest. The imported dataset carries no per-row dates, so the review queue is the only place recent changes can come from; when the API cannot be reached the section says so rather than showing an empty feed (`apiActivity()` returns `null`, not `[]`).
+**Activity feed.** `GET /api/activity` (public, `?limit=` up to 60) returns the newest reviewed rows, newest review first, with the reviewer's name — `approved` and `applied` alike, so an entry stays in the history after `data:apply-queue` writes it into `data/tracks.json`. The homepage reads it for the **Community activity** list (`src/components/ActivityFeed.tsx`, `src/lib/activity.ts`): one row per track, labelled `added` or `edited`, with who did it, when, and the reviewer who cleared it. A track that was added and then corrected twice is one entry, and the **add wins**: the row credits whoever put the track in the database (`added … · TheHolyT-Bo`) rather than the later editor. A track that only ever lived in the dataset lists its newest correction. Rows are ordered by the kept row's contribution time, so the "… ago" stamps run newest to oldest.
+
+Queue rows are not the whole story: the bulk imports behind `data:consensus` / `data:import` never pass through the queue, so 8,833 freshly imported tracks would otherwise appear with no event attached. `importBatches()` in the same module groups the dataset by `source` + `lastVerified` (the snapshot date) and the feed renders each group as a batch row — `8,833 tracks imported · Key Consensus Engine` with that source's chip, a fresh import sorted above same-day queue rows. Those rows come from the data itself, so re-importing restates one batch rather than adding another. If the API cannot be reached the batch rows are still listed and the section says the queue did not answer, instead of showing an empty feed (`apiActivity()` returns `null`, not `[]`).
 
 ## Deploy (free)
 

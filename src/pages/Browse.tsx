@@ -15,7 +15,7 @@ import { useMediaQuery } from '@/lib/useMediaQuery'
 /** Filter fields whose non-null value means "this filter is doing something". */
 const FACET_KEYS = ['bpmMin', 'bpmMax', 'key', 'camelot', 'mode', 'genre', 'label', 'yearMin', 'yearMax'] as const
 
-const VALID_SORTS: SortKey[] = ['artist', 'title', 'bpm', 'key', 'camelot', 'genre', 'label', 'year']
+const VALID_SORTS: SortKey[] = ['artist', 'title', 'bpm', 'key', 'camelot', 'sources', 'genre', 'label', 'year']
 
 /** Read filter + sort state from the URL — every view is shareable (§27). */
 function readState(params: URLSearchParams): FilterState & { sort: SortKey; dir: SortDir; q: string } {

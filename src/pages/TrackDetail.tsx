@@ -297,16 +297,27 @@ export function TrackDetail() {
                   <span className="shrink-0 font-mono text-xs text-text-muted">
                     {stated ?? 'no key stated'}
                   </span>
-                  {href && (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-xs text-accent transition-colors hover:text-accent-hover"
-                    >
-                      Open ↗
-                    </a>
-                  )}
+                  {/* Every source gets the same "Open": a source that publishes
+                      its own listing opens that page in-app (anchored on this
+                      track's row), the rest open the source's own page. */}
+                  {href &&
+                    (href.startsWith('/') ? (
+                      <Link
+                        to={href}
+                        className="shrink-0 text-xs text-accent transition-colors hover:text-accent-hover"
+                      >
+                        Open ↗
+                      </Link>
+                    ) : (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-xs text-accent transition-colors hover:text-accent-hover"
+                      >
+                        Open ↗
+                      </a>
+                    ))}
                 </li>
               )
             })}

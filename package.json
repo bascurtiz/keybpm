@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "data:import": "node scripts/import_duuzu.mjs && node scripts/export_csv.mjs",
     "data:consensus": "node scripts/import_consensus.mjs",
+    "data:source-keys": "node scripts/import_source_keys.mjs",
     "data:seed": "node scripts/seed_data.mjs",
     "data:csv": "node scripts/export_csv.mjs",
     "data:soundiiz": "node scripts/export_soundiiz.mjs",

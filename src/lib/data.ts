@@ -117,7 +117,7 @@ const BASE: Track[] = (Array.isArray(rawTracks) ? (rawTracks as unknown[]) : [])
 export const tracks: Track[] = []
 const byId = new Map<string, Track>()
 
-export const stats = { tracks: 0, artists: 0, labels: 0, withBpm: 0, withSources: 0 }
+export const stats = { tracks: 0, artists: 0, labels: 0, withBpm: 0, withKey: 0, withSources: 0 }
 export const allGenres: string[] = []
 export const allLabels: string[] = []
 export const allYears: number[] = []
@@ -281,6 +281,7 @@ function refresh(): void {
   stats.artists = new Set(merged.map(t => t.artist)).size
   stats.labels = new Set(merged.map(t => t.label).filter(Boolean)).size
   stats.withBpm = merged.filter(t => t.bpm !== null).length
+  stats.withKey = merged.filter(t => t.key !== null).length
   stats.withSources = merged.filter(t => t.sources?.length).length
 
   fill(allGenres, uniqueSorted(merged.map(t => t.genre)) as string[])

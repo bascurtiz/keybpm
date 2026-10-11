@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { camelotColor, camelotToOpenKey } from '@/lib/camelot'
 import { modeAbbr, shortKey } from '@/lib/format'
 import { sourceHref, sourceMeta, sourceTooltip } from '@/lib/sources'
@@ -45,9 +46,11 @@ export function KeyBadge({
 
 /**
  * One source chip — the source's two-letter code in its brand colour, linking
- * to the page that states the key. Colour is decorative; the code, the tooltip
- * and the aria-label all carry the meaning (§25). `stopPropagation` keeps a
- * chip click from also opening the surrounding (clickable) table row.
+ * to the page that states the key: the source's own site, or its in-app key
+ * listing when the source publishes one (`/source/<id>#<track-id>`). Colour is
+ * decorative; the code, the tooltip and the aria-label all carry the meaning
+ * (§25). `stopPropagation` keeps a chip click from also opening the
+ * surrounding (clickable) table row.
  */
 export function SourceBadge({
   source,
@@ -55,7 +58,7 @@ export function SourceBadge({
   className = '',
 }: {
   source: TrackSource
-  track: { artist: string; title: string; camelot?: string | null }
+  track: { id?: string; artist: string; title: string; camelot?: string | null }
   className?: string
 }) {
   const meta = sourceMeta(source.id)
@@ -74,6 +77,22 @@ export function SourceBadge({
       <span className={className} title={label} aria-label={label}>
         {chip}
       </span>
+    )
+  }
+  // A published listing stays in the app, so it is a client-side route, not a
+  // new tab — and the source's own site is one click further on (its header).
+  if (href.startsWith('/')) {
+    const listed = `${label} — opens the ${meta.name} key listing`
+    return (
+      <Link
+        to={href}
+        title={listed}
+        aria-label={listed}
+        onClick={e => e.stopPropagation()}
+        className={`inline-flex transition-transform hover:scale-110 hover:brightness-125 ${className}`}
+      >
+        {chip}
+      </Link>
     )
   }
   return (
