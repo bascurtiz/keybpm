@@ -100,7 +100,7 @@ npm run data:consensus -- "path/to/keybpm_consensus_new_tracks.csv"
 npm run data:csv   # refresh data/tracks.csv
 ```
 
-`scripts/import_consensus.mjs` re-checks every row against the current `data/tracks.json` using the engine's own normalisation (accents, brackets and `feat.` stripped, leading `The` dropped), so a row that already exists is skipped — re-running the import is a no-op. `--dry` reports what would be added without writing.
+`scripts/import_consensus.mjs` re-checks every row against the current `data/tracks.json` using the engine's own normalisation (accents, brackets and `feat.` stripped, leading `The` dropped). A row that already exists is never added twice — instead its **missing `bpm`** is filled from the export's `BPM` column, so tempo coverage grows as the engine's lookups improve (24,522 of 27,990 tracks carry a tempo today). A track that already has a tempo keeps it even when the export disagrees; the script reports those as conflicts instead of overwriting them. A second run is a no-op, and `--dry` reports what would change without writing.
 
 Imported rows keep provenance in their `source` string rather than a `sources` array, so the app also renders a chip for that: duuzu's rows show a `DZ` chip whose tooltip states the sheet's key and whose link opens the sheet. `src/lib/sources.ts` holds that mapping — no per-row data is invented.
 

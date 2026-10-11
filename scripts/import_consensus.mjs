@@ -10,8 +10,12 @@
  * snapshot can be stale, so this script re-checks every row against the
  * current data/tracks.json with the consensus engine's own normalisation
  * (accents, brackets and "feat." stripped, leading "The" dropped). A row whose
- * artist + title already exists is skipped, which makes the import idempotent:
- * running it twice adds nothing the second time.
+ * artist + title already exists is not added again; instead its missing `bpm`
+ * is filled from the export, which is how tempo coverage grows as the engine's
+ * BPM lookups improve. Running it twice is a no-op.
+ *
+ * Existing BPM values are never overwritten — a conflicting value is only
+ * counted and reported, so a hand-checked tempo survives an import.
  *
  * Per-source votes are kept on each record as `sources` (see src/types/track.ts)
  * so the UI can show which key services reported the track, what each states,
@@ -138,6 +142,14 @@ function canonicalYoutube(input) {
 
 const validCamelot = code => /^(1[0-2]|[1-9])[AB]$/.test(code)
 
+/** Tempo from the export — blank in older exports, a decimal ("113.8") when found. */
+function parseExportBpm(raw) {
+  const s = String(raw ?? '').trim()
+  if (!s) return null
+  const n = Number.parseFloat(s)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 // ---- Read & map -------------------------------------------------------------
 const raw = readFileSync(inputPath, 'utf8')
 const table = parseCsv(raw)
@@ -152,15 +164,16 @@ const snapshotDate = statSync(inputPath).mtime.toISOString().slice(0, 10)
 
 const existing = JSON.parse(readFileSync(join(ROOT, 'data', 'tracks.json'), 'utf8'))
 const takenIds = new Set(existing.map(t => t.id))
-const takenKeys = new Set()
+/** normalised "artist title" -> the record already in the dataset (for BPM backfill). */
+const byKey = new Map()
 for (const t of existing) {
   const k = normalizeKey(t.artist, t.title)
-  if (k) takenKeys.add(k)
+  if (k) byKey.set(k, t)
 }
 
 const added = []
 const seenInFile = new Set()
-const stats = { duplicate: 0, duplicateInFile: 0, noArtist: 0, noKey: 0 }
+const stats = { duplicate: 0, duplicateInFile: 0, noArtist: 0, noKey: 0, bpmFilled: 0, bpmConflict: 0 }
 
 for (const row of rows) {
   const artist = col(row, 'Artist')
@@ -169,9 +182,22 @@ for (const row of rows) {
 
   const dedupeKey = normalizeKey(artist, title)
   if (!dedupeKey) { stats.noArtist++; continue }
-  if (takenKeys.has(dedupeKey) || seenInFile.has(dedupeKey)) {
-    if (seenInFile.has(dedupeKey)) stats.duplicateInFile++
-    else stats.duplicate++
+  if (seenInFile.has(dedupeKey)) { stats.duplicateInFile++; continue }
+
+  const bpm = parseExportBpm(col(row, 'BPM'))
+  const matched = byKey.get(dedupeKey)
+  if (matched) {
+    // Already in the dataset — keep the row, but take the tempo the engine now
+    // states. An existing value always wins, so a reviewed BPM is never lost.
+    stats.duplicate++
+    if (bpm !== null) {
+      if (matched.bpm === null || matched.bpm === undefined) {
+        matched.bpm = bpm
+        stats.bpmFilled++
+      } else if (matched.bpm !== bpm) {
+        stats.bpmConflict++
+      }
+    }
     continue
   }
   seenInFile.add(dedupeKey)
@@ -212,10 +238,6 @@ for (const row of rows) {
   while (takenIds.has(id)) id = `${base}-${n++}`
   takenIds.add(id)
 
-  const bpmRaw = col(row, 'BPM')
-  const bpmNum = bpmRaw ? Number.parseFloat(bpmRaw) : NaN
-  const bpm = Number.isFinite(bpmNum) && bpmNum > 0 ? bpmNum : null
-
   const record = { id, artist, title, bpm, key, camelot, source: SOURCE }
   // Confidence = share of the sources that looked at the track and agree on the
   // key — the honest reading of "how settled is this key".
@@ -239,7 +261,6 @@ for (const row of rows) {
 }
 
 const merged = [...existing, ...added]
-const out = '[\n' + merged.map(t => JSON.stringify(t)).join(',\n') + '\n]\n'
 
 console.log(`Read ${rows.length} rows from ${inputPath}`)
 console.log(`  snapshot date:      ${snapshotDate}`)
@@ -247,11 +268,16 @@ console.log(`  already in dataset: ${stats.duplicate}`)
 console.log(`  duplicate within file: ${stats.duplicateInFile}`)
 console.log(`  skipped (no artist): ${stats.noArtist} · without a key: ${stats.noKey}`)
 console.log(`  NEW tracks:         ${added.length}`)
+console.log(`  BPM filled in:      ${stats.bpmFilled}`)
+console.log(`  BPM left as-is (differs from export): ${stats.bpmConflict}`)
 console.log(`  dataset:            ${existing.length} -> ${merged.length}`)
 
 if (DRY) {
   console.log('--dry: nothing written.')
+} else if (added.length === 0 && stats.bpmFilled === 0) {
+  console.log('Nothing to write — dataset already matches the export.')
 } else {
+  const out = '[\n' + merged.map(t => JSON.stringify(t)).join(',\n') + '\n]\n'
   writeFileSync(join(ROOT, 'data', 'tracks.json'), out)
   console.log('Wrote data/tracks.json — run `npm run data:csv` to refresh the CSV.')
 }
