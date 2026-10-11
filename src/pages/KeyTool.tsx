@@ -159,6 +159,12 @@ export function KeyTool() {
   const tapTimes = useRef<number[]>([])
 
   const [bpm, setBpm] = useState(120)
+  // Draft text for the BPM field while it is being edited. The numeric `bpm`
+  // above drives the engine; clamping every keystroke (the old behaviour)
+  // made it impossible to type values like "73.5" — "1" snapped to 40,
+  // longer input snapped to 255, and the decimal point was eaten. So the
+  // field edits freely and only commits a clamped value on blur / Enter.
+  const [bpmText, setBpmText] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const [beat, setBeat] = useState(0)
   const [volume, setVolume] = useState(0.5)
@@ -305,6 +311,21 @@ export function KeyTool() {
 
   function nudgeBpm(delta: number) {
     setBpm(v => Math.min(255, Math.max(40, Math.round((v + delta) * 10) / 10)))
+  }
+
+  /** Half-time / double-time: 120 → 60 or 240, clamped to the 40–255 range. */
+  function scaleBpm(factor: number) {
+    setBpmText(null)
+    setBpm(v => Math.min(255, Math.max(40, Math.round(v * factor * 100) / 100)))
+  }
+
+  function commitBpmText(raw: string) {
+    // Numpad decimal key yields "," in some locales — treat it as ".".
+    const n = Number(raw.replace(',', '.'))
+    if (raw.trim() !== '' && Number.isFinite(n)) {
+      setBpm(Math.min(255, Math.max(40, Math.round(n * 100) / 100)))
+    }
+    setBpmText(null)
   }
 
   function onTap() {
@@ -676,7 +697,11 @@ export function KeyTool() {
         {/* 2. Metronome */}
         <section className="surface kt-card kt-card-side p-4 lg:pt-3">
           <h2 className="kt-header-row mb-3.5 text-sm font-semibold">Metronome</h2>
-          <div className="flex items-center gap-2">
+          {/* Centred cluster: the "BPM" label sits above the field, and the
+              ÷2 … ×2 row below spans exactly the −/field/+ width. */}
+          <div className="flex justify-center">
+            <div>
+            <span className="mb-1 block text-center text-[10px] text-text-muted">BPM</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -688,13 +713,31 @@ export function KeyTool() {
               </button>
               <input
                 id="bpm-input"
-                type="number"
-                min={40}
-                max={255}
-                step={1}
-                inputMode="numeric"
-                value={bpm}
-                onChange={e => setBpm(Math.min(255, Math.max(40, Number(e.target.value) || 120)))}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="BPM (40 to 255)"
+                placeholder="120"
+                value={bpmText ?? String(bpm)}
+                onChange={e => {
+                  const raw = e.target.value.replace(',', '.')
+                  // Free typing: empty, partial integers and one decimal
+                  // point are all fine mid-edit — nothing is clamped here, so
+                  // "7" stays "7" on the way to "73.5".
+                  if (raw !== '' && !/^\d*\.?\d{0,2}$/.test(raw)) return
+                  setBpmText(e.target.value)
+                  if (raw === '' || raw === '.') return
+                  const n = Number(raw)
+                  if (Number.isFinite(n) && n >= 40 && n <= 255) {
+                    setBpm(Math.round(n * 100) / 100)
+                  }
+                }}
+                onBlur={e => commitBpmText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  else if (e.key === 'Escape') setBpmText(null)
+                }}
                 className="input bpm-input w-[5.5rem] text-center font-mono text-lg tabular-nums"
               />
               <button
@@ -706,28 +749,40 @@ export function KeyTool() {
                 +
               </button>
             </div>
-            <span className="text-xs text-text-muted">BPM</span>
+            <div className="mt-1.5 flex w-full items-center gap-1.5" role="group" aria-label="Half or double tempo">
+              <button
+                type="button"
+                aria-label="Halve BPM"
+                title="Halve BPM"
+                className="flex h-5 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-bg-hover font-mono text-xs leading-none text-text-muted hover:border-accent hover:text-text"
+                onClick={() => scaleBpm(0.5)}
+              >
+                ÷2
+              </button>
+              <div className="flex flex-1 items-center justify-center gap-2">
+                {[0, 1, 2, 3].map(i => (
+                  <div
+                    key={i}
+                    className={`h-2 w-2 rounded-full transition-colors ${
+                      playing && beat === i ? 'bg-accent' : 'bg-line'
+                    }`}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                aria-label="Double BPM"
+                title="Double BPM"
+                className="flex h-5 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-bg-hover font-mono text-xs leading-none text-text-muted hover:border-accent hover:text-text"
+                onClick={() => scaleBpm(2)}
+              >
+                ×2
+              </button>
+            </div>
+            </div>
           </div>
-          <input
-            type="range"
-            min={40}
-            max={255}
-            value={Math.round(bpm)}
-            onChange={e => setBpm(Number(e.target.value))}
-            className="mt-3.5 w-full accent-[rgb(var(--accent))]"
-            aria-label="BPM slider"
-          />
-          <div className="mt-4 flex justify-center gap-2">
-            {[0, 1, 2, 3].map(i => (
-              <div
-                key={i}
-                className={`h-2 w-2 rounded-full transition-colors ${
-                  playing && beat === i ? 'bg-accent' : 'bg-line'
-                }`}
-              />
-            ))}
-          </div>
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 border-t border-line" />
+          <div className="mt-4 flex items-center justify-center gap-4">
             <button
               type="button"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-bg-hover text-text hover:border-accent"
@@ -744,7 +799,7 @@ export function KeyTool() {
               Tap tempo
             </button>
           </div>
-          <p className="mt-1.5 text-[10px] text-text-dim">Spacebar = tap tempo</p>
+          <p className="mt-1.5 text-center text-[10px] text-text-dim">Spacebar = tap tempo</p>
           <div className="my-4 border-t border-line" />
           <div className="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-text-muted" aria-hidden>

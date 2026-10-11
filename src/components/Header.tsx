@@ -158,7 +158,7 @@ export function Header() {
     <header ref={headerRef} className="sticky top-0 z-40 border-b border-line bg-bg">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 lg:flex-nowrap lg:py-3 lg:px-6">
         <Link to="/" className="flex items-center text-lg font-bold">
-          <LogoMark className="mr-2.5 h-7 w-7 shrink-0 md:mr-3" />
+          <LogoMark className="mr-1.5 h-7 w-7 shrink-0" />
           Key<span className="text-accent">BPM</span>
         </Link>
 
