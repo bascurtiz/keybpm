@@ -208,6 +208,21 @@ export function trackSources(track: Track): TrackSource[] {
   return [{ id, key: track.camelot, url: sourceMeta(id).url ?? null }]
 }
 
+/**
+ * The Discord member who contributed a row, when it came through the queue
+ * rather than a key database.
+ *
+ * `submittedBy` is stamped by the API from the session that created the row
+ * (`workers/api`), so it is the member's own name and not something a payload
+ * can claim; a later correction is recorded separately in `lastEditedBy` and
+ * never takes this over. It is here, next to `trackSources()`, because between
+ * them they are the whole answer to "where did this row come from" — a
+ * community row has no key service behind it at all.
+ */
+export function trackContributor(track: Track): string | null {
+  return track.submittedBy ?? null
+}
+
 /** Fallback so an unrecognised source id still renders a sane chip. */
 export function sourceMeta(id: string): SourceMeta {
   const known = SOURCE_META[id]

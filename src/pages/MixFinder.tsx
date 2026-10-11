@@ -332,7 +332,7 @@ export function MixFinder() {
                       <th scope="col" className="px-3 py-2 text-right">BPM</th>
                       <th scope="col" className="px-3 py-2 text-right">Key</th>
                       <th scope="col" className="px-3 py-2 text-right">
-                        {notation === 'openkey' ? 'Open' : 'Cam'}
+                        {notation === 'openkey' ? 'Open' : 'Camelot'}
                       </th>
                       <th scope="col" className="px-3 py-2 text-right">Δ BPM</th>
                       <th scope="col" className="px-3 py-2 text-left">Why</th>

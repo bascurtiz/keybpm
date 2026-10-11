@@ -2,10 +2,10 @@ import { useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { Track } from '@/types/track'
-import { BpmBadge, CamelotBadge, KeyBadge, SourceBadges } from '@/components/badges'
+import { BpmBadge, CamelotBadge, ContributorBadge, KeyBadge, SourceBadges } from '@/components/badges'
 import { ArtTile } from '@/components/ArtTile'
 import { allGenres, allLabels, allYears, stats } from '@/lib/data'
-import { sourceMeta, trackSources } from '@/lib/sources'
+import { sourceMeta, trackContributor, trackSources } from '@/lib/sources'
 import type { TrackSource } from '@/types/track'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import { useScrollMargin } from '@/lib/useScrollMargin'
@@ -27,8 +27,10 @@ const COLUMNS: Column[] = [
   { key: 'title', label: 'Title', width: '28%' },
   { key: 'bpm', label: 'BPM', width: '80px', align: 'right' },
   { key: 'key', label: 'Key', width: '104px', align: 'right' },
-  { key: 'camelot', label: 'Cam', width: '72px', align: 'right' },
-  { key: 'sources', label: 'Sources', width: '156px' },
+  // 'Camelot' needs the width to sit on one line; 'Source(s)' covers both a
+  // row's key sources and a queue row's single contributor (see Cell).
+  { key: 'camelot', label: 'Camelot', width: '96px', align: 'right' },
+  { key: 'sources', label: 'Source(s)', width: '156px' },
   { key: 'genre', label: 'Genre', width: '12%' },
   { key: 'label', label: 'Label', width: '12%' },
   { key: 'year', label: 'Year', width: '60px', align: 'right' },
@@ -71,7 +73,7 @@ export function TrackTable({
   dir: SortDir
   onSort: (key: SortKey) => void
   caption?: string
-  /** When `openkey`, Cam column becomes Open and shows 1m/1d labels. */
+  /** When `openkey`, the Camelot column becomes Open and shows 1m/1d labels. */
   keyNotation?: WheelMode
   /**
    * Show the provenance (source chips) column. Off on the key wheel, where the
@@ -217,12 +219,21 @@ function Cell({ col, t, keyNotation }: { col: Column; t: Track; keyNotation: Whe
           <CamelotBadge code={t.camelot} approximate={!!t.mode} notation={keyNotation} />
         </td>
       )
-    case 'sources':
+    case 'sources': {
+      // A queue row has no key sources, so the contributor's name stands where
+      // the chips would (see ContributorBadge). When a row somehow has both,
+      // the chips give up one slot so the cell keeps its footprint.
+      const sources = trackSources(t)
+      const contributor = trackContributor(t)
       return (
         <td className="px-3 py-1.5">
-          <SourceBadges sources={trackSources(t)} track={t} max={4} />
+          <span className="flex min-w-0 items-center gap-1 overflow-hidden">
+            <SourceBadges sources={sources} track={t} max={contributor ? 3 : 4} />
+            {contributor && <ContributorBadge name={contributor} verifiedBy={t.verifiedBy} />}
+          </span>
         </td>
       )
+    }
     case 'genre':
       return <td className="truncate px-3 py-1.5 text-text-muted">{t.genre ?? '—'}</td>
     case 'label':
@@ -259,6 +270,7 @@ function MobileList({
       {virtualizer.getVirtualItems().map(item => {
         const t = tracks[item.index]
         const sources = showSources ? trackSources(t) : []
+        const contributor = showSources ? trackContributor(t) : null
         return (
           <li
             key={t.id}
@@ -278,8 +290,13 @@ function MobileList({
                   <CamelotBadge code={t.camelot} approximate={!!t.mode} notation={keyNotation} />
                   {t.year && <span>· {t.year}</span>}
                   {t.label && <span className="truncate">· {t.label}</span>}
-                  {sources.length > 0 && (
-                    <SourceBadges sources={sources} track={t} max={4} className="ml-auto shrink-0" />
+                  {(sources.length > 0 || contributor) && (
+                    <span className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
+                      {sources.length > 0 && (
+                        <SourceBadges sources={sources} track={t} max={contributor ? 3 : 4} />
+                      )}
+                      {contributor && <ContributorBadge name={contributor} verifiedBy={t.verifiedBy} />}
+                    </span>
                   )}
                 </div>
               </Link>

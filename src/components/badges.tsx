@@ -145,6 +145,40 @@ export function SourceBadges({
   )
 }
 
+/**
+ * The contributor's name, where a key source's chip would sit.
+ *
+ * A track that came through the queue has no key database behind it, so its
+ * Sources column would be empty for exactly the rows a reader most wants
+ * attributed. It is deliberately not a `SourceBadge`: it names a person rather
+ * than a service, so it carries the name in full instead of a two-letter code,
+ * it does not deep-link anywhere (there is no listing to open), and it uses a
+ * neutral surface instead of a source's brand colour — a contribution is not a
+ * key report, and the column must not read as if one of the services said
+ * something about a track nobody has keyed yet.
+ */
+export function ContributorBadge({
+  name,
+  verifiedBy,
+  className = '',
+}: {
+  name: string
+  /** Reviewer who approved the row, when one did — the track page's "Verified". */
+  verifiedBy?: string | null
+  className?: string
+}) {
+  const label = `Added by ${name}${verifiedBy ? ` · verified by ${verifiedBy}` : ''} — community contribution, no key source`
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      className={`inline-flex h-5 min-w-0 items-center rounded border border-text-dim bg-bg-hover px-1.5 text-[11px] leading-none text-text ${className}`}
+    >
+      <span className="truncate">{name}</span>
+    </span>
+  )
+}
+
 export const CAMELOT_BLOCK =
   'inline-flex min-w-[3.25rem] items-center justify-center rounded-md px-2 py-0.5 font-mono text-xs font-semibold leading-5'
 

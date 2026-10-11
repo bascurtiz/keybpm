@@ -208,11 +208,12 @@ export function Contribute() {
             </li>
             <li>A track that&apos;s not in the database yet, which you have keyed and bpm-determined.</li>
           </ol>
+          {/* Same wording as About's Contributing list: how you get in, then
+              which two doors lead to a submission. */}
           <p className="mt-4 border-t border-line pt-4 text-sm text-text-muted">
-            Either <span className="text-text">open the track</span>, click the{' '}
-            <span className="text-text">Suggest correction</span> button and fill in the proper info. Or click{' '}
-            <span className="text-text">Contribute</span>, <span className="text-text">add new track</span> and fill
-            in the proper info.
+            <strong className="text-text">Sign in with Discord</strong> (header), then open{' '}
+            <span className="text-text">Contribute</span> or{' '}
+            <span className="text-text">Suggest correction</span> on a track.
           </p>
         </section>
 

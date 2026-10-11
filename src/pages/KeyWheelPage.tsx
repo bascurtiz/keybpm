@@ -63,7 +63,9 @@ export function KeyWheelPage() {
         </p>
       </div>
 
-      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[440px_minmax(0,1fr)]">
+      {/* mt-4, not mt-6: the same space under the title as Browse, Contribute
+          and Mix Finder put there. */}
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[440px_minmax(0,1fr)]">
         <div>
           <KeyWheel
             selected={selected}

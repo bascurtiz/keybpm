@@ -494,6 +494,10 @@
     align-items: stretch;
     flex: 0 0 auto;
     min-height: 0;
+    /* The title sits one 0.5rem gap above this, so 0.5rem more here makes it
+       1rem — the same space under the heading as Browse/Contribute/Mix Finder
+       (mt-4). On the flex column this only adds space above the tools. */
+    margin-top: 0.5rem;
   }
   /* Scale Finder card. NOTE: no `align-self` here — on mobile .kt-tools is a
      stretch column, so an override would shrink this card below the width of
