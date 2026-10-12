@@ -148,8 +148,8 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                 className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-max max-w-sm rounded-md border border-line bg-bg-card p-2 text-xs font-normal leading-relaxed text-text shadow-xl group-hover:block group-focus-within:block"
               >
                 <p className="text-text">Nothing beats human ears, but handy as 2nd opinion.</p>
-                <p className="mt-1 whitespace-nowrap text-text-muted">100% private in-browser, no audio leaves your device.</p>
-                <p className="mt-1 whitespace-nowrap text-text-muted">Results won't be published in the database.</p>
+                <p className="mt-1 whitespace-nowrap text-text">100% private in-browser, no audio leaves your device.</p>
+                <p className="mt-1 whitespace-nowrap text-text">Results won't be published in the database.</p>
               </div>
             </div>
           </div>
