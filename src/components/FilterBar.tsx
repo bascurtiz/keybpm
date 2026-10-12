@@ -12,18 +12,20 @@ export interface FilterState {
   label: string | null
   yearMin: number | null
   yearMax: number | null
+  hideConsensus: boolean
 }
 
 export const EMPTY_FILTERS: FilterState = {
   bpmMin: null, bpmMax: null, key: null, camelot: null, mode: null,
   genre: null, label: null, yearMin: null, yearMax: null,
+  hideConsensus: false,
 }
 
 const FILTER_KEYS = ['bpmMin', 'bpmMax', 'key', 'camelot', 'mode', 'genre', 'label', 'yearMin', 'yearMax'] as const
 
 export function hasActiveFilters(f: FilterState): boolean {
-  // Check only filter fields — callers pass a wider state object (q/sort/dir).
-  return FILTER_KEYS.some(k => f[k] !== null)
+  // Check filter fields (facets and toggles)
+  return FILTER_KEYS.some(k => f[k] !== null) || f.hideConsensus
 }
 
 /** "major/minor" is the plain-key choice; everything else is a listed mode. */
@@ -176,6 +178,23 @@ export function FilterBar({
             }
           />
         )}
+
+        <div className="border-t border-line/60 pt-4">
+          <label className="flex cursor-pointer items-start justify-between gap-3 select-none">
+            <div className="min-w-0 flex-1">
+              <span className="block text-xs font-medium text-text">Hide consensus results</span>
+              <span className="block text-[11px] leading-snug text-text-muted">
+                Only show manually curated tracks (duuzu's sheet, etc.)
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={filters.hideConsensus}
+              onChange={e => onChange({ hideConsensus: e.target.checked })}
+              className="mt-0.5 h-4 w-4 rounded border-line text-accent accent-accent focus:ring-accent"
+            />
+          </label>
+        </div>
       </div>
     </div>
   )

@@ -30,6 +30,7 @@ function readState(params: URLSearchParams): FilterState & { sort: SortKey; dir:
     ? (sortParam as SortKey)
     : 'artist'
   const dir: SortDir = str('dir') === 'desc' ? 'desc' : 'asc'
+  const hideConsensus = params.get('hideConsensus') === '1' || params.get('hideConsensus') === 'true'
 
   return {
     q: str('q') ?? '',
@@ -42,6 +43,7 @@ function readState(params: URLSearchParams): FilterState & { sort: SortKey; dir:
     label: str('label'),
     yearMin: num('yearMin'),
     yearMax: num('yearMax'),
+    hideConsensus,
     sort,
     dir,
   }
@@ -59,6 +61,7 @@ function writeState(s: FilterState & { sort: SortKey; dir: SortDir; q: string })
   if (s.label) p.set('label', s.label)
   if (s.yearMin !== null) p.set('yearMin', String(s.yearMin))
   if (s.yearMax !== null) p.set('yearMax', String(s.yearMax))
+  if (s.hideConsensus) p.set('hideConsensus', '1')
   if (s.sort !== 'artist') p.set('sort', s.sort)
   if (s.dir !== 'asc') p.set('dir', s.dir)
   return p
@@ -78,7 +81,7 @@ export function Browse() {
     if (isLg) setFiltersOpen(false)
   }, [isLg])
 
-  const activeFilterCount = FACET_KEYS.filter(k => state[k] !== null).length
+  const activeFilterCount = FACET_KEYS.filter(k => state[k] !== null).length + (state.hideConsensus ? 1 : 0)
 
   // Keep header search box in sync: it writes ?q= here directly.
   const set = (patch: Partial<FilterState & { sort: SortKey; dir: SortDir; q: string }>) => {
@@ -89,8 +92,14 @@ export function Browse() {
     // 1. Music-aware text search
     let rows = searchTracks(tracks, state.q)
 
-    // 2. Facet filters
+    // 2. Facet filters & consensus toggle
     rows = rows.filter(t => {
+      if (state.hideConsensus) {
+        // Exclude tracks derived from consensus / multi-source engine
+        if (t.source === 'key consensus engine' || (t.sources && t.sources.length > 0)) {
+          return false
+        }
+      }
       if (!bpmInRange(t, state.bpmMin, state.bpmMax)) return false
       if (state.key && t.key !== state.key) return false
       if (state.camelot && t.camelot !== state.camelot) return false

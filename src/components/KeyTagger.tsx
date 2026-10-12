@@ -122,7 +122,26 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
     <>
       <div className={`surface rounded-xl border border-line p-4 lg:pt-3 transition-all ${className}`}>
         <div className="kt-header-row mb-3.5 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Auto-detect</h2>
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-sm font-semibold">Auto-detect</h2>
+            <div className="group relative inline-flex items-center">
+              <span
+                tabIndex={0}
+                aria-label="Nothing beats human ears, but as 2nd opinion, you could use this. 100% private in-browser, no audio leaves your device. Results won't be published in the database."
+                className="flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-line bg-bg-card font-mono text-[10px] font-bold text-text-dim hover:border-text-muted hover:text-text focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                ?
+              </span>
+              <div
+                role="tooltip"
+                className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-64 rounded-md border border-line bg-bg-card p-2 text-xs font-normal leading-relaxed text-text shadow-xl group-hover:block group-focus-within:block"
+              >
+                <p className="text-text">Nothing beats human ears, but as a 2nd opinion, you could use this.</p>
+                <p className="mt-1 text-text-muted">100% private in-browser, no audio leaves your device.</p>
+                <p className="mt-1 font-medium text-accent">Results won't be published in the database.</p>
+              </div>
+            </div>
+          </div>
           <div className="flex items-center gap-1.5">
             {result && (
               <button
