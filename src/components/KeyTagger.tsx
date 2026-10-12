@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { detectAudioKey, type KeyDetectionResult, type DetectKeyProgress } from '@/lib/keyDetector'
 import { normalizeBpmConfidence } from '@/lib/bpmDetector'
 import { extractAudioMetadata, type AudioMetadata } from '@/lib/audioMetadata'
-import { camelotColor, camelotTint, getCompatibleKeys } from '@/lib/camelot'
+import { camelotColor, camelotTint, camelotToOpenKey, getCompatibleKeys } from '@/lib/camelot'
 import { CAMELOT_TO_KEY } from '@/types/track'
 import { shortKey } from '@/lib/format'
+import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
 
 interface KeyTaggerProps {
   onSelectKey?: (camelot: string) => void
@@ -23,9 +24,19 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
   const [result, setResult] = useState<KeyDetectionResult | null>(null)
   const [showResultModal, setShowResultModal] = useState(false)
   const [bpmMultiplier, setBpmMultiplier] = useState<number>(1)
+  const [wheelMode, setWheelMode] = useState<WheelMode>(() => {
+    const m = readWheelMode()
+    return m === 'openkey' ? 'openkey' : 'camelot'
+  })
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const toggleNotation = () => {
+    const next: WheelMode = wheelMode === 'openkey' ? 'camelot' : 'openkey'
+    setWheelMode(next)
+    writeWheelMode(next)
+  }
 
   const processFile = useCallback(async (selectedFile: File) => {
     setFile(selectedFile)
@@ -134,11 +145,11 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
               </span>
               <div
                 role="tooltip"
-                className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-64 rounded-md border border-line bg-bg-card p-2 text-xs font-normal leading-relaxed text-text shadow-xl group-hover:block group-focus-within:block"
+                className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-72 rounded-md border border-line bg-bg-card p-2 text-xs font-normal leading-relaxed text-text shadow-xl group-hover:block group-focus-within:block"
               >
                 <p className="text-text">Nothing beats human ears, but as a 2nd opinion, you could use this.</p>
                 <p className="mt-1 text-text-muted">100% private in-browser, no audio leaves your device.</p>
-                <p className="mt-1 font-medium text-accent">Results won't be published in the database.</p>
+                <p className="mt-1 text-text-muted">Results won't be published in the database.</p>
               </div>
             </div>
           </div>
@@ -323,6 +334,14 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={toggleNotation}
+                  className="rounded-md border border-line bg-bg px-2 py-1 text-xs font-medium text-text-muted transition-colors hover:border-line-hover hover:text-text"
+                  title="Toggle Camelot / Open Key notation"
+                >
+                  {wheelMode === 'openkey' ? 'Open Key' : 'Camelot'}
+                </button>
+                <button
+                  type="button"
                   className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-bg text-sm leading-none text-text-muted hover:text-text"
                   onClick={() => setShowResultModal(false)}
                   aria-label="Close"
@@ -338,14 +357,14 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                   {/* Musical Key */}
                   <div className="flex items-center gap-3 sm:pr-4">
                     <div
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl font-mono text-2xl font-bold shadow-sm"
+                      className="flex h-14 min-w-[3.5rem] px-2 shrink-0 items-center justify-center rounded-xl font-mono text-2xl font-bold shadow-sm"
                       style={{
                         backgroundColor: camelotTint(result.camelot, 0.2),
                         color: camelotColor(result.camelot),
                         border: `1px solid ${camelotColor(result.camelot)}`,
                       }}
                     >
-                      {result.camelot}
+                      {wheelMode === 'openkey' ? (camelotToOpenKey(result.camelot) ?? result.camelot) : result.camelot}
                     </div>
                     <div>
                       <div className="text-lg font-bold text-text">
@@ -354,7 +373,7 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
                         <span>Confidence:</span>
-                        <strong className="font-semibold text-text">
+                        <strong className="font-mono font-semibold text-text">
                           {(result.confidence * 100).toFixed(1)}%
                         </strong>
                       </div>
@@ -372,7 +391,7 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                         <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
                           <span>Confidence:</span>
                           {bpmConfidencePct !== undefined && (
-                            <strong className="font-semibold text-text">
+                            <strong className="font-mono font-semibold text-text">
                               {bpmConfidencePct.toFixed(1)}%
                             </strong>
                           )}
@@ -425,6 +444,7 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                     {getCompatibleKeys(result.camelot).map(code => {
                       const kName = CAMELOT_TO_KEY[code] || code
                       const isSelected = code === result.camelot
+                      const displayCode = wheelMode === 'openkey' ? (camelotToOpenKey(code) ?? code) : code
                       return (
                         <Link
                           key={code}
@@ -440,7 +460,7 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                               : undefined
                           }
                         >
-                          <span className="font-mono font-bold">{code}</span>
+                          <span className="font-mono font-bold">{displayCode}</span>
                           <span className="text-[10px] text-text-dim">({shortKey(kName)})</span>
                         </Link>
                       )
@@ -453,7 +473,7 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                     to={effectiveBpm ? `/browse?camelot=${result.camelot}&bpm=${Math.round(effectiveBpm)}` : `/browse?camelot=${result.camelot}`}
                     className="btn-ghost w-28 justify-center py-1 text-xs text-center"
                   >
-                    Browse {result.camelot}
+                    Browse {wheelMode === 'openkey' ? (camelotToOpenKey(result.camelot) ?? result.camelot) : result.camelot}
                   </Link>
                   <Link
                     to={{
@@ -508,33 +528,36 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                     Confidence ranking:
                   </div>
                   <div className="space-y-1">
-                    {result.topCandidates.slice(0, 3).map(cand => (
-                      <div
-                        key={cand.camelot}
-                        className="flex items-center justify-between rounded border border-line/60 bg-bg/50 px-2.5 py-1 text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="font-mono font-semibold"
-                            style={{ color: camelotColor(cand.camelot) }}
-                          >
-                            {cand.camelot}
-                          </span>
-                          <span className="text-text-muted">{shortKey(cand.key)}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-line">
-                            <div
-                              className="h-full bg-accent"
-                              style={{ width: `${Math.round(cand.confidence * 100)}%` }}
-                            />
+                    {result.topCandidates.slice(0, 3).map(cand => {
+                      const displayCode = wheelMode === 'openkey' ? (camelotToOpenKey(cand.camelot) ?? cand.camelot) : cand.camelot
+                      return (
+                        <div
+                          key={cand.camelot}
+                          className="flex items-center justify-between rounded border border-line/60 bg-bg/50 px-2.5 py-1 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="font-mono font-semibold"
+                              style={{ color: camelotColor(cand.camelot) }}
+                            >
+                              {displayCode}
+                            </span>
+                            <span className="text-text-muted">{shortKey(cand.key)}</span>
                           </div>
-                          <span className="w-12 text-right font-mono text-[11px] text-text-dim">
-                            {(cand.confidence * 100).toFixed(1)}%
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-line">
+                              <div
+                                className="h-full bg-accent"
+                                style={{ width: `${Math.round(cand.confidence * 100)}%` }}
+                              />
+                            </div>
+                            <span className="w-12 text-right font-mono text-[11px] text-text-dim">
+                              {(cand.confidence * 100).toFixed(1)}%
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
