@@ -138,18 +138,18 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
             <div className="group relative inline-flex items-center">
               <span
                 tabIndex={0}
-                aria-label="Nothing beats human ears, but as 2nd opinion, you could use this. 100% private in-browser, no audio leaves your device. Results won't be published in the database."
+                aria-label="Nothing beats human ears, but handy as 2nd opinion. 100% private in-browser, no audio leaves your device. Results won't be published in the database."
                 className="flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-line bg-bg-card font-mono text-[10px] font-bold text-text-dim hover:border-text-muted hover:text-text focus:outline-none focus:ring-1 focus:ring-accent"
               >
                 ?
               </span>
               <div
                 role="tooltip"
-                className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-80 rounded-md border border-line bg-bg-card p-2 text-xs font-normal leading-relaxed text-text shadow-xl group-hover:block group-focus-within:block"
+                className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-max max-w-sm rounded-md border border-line bg-bg-card p-2 text-xs font-normal leading-relaxed text-text shadow-xl group-hover:block group-focus-within:block"
               >
-                <p className="text-text">Nothing beats human ears, but as a 2nd opinion, you could use this.</p>
-                <p className="mt-1 text-text-muted">100% private in-browser, no audio leaves your device.</p>
-                <p className="mt-1 text-text-muted">Results won't be published in the database.</p>
+                <p className="text-text">Nothing beats human ears, but handy as 2nd opinion.</p>
+                <p className="mt-1 whitespace-nowrap text-text-muted">100% private in-browser, no audio leaves your device.</p>
+                <p className="mt-1 whitespace-nowrap text-text-muted">Results won't be published in the database.</p>
               </div>
             </div>
           </div>
