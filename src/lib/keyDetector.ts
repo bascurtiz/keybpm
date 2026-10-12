@@ -230,8 +230,8 @@ export async function detectAudioKey(
     throw new Error('Audio is too short for key detection (minimum 4 seconds required).')
   }
 
-  // 2. Load CQT filter bank and ONNX model concurrently (shown to user as BPM detection first)
-  onProgress?.({ stage: 'bpm', progress: 0.15, message: 'Detecting BPM (0%)…' })
+  // 2. Load CQT filter bank and ONNX model concurrently
+  onProgress?.({ stage: 'cqt', progress: 0.15, message: 'Detecting Key (0%)…' })
   await new Promise(resolve => setTimeout(resolve, 0))
   const [filterData, session] = await Promise.all([
     loadCqtFilters(baseUrl),
@@ -239,20 +239,20 @@ export async function detectAudioKey(
   ])
 
   // 3. Compute CQT log-magnitude spectrogram
-  onProgress?.({ stage: 'bpm', progress: 0.25, message: 'Detecting BPM (10%)…' })
+  onProgress?.({ stage: 'cqt', progress: 0.25, message: 'Detecting Key (10%)…' })
   await new Promise(resolve => setTimeout(resolve, 0))
 
   const { data: cqtData, nBins, nFrames } = await computeCqt(monoAudio, filterData, ratio => {
     const pct = Math.max(10, Math.min(90, Math.round(10 + ratio * 80)))
     onProgress?.({
-      stage: 'bpm',
+      stage: 'cqt',
       progress: 0.25 + ratio * 0.45,
-      message: `Detecting BPM (${pct}%)…`,
+      message: `Detecting Key (${pct}%)…`,
     })
   })
 
   // 4. Run ONNX KeyNet inference
-  onProgress?.({ stage: 'bpm', progress: 0.75, message: 'Detecting BPM (95%)…' })
+  onProgress?.({ stage: 'cqt', progress: 0.75, message: 'Detecting Key (95%)…' })
   await new Promise(resolve => setTimeout(resolve, 0))
 
   // Input shape: [batch=1, channel=1, freq_bins=136, time_frames=nFrames]
@@ -290,7 +290,7 @@ export async function detectAudioKey(
 
   const top = scores[0]
 
-  // 6. BPM extraction (takes longer, shown to user as Key detection for higher perceived confidence)
+  // 6. BPM extraction
   let detectedBpm: number | undefined
   let detectedBpmConfidence: number | undefined
   let detectedTicksCount: number | undefined
@@ -298,9 +298,9 @@ export async function detectAudioKey(
   try {
     const bpmRes = await detectAudioBpm(monoAudio, 180, pct => {
       onProgress?.({
-        stage: 'cqt',
+        stage: 'bpm',
         progress: 0.75 + (pct / 100) * 0.23,
-        message: `Detecting Key (${pct}%)…`,
+        message: `Detecting BPM (${pct}%)…`,
       })
     })
     if (bpmRes.bpm > 0) {
