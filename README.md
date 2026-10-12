@@ -1,12 +1,13 @@
 # KeyBPM
 
-**The open music Key & BPM database.** A fast, dark, DJ-friendly web app for searching tracks and filtering them by BPM, musical key, Camelot notation, genre, label and year — inspired by the useful parts of a well-maintained spreadsheet, without the spreadsheet.
+**The open music Key & BPM database.** A fast, DJ-friendly web app for searching tracks and filtering them by BPM, musical key, Camelot notation or Open Key — inspired by duuzu's song key & bpm database.
 
 > 🧠 **100% vibe-coded.** No planning docs, no hand-typed boilerplate — every feature here was built by describing what I wanted and iterating until the build passed.
 
-- 🎧 Music-aware search: `128 11A`, `F#m 125-130`, `house 2023`, `label:nordlys`
+- 🎧 Music-aware search: `128 11A`, `F#m 125-130`, `daft punk 8A`
 - 🎚 Dense, sortable track table with URL-driven filters (every view is shareable)
-- 🎹 Interactive Camelot Key Wheel with harmonic compatibility
+- 🎹 Interactive Key Tool: Camelot & Open Key Wheel, scale/chord synth player, and harmonic theory
+- 🤖 Client-side Key & BPM Detector: drag & drop any audio file for neural key detection (KeyNet / MusicalKeyCNN via ONNX Runtime Web) + Essentia.js tempo analysis — 100% private in-browser, no audio leaves your device
 - 🎛 Mix Finder with **explainable** results (`Camelot +1`, `Same genre`, `Δ BPM`) — no black-box scores
 - 📤 CSV / JSON export of any filtered view
 - ✍️ Contribute & suggest corrections — Discord login + review queue
@@ -36,7 +37,7 @@ Vite proxies `/api` and `/auth` to `http://127.0.0.1:8787` in dev. Copy `.env.ex
 
 The dataset lives in **`data/tracks.json`** (canonical) and **`data/tracks.csv`** — plain, portable files you can diff in Git, load in Python, or consume from other tools. The app imports the JSON at build time; no database, no API server.
 
-**Source:** ~19,150 tracks from *duuzu's song key & bpm 'database'* v10 (15 June 2025), keys and tempos worked out by ear, plus 8,797 tracks from a ten-source **Key Consensus Engine** export. Credit for the sheet goes to duuzu — get their permission before publishing it.
+**Source:** ~19,150 tracks from *duuzu's song key & bpm 'database'* v10 (15 June 2025), keys and tempos worked out by ear, plus 8,797 tracks from a ten-source **Key Consensus Engine** export. Credit for the sheet goes to duuzu.
 
 ### Schema
 
@@ -94,7 +95,7 @@ Every result shows its reasons as chips, so the ranking is auditable.
 
 ## Stack
 
-React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · React Router 6. Optional API: Cloudflare Workers + D1 ([`workers/api`](workers/api)).
+React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · React Router 6 · ONNX Runtime Web · Essentia.js (WASM) · Web Audio API. Optional API: Cloudflare Workers + D1 ([`workers/api`](workers/api)).
 
 ## Docs
 
@@ -122,12 +123,13 @@ React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · React Router 6. Optional A
 ├── .github/workflows/    # CI build check (Cloudflare does the deploy)
 ├── data/                 # portable dataset (tracks.json, tracks.csv)
 ├── docs/                 # data pipeline + API guides
+├── public/               # static assets, ONNX neural key model & WASM binaries
 ├── scripts/              # import/export + apply_submissions
 ├── workers/api/          # Discord OAuth + D1 submission queue (Wrangler)
 ├── src/
-│   ├── components/       # Header, SearchBar, FilterBar, TrackTable, KeyWheel, badges…
-│   ├── pages/            # Home, Browse, Track, Contribute, Review, Mix, Key Wheel, About
-│   ├── lib/              # camelot, search, mix, data, auth, api, contributions…
+│   ├── components/       # KeyTagger, Header, SearchBar, FilterBar, TrackTable, KeyWheel…
+│   ├── pages/            # Home, Browse, Track, KeyTool, MixFinder, Contribute, Review…
+│   ├── lib/              # keyDetector (ONNX), bpmDetector (Essentia), cqt, audioEngine, mix, search…
 │   └── types/            # Track model + key maps
 ├── AGENTS.md             # product spec
 └── README.md

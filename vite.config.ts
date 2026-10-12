@@ -20,6 +20,9 @@ export default defineConfig({
       '/auth': { target: 'http://127.0.0.1:8787', changeOrigin: true },
     },
   },
+  optimizeDeps: {
+    exclude: ['onnxruntime-web'],
+  },
   build: {
     outDir: 'dist',
     // The dataset chunk is large by design (~20k tracks); app code stays small.

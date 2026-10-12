@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { tracks, allGenres, allLabels, getTrack, useCatalog } from '@/lib/data'
 import { findMixes, DEFAULT_MIX_OPTIONS } from '@/lib/mix'
 import type { MixOptions } from '@/lib/mix'
@@ -41,6 +41,8 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
 export function MixFinder() {
   const [params, setParams] = useSearchParams()
   const { camelot: urlCamelot, bpm: urlBpmRaw } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
   // Re-run mix matching when the catalog changes (approved-queue overlay).
   const catalogVersion = useCatalog()
   const sourceTrack = getTrack(params.get('track') ?? undefined)
@@ -62,14 +64,45 @@ export function MixFinder() {
   const camelotPreset = urlCamelot && /^\d{1,2}[AB]$/i.test(urlCamelot) ? urlCamelot.toUpperCase() : null
   const urlBpm = urlBpmRaw && !Number.isNaN(Number(urlBpmRaw)) ? Number(urlBpmRaw) : null
 
+  // Restore custom metadata (e.g. from Auto-detect) via location.state, query params, or sessionStorage
+  const customTrackState = (location.state as any)?.customTrack
+  const storedOrigin = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem('keybpm_custom_origin')
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  }, [camelotPreset])
+
+  const queryArtist = params.get('artist')
+  const queryTitle = params.get('title')
+  const queryFile = params.get('file')
+
+  const customArtist =
+    customTrackState?.artist ||
+    (storedOrigin?.camelot === camelotPreset ? storedOrigin?.artist : null) ||
+    queryArtist
+  const customTitle =
+    customTrackState?.title ||
+    (storedOrigin?.camelot === camelotPreset ? storedOrigin?.title : null) ||
+    queryTitle ||
+    queryFile ||
+    customTrackState?.fileName ||
+    (storedOrigin?.camelot === camelotPreset ? storedOrigin?.fileName : null)
+  const customCover =
+    customTrackState?.coverUrl ||
+    (storedOrigin?.camelot === camelotPreset ? storedOrigin?.coverUrl : null)
+
   const source = sourceTrack
     ? sourceTrack
     : camelotPreset
       ? {
           id: '__origin__',
-          artist: '—',
-          title: 'Preset origin',
-          bpm: urlBpm,
+          artist: customArtist || '—',
+          title: customTitle || 'Preset origin',
+          coverUrl: customCover || undefined,
+          bpm: urlBpm ?? (storedOrigin?.camelot === camelotPreset ? storedOrigin?.bpm : null),
           key: CAMELOT_TO_KEY[camelotPreset] ?? '',
           camelot: camelotPreset,
           genre: null,
@@ -77,7 +110,7 @@ export function MixFinder() {
           release: null,
           year: null,
           duration: null,
-          source: 'url',
+          source: customArtist || customTitle ? 'auto-detect' : 'url',
           confidence: null,
           lastVerified: null,
         }
@@ -140,16 +173,23 @@ export function MixFinder() {
                     notation={notation}
                   />
                 </div>
-                {sourceTrack && (
+                {(sourceTrack || camelotPreset) && (
                   <div className="mt-3 flex gap-2">
-                    <Link to={`/track/${sourceTrack.id}`} className="btn-ghost px-3 py-1.5 text-xs">View track</Link>
+                    {sourceTrack && (
+                      <Link to={`/track/${sourceTrack.id}`} className="btn-ghost px-3 py-1.5 text-xs">View track</Link>
+                    )}
                     <button
                       type="button"
                       className="btn-ghost px-3 py-1.5 text-xs"
                       onClick={() => {
-                        const p = new URLSearchParams(params)
-                        p.delete('track')
-                        setParams(p)
+                        sessionStorage.removeItem('keybpm_custom_origin')
+                        if (sourceTrack) {
+                          const p = new URLSearchParams(params)
+                          p.delete('track')
+                          setParams(p)
+                        } else {
+                          navigate('/mix')
+                        }
                       }}
                     >
                       Clear

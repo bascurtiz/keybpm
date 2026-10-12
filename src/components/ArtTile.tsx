@@ -47,13 +47,32 @@ export function ArtTile({
    */
   link = true,
 }: {
-  track: Track
+  track: Track & { coverUrl?: string }
   size?: number
   link?: boolean
 }) {
+  const directCover = (track as any).coverUrl
   const id = youtubeId(track.youtube)
   const [broken, setBroken] = useState(false)
   const [scArt, setScArt] = useState<string | null>(null)
+
+  if (directCover) {
+    return (
+      <span
+        aria-hidden
+        className="block shrink-0 overflow-hidden rounded-lg bg-bg-hover"
+        style={{ width: size, height: size }}
+      >
+        <img
+          src={directCover}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
+      </span>
+    )
+  }
 
   // SoundCloud-only record: resolve artwork once per track URL (cached).
   const sc = track.soundcloud

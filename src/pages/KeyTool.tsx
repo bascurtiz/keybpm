@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { KeyWheel, WheelModeSwitch } from '@/components/KeyWheel'
 import { RotaryKnob } from '@/components/RotaryKnob'
+import { KeyTagger } from '@/components/KeyTagger'
 import { AudioEngine } from '@/lib/audioEngine'
 import type { WaveType } from '@/lib/audioEngine'
 import {
@@ -648,51 +649,65 @@ export function KeyTool() {
       </div>
 
       <div className="kt-tools">
-        {/* 1. Instructions */}
-        <section className="surface kt-card kt-card-side p-4 lg:pt-3">
-          <h2 className="kt-header-row mb-3.5 text-sm font-semibold">Instructions</h2>
-          <ol className="list-decimal space-y-3 pl-4 text-xs text-text-muted">
-            <li>Play a track from any source</li>
-            <li>Play metronome and set BPM based on track</li>
-            <li>
-              Select a key and Play it. Switch scale type if needed
-              <span className="mt-1.5 block font-medium text-text">
-                When all notes sound right, you have found the key!
-              </span>
-            </li>
-          </ol>
-          <div className="my-4 border-t border-line" />
-          <div className="flex flex-col gap-3">
-            <button type="button" className="inline-flex items-center gap-2 text-xs text-accent hover:underline" onClick={() => setShowVideo(true)}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
-              </svg>
-              Video demo
-            </button>
-            <button type="button" className="inline-flex items-center gap-2 text-xs text-accent hover:underline" onClick={() => setShowShortcuts(true)}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z" />
-              </svg>
-              Keyboard shortcuts
-            </button>
-            <label className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
-              <span>Guided Mode</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={guided}
-                className={`relative h-5 w-9 rounded-full transition-colors ${guided ? 'bg-accent-solid' : 'bg-line'}`}
-                onClick={() => (guided ? exitGuided() : startGuided())}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-text transition-transform ${
-                    guided ? 'translate-x-4' : ''
-                  }`}
-                />
+        {/* 1. Instructions Column */}
+        <div className="flex flex-col gap-2.5 kt-card-side">
+          <section className="surface kt-card p-4 lg:pt-3">
+            <h2 className="kt-header-row mb-3.5 text-sm font-semibold">Instructions</h2>
+            <ol className="list-decimal space-y-3 pl-4 text-xs text-text-muted">
+              <li>Play a track from any source</li>
+              <li>Play metronome and set BPM based on track</li>
+              <li>
+                Select a key and Play it. Switch scale type if needed
+                <span className="mt-1.5 block font-medium text-text">
+                  When all notes sound right, you have found the key!
+                </span>
+              </li>
+            </ol>
+            <div className="my-4 border-t border-line" />
+            <div className="flex flex-col gap-3">
+              <button type="button" className="inline-flex items-center gap-2 text-xs text-accent hover:underline" onClick={() => setShowVideo(true)}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
+                </svg>
+                Video demo
               </button>
-            </label>
-          </div>
-        </section>
+              <button type="button" className="inline-flex items-center gap-2 text-xs text-accent hover:underline" onClick={() => setShowShortcuts(true)}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z" />
+                </svg>
+                Keyboard shortcuts
+              </button>
+              <label className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
+                <span>Guided Mode</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={guided}
+                  className={`relative h-5 w-9 rounded-full transition-colors ${guided ? 'bg-accent-solid' : 'bg-line'}`}
+                  onClick={() => (guided ? exitGuided() : startGuided())}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-text transition-transform ${
+                      guided ? 'translate-x-4' : ''
+                    }`}
+                  />
+                </button>
+              </label>
+            </div>
+          </section>
+
+          {/* Key & BPM Detector Card */}
+          <KeyTagger
+            compact
+            onSelectKey={camelot => {
+              setSelected(camelot)
+              if (guided) setGuided(false)
+            }}
+            onSelectBpm={detectedBpm => {
+              setBpm(Math.round(detectedBpm))
+            }}
+          />
+        </div>
 
         {/* 2. Metronome */}
         <section className="surface kt-card kt-card-side p-4 lg:pt-3">
@@ -753,11 +768,12 @@ export function KeyTool() {
               <button
                 type="button"
                 aria-label="Halve BPM"
-                title="Halve BPM"
+                title="Halve BPM (/2)"
                 className="flex h-5 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-bg-hover font-mono text-xs leading-none text-text-muted hover:border-accent hover:text-text"
                 onClick={() => scaleBpm(0.5)}
               >
-                ÷2
+                <span className="inline-block w-2.5 text-center text-[8px] opacity-70">/</span>
+                <span>2</span>
               </button>
               <div className="flex flex-1 items-center justify-center gap-2">
                 {[0, 1, 2, 3].map(i => (
@@ -776,7 +792,8 @@ export function KeyTool() {
                 className="flex h-5 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-bg-hover font-mono text-xs leading-none text-text-muted hover:border-accent hover:text-text"
                 onClick={() => scaleBpm(2)}
               >
-                ×2
+                <span className="inline-block w-2.5 text-center">×</span>
+                <span>2</span>
               </button>
             </div>
             </div>
