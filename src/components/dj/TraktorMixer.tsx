@@ -257,9 +257,6 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             className="w-7 h-[135px]"
           />
         </div>
-        <span className="text-[9px] font-mono text-zinc-400 mt-1 tabular-nums font-semibold">
-          {Math.round(volumeA * 100)}%
-        </span>
       </div>
 
       {/* ================= 3. CENTER PANEL (FILTERS + FX + SYNC/KEY) ================= */}
@@ -414,9 +411,6 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             className="w-7 h-[135px]"
           />
         </div>
-        <span className="text-[9px] font-mono text-zinc-400 mt-1 tabular-nums font-semibold">
-          {Math.round(volumeB * 100)}%
-        </span>
       </div>
 
       {/* ================= 5. DECK B EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
