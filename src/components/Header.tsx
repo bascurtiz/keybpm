@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/mix', label: 'Mix Finder' },
   { to: '/key', label: 'Key Wheel' },
   { to: '/tool', label: 'Key Tool' },
+  { to: '/mix-it', label: 'Mix it!' },
   { to: '/review', label: 'Review', reviewOnly: true },
   { to: '/about', label: 'About' },
 ]

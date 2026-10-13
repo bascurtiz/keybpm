@@ -7,6 +7,7 @@ import { camelotColor, camelotTint, camelotToOpenKey, getCompatibleKeys } from '
 import { CAMELOT_TO_KEY } from '@/types/track'
 import { shortKey } from '@/lib/format'
 import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
+import { setPendingDeckTrackA } from '@/lib/dj/trackTransfer'
 
 interface KeyTaggerProps {
   onSelectKey?: (camelot: string) => void
@@ -155,19 +156,47 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
           </div>
           <div className="flex items-center gap-1.5">
             {result && (
-              <button
-                type="button"
-                onClick={() => setShowResultModal(true)}
-                className="group flex flex-col items-center text-xs font-semibold leading-tight"
-              >
-                <span className="text-accent group-hover:underline">View result</span>
-                <span className="flex items-center gap-1 font-mono font-bold no-underline">
-                  <span style={{ color: camelotColor(result.camelot) }}>{result.camelot}</span>
-                  {effectiveBpm && (
-                    <span className="text-[11px] font-normal text-text-muted">· {effectiveBpm}</span>
-                  )}
-                </span>
-              </button>
+              <>
+                <Link
+                  to="/mix-it"
+                  onClick={() => {
+                    setPendingDeckTrackA({
+                      file: file || undefined,
+                      bpm: effectiveBpm,
+                      keyInfo: {
+                        name: result.key,
+                        camelot: result.camelot,
+                        confidence: result.confidence,
+                      },
+                      metadata: {
+                        title: metadata?.title || (file ? file.name.replace(/\.[a-zA-Z0-9]+$/, '') : undefined),
+                        artist: metadata?.artist,
+                        coverUrl: metadata?.coverUrl,
+                        bpm: effectiveBpm,
+                        key: result.key,
+                        camelot: result.camelot,
+                      },
+                    })
+                  }}
+                  className="px-2 py-1 rounded bg-[#10b981] text-black font-bold text-[11px] hover:bg-[#34d399] transition-colors shadow"
+                  title="Load and mix this track in Mix it!"
+                >
+                  Mix it!
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowResultModal(true)}
+                  className="group flex flex-col items-center text-xs font-semibold leading-tight"
+                >
+                  <span className="text-accent group-hover:underline">View result</span>
+                  <span className="flex items-center gap-1 font-mono font-bold no-underline">
+                    <span style={{ color: camelotColor(result.camelot) }}>{result.camelot}</span>
+                    {effectiveBpm && (
+                      <span className="text-[11px] font-normal text-text-muted">· {effectiveBpm}</span>
+                    )}
+                  </span>
+                </button>
+              </>
             )}
             {onClose && (
               <button
@@ -470,6 +499,33 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
 
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <Link
+                    to="/mix-it"
+                    onClick={() => {
+                      if (result) {
+                        setPendingDeckTrackA({
+                          file: file || undefined,
+                          bpm: effectiveBpm,
+                          keyInfo: {
+                            name: result.key,
+                            camelot: result.camelot,
+                            confidence: result.confidence,
+                          },
+                          metadata: {
+                            title: metadata?.title || (file ? file.name.replace(/\.[a-zA-Z0-9]+$/, '') : undefined),
+                            artist: metadata?.artist,
+                            coverUrl: metadata?.coverUrl,
+                            bpm: effectiveBpm,
+                            key: result.key,
+                            camelot: result.camelot,
+                          },
+                        })
+                      }
+                    }}
+                    className="btn-primary w-28 justify-center py-1 text-xs text-center font-bold bg-[#10b981] text-black hover:bg-[#34d399] shadow"
+                  >
+                    Mix it! 🎧
+                  </Link>
+                  <Link
                     to={effectiveBpm ? `/browse?camelot=${result.camelot}&bpm=${Math.round(effectiveBpm)}` : `/browse?camelot=${result.camelot}`}
                     className="btn-ghost w-28 justify-center py-1 text-xs text-center"
                   >
@@ -514,7 +570,7 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
                         )
                       }
                     }}
-                    className="btn-primary w-28 justify-center py-1 text-xs text-center"
+                    className="btn-ghost w-28 justify-center py-1 text-xs text-center"
                   >
                     Find mixes
                   </Link>

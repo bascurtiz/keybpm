@@ -39,9 +39,12 @@
   "dependencies": {
     "@audio/decode-ape": "^1.0.0",
     "@audio/decode-eac3": "^1.0.0",
+    "@soundtouchjs/audio-worklet": "^2.1.1",
+    "@soundtouchjs/core": "^2.1.1",
     "@tanstack/react-virtual": "^3.14.13",
     "audio-decode": "^3.12.0",
     "essentia.js": "^0.1.3",
+    "lucide-react": "^1.55.0",
     "onnxruntime-web": "^1.21.0",
     "parse-audio-metadata": "^1.3.6",
     "react": "^18.3.1",

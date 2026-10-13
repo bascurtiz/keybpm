@@ -1,0 +1,510 @@
+import { useEffect, useState } from 'react'
+import type { AudioEngine } from '@/lib/dj/audio-engine'
+import { Knob } from './Knob'
+import { FilterKnob } from './FilterKnob'
+import { Fader } from './Fader'
+import { shiftCamelot, findKeySyncShift } from '@/lib/camelot'
+
+interface TraktorMixerProps {
+  engine: AudioEngine
+  className?: string
+}
+
+export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
+  const deckA = engine.decks.A
+  const deckB = engine.decks.B
+
+  const [, setVer] = useState(0)
+  useEffect(() => {
+    const unE = engine.subscribe(() => setVer(v => v + 1))
+    const unA = deckA.subscribe(() => setVer(v => v + 1))
+    const unB = deckB.subscribe(() => setVer(v => v + 1))
+    return () => {
+      unE()
+      unA()
+      unB()
+    }
+  }, [engine, deckA, deckB])
+
+  const [gainA, setGainA] = useState(1)
+  const [eqHighA, setEqHighA] = useState(0)
+  const [eqMidA, setEqMidA] = useState(0)
+  const [eqLowA, setEqLowA] = useState(0)
+  const [filterA, setFilterA] = useState(0)
+  const [volumeA, setVolumeA] = useState(1)
+
+  const [gainB, setGainB] = useState(1)
+  const [eqHighB, setEqHighB] = useState(0)
+  const [eqMidB, setEqMidB] = useState(0)
+  const [eqLowB, setEqLowB] = useState(0)
+  const [filterB, setFilterB] = useState(0)
+  const [volumeB, setVolumeB] = useState(1)
+
+  // Sync states
+  const isSyncedA = Boolean(
+    deckB.track &&
+      deckA.track &&
+      Math.abs((deckA.effectiveBpm ?? 0) - (deckB.effectiveBpm ?? 0)) < 0.05
+  )
+  const isSyncedB = Boolean(
+    deckA.track &&
+      deckB.track &&
+      Math.abs((deckB.effectiveBpm ?? 0) - (deckA.effectiveBpm ?? 0)) < 0.05
+  )
+
+  // Key sync states
+  const baseCamelotA = deckA.track?.key?.camelot
+  const baseCamelotB = deckB.track?.key?.camelot
+  const effCamelotA = baseCamelotA ? shiftCamelot(baseCamelotA, deckA.keyShift) : null
+  const effCamelotB = baseCamelotB ? shiftCamelot(baseCamelotB, deckB.keyShift) : null
+
+  const optShiftA = baseCamelotA && effCamelotB ? findKeySyncShift(baseCamelotA, effCamelotB) : 0
+  const optShiftB = baseCamelotB && effCamelotA ? findKeySyncShift(baseCamelotB, effCamelotA) : 0
+
+  const isKeySyncedA = Boolean(
+    baseCamelotA &&
+      effCamelotB &&
+      (effCamelotA === effCamelotB || deckA.keyShift === optShiftA) &&
+      (deckA.keyShift !== 0 || baseCamelotA === effCamelotB)
+  )
+  const isKeySyncedB = Boolean(
+    baseCamelotB &&
+      effCamelotA &&
+      (effCamelotB === effCamelotA || deckB.keyShift === optShiftB) &&
+      (deckB.keyShift !== 0 || baseCamelotB === effCamelotA)
+  )
+
+  const handleKeySyncA = () => {
+    if (!deckA.track || !deckB.track || !baseCamelotA || !effCamelotB) return
+    if (isKeySyncedA && deckA.keyShift !== 0) deckA.resetKeyShift()
+    else deckA.setKeyShift(optShiftA)
+  }
+
+  const handleKeySyncB = () => {
+    if (!deckB.track || !deckA.track || !baseCamelotB || !effCamelotA) return
+    if (isKeySyncedB && deckB.keyShift !== 0) deckB.resetKeyShift()
+    else deckB.setKeyShift(optShiftB)
+  }
+
+  // FX helpers
+  const toggleEcho = () => {
+    if (isEchoActive) {
+      deckA.setFxWet(0)
+      deckB.setFxWet(0)
+    } else {
+      const target = deckA.playing ? deckA : deckB.playing ? deckB : (deckA.track ? deckA : deckB)
+      target.setFx('echo')
+      target.setFxWet(0.55)
+    }
+  }
+
+  const toggleReverb = () => {
+    if (isReverbActive) {
+      deckA.setFxWet(0)
+      deckB.setFxWet(0)
+    } else {
+      const target = deckA.playing ? deckA : deckB.playing ? deckB : (deckA.track ? deckA : deckB)
+      target.setFx('reverb')
+      target.setFxWet(0.5)
+    }
+  }
+
+  const triggerBrake = async () => {
+    const target = deckA.playing ? deckA : deckB.playing ? deckB : null
+    if (!target) return
+    await target.scratchBegin()
+    const start = performance.now()
+    const duration = 650
+    const step = () => {
+      const elapsed = performance.now() - start
+      const p = Math.min(1, elapsed / duration)
+      const rate = Math.pow(1 - p, 2)
+      target.scratchMove(rate)
+      if (p < 1) {
+        requestAnimationFrame(step)
+      } else {
+        target.scratchEnd()
+        target.pause()
+      }
+    }
+    requestAnimationFrame(step)
+  }
+
+  const triggerBackspin = async () => {
+    const target = deckA.playing ? deckA : deckB.playing ? deckB : deckA
+    if (!target.track) return
+    await target.scratchBegin()
+    const start = performance.now()
+    const duration = 500
+    const step = () => {
+      const elapsed = performance.now() - start
+      const p = Math.min(1, elapsed / duration)
+      const rate = -3.5 * Math.pow(1 - p, 2)
+      target.scratchMove(rate)
+      if (p < 1) {
+        requestAnimationFrame(step)
+      } else {
+        target.scratchEnd()
+      }
+    }
+    requestAnimationFrame(step)
+  }
+
+  const isEchoActive =
+    (deckA.fxType === 'echo' && deckA.fxWet > 0) || (deckB.fxType === 'echo' && deckB.fxWet > 0)
+  const isReverbActive =
+    (deckA.fxType === 'reverb' && deckA.fxWet > 0) || (deckB.fxType === 'reverb' && deckB.fxWet > 0)
+
+  return (
+    <div
+      className={`flex items-stretch justify-between gap-2.5 px-3 py-1.5 bg-[#1C1C1C] rounded-xl border border-[#282828] select-none h-full shadow-inner ${className}`}
+    >
+      {/* ================= 1. DECK A EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
+      <div className="flex flex-col justify-between items-center py-1 w-12 shrink-0">
+        <EqKnobItem
+          label="GAIN"
+          knob={
+            <Knob
+              size={40}
+              min={0}
+              max={2}
+              defaultValue={1}
+              bipolar
+              value={gainA}
+              onValueChange={v => {
+                setGainA(v)
+                deckA.setGain(v)
+              }}
+              accentColor="#34d399"
+            />
+          }
+        />
+        <EqKnobItem
+          label="HI"
+          knob={
+            <Knob
+              size={40}
+              min={-12}
+              max={12}
+              defaultValue={0}
+              bipolar
+              value={eqHighA}
+              onValueChange={v => {
+                setEqHighA(v)
+                deckA.setEqHigh(v)
+              }}
+              accentColor="#34d399"
+            />
+          }
+        />
+        <EqKnobItem
+          label="MID"
+          knob={
+            <Knob
+              size={40}
+              min={-12}
+              max={12}
+              defaultValue={0}
+              bipolar
+              value={eqMidA}
+              onValueChange={v => {
+                setEqMidA(v)
+                deckA.setEqMid(v)
+              }}
+              accentColor="#34d399"
+            />
+          }
+        />
+        <EqKnobItem
+          label="LOW"
+          knob={
+            <Knob
+              size={40}
+              min={-12}
+              max={12}
+              defaultValue={0}
+              bipolar
+              value={eqLowA}
+              onValueChange={v => {
+                setEqLowA(v)
+                deckA.setEqLow(v)
+              }}
+              accentColor="#34d399"
+            />
+          }
+        />
+      </div>
+
+      {/* ================= 2. DECK A CHANNEL FADER ================= */}
+      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
+        <span className="text-[9.5px] font-bold text-emerald-400 uppercase tracking-wider mb-1">
+          CH A
+        </span>
+        <div className="flex-1 flex items-center justify-center my-0.5">
+          <Fader
+            orientation="vertical"
+            min={0}
+            max={1.5}
+            step={0.01}
+            value={volumeA}
+            defaultValue={1}
+            onValueChange={v => {
+              setVolumeA(v)
+              deckA.setVolume(v)
+            }}
+            accentColor="#34d399"
+            analyser={deckA.analyser}
+            className="w-7 h-[155px]"
+          />
+        </div>
+        <span className="text-[9px] font-mono text-zinc-400 mt-1 tabular-nums font-semibold">
+          {Math.round(volumeA * 100)}%
+        </span>
+      </div>
+
+      {/* ================= 3. CENTER PANEL (FILTERS + FX + SYNC/KEY) ================= */}
+      <div className="flex flex-col justify-between items-center py-1 px-2.5 bg-[#161616] rounded-lg border border-[#282828] flex-1 min-w-[140px]">
+        {/* Top: Filter Knobs A & B */}
+        <div className="flex items-center justify-center gap-4 w-full pt-1">
+          <div className="flex flex-col items-center">
+            <FilterKnob
+              size={40}
+              value={filterA}
+              onChange={v => {
+                setFilterA(v)
+                deckA.setFilter(v)
+              }}
+              accentColor="#34d399"
+            />
+          </div>
+
+          <div className="flex flex-col items-center">
+            <FilterKnob
+              size={40}
+              value={filterB}
+              onChange={v => {
+                setFilterB(v)
+                deckB.setFilter(v)
+              }}
+              accentColor="#a855f7"
+            />
+          </div>
+        </div>
+
+        {/* Middle: 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SPIN] */}
+        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] my-0.5">
+          <button
+            type="button"
+            onClick={toggleEcho}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              isEchoActive
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+            }`}
+            title="Toggle Echo effect"
+          >
+            ECHO
+          </button>
+          <button
+            type="button"
+            onClick={toggleReverb}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              isReverbActive
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+            }`}
+            title="Toggle Reverb effect"
+          >
+            RVRB
+          </button>
+          <button
+            type="button"
+            onClick={triggerBrake}
+            className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
+            title="Vinyl Brake stop effect"
+          >
+            BRK
+          </button>
+          <button
+            type="button"
+            onClick={triggerBackspin}
+            className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
+            title="Vinyl Backspin scratch effect"
+          >
+            SPIN
+          </button>
+        </div>
+
+        {/* Bottom: 2x2 SYNC & KEY Buttons */}
+        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] mb-0.5">
+          <button
+            type="button"
+            onClick={() => deckA.syncTo(deckB)}
+            disabled={!deckA.track || !deckB.track}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              isSyncedA
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
+            }`}
+            title="Deck A Tempo Sync"
+          >
+            SYNC
+          </button>
+          <button
+            type="button"
+            onClick={() => deckB.syncTo(deckA)}
+            disabled={!deckB.track || !deckA.track}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              isSyncedB
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
+            }`}
+            title="Deck B Tempo Sync"
+          >
+            SYNC
+          </button>
+          <button
+            type="button"
+            onClick={handleKeySyncA}
+            disabled={!deckA.track || !deckB.track}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              isKeySyncedA
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
+            }`}
+            title="Deck A Harmonic Key Sync"
+          >
+            KEY
+          </button>
+          <button
+            type="button"
+            onClick={handleKeySyncB}
+            disabled={!deckB.track || !deckA.track}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              isKeySyncedB
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
+            }`}
+            title="Deck B Harmonic Key Sync"
+          >
+            KEY
+          </button>
+        </div>
+      </div>
+
+      {/* ================= 4. DECK B CHANNEL FADER ================= */}
+      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
+        <span className="text-[9.5px] font-bold text-purple-400 uppercase tracking-wider mb-1">
+          CH B
+        </span>
+        <div className="flex-1 flex items-center justify-center my-0.5">
+          <Fader
+            orientation="vertical"
+            min={0}
+            max={1.5}
+            step={0.01}
+            value={volumeB}
+            defaultValue={1}
+            onValueChange={v => {
+              setVolumeB(v)
+              deckB.setVolume(v)
+            }}
+            accentColor="#a855f7"
+            analyser={deckB.analyser}
+            className="w-7 h-[155px]"
+          />
+        </div>
+        <span className="text-[9px] font-mono text-zinc-400 mt-1 tabular-nums font-semibold">
+          {Math.round(volumeB * 100)}%
+        </span>
+      </div>
+
+      {/* ================= 5. DECK B EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
+      <div className="flex flex-col justify-between items-center py-1 w-12 shrink-0">
+        <EqKnobItem
+          label="GAIN"
+          knob={
+            <Knob
+              size={40}
+              min={0}
+              max={2}
+              defaultValue={1}
+              bipolar
+              value={gainB}
+              onValueChange={v => {
+                setGainB(v)
+                deckB.setGain(v)
+              }}
+              accentColor="#a855f7"
+            />
+          }
+        />
+        <EqKnobItem
+          label="HI"
+          knob={
+            <Knob
+              size={40}
+              min={-12}
+              max={12}
+              defaultValue={0}
+              bipolar
+              value={eqHighB}
+              onValueChange={v => {
+                setEqHighB(v)
+                deckB.setEqHigh(v)
+              }}
+              accentColor="#a855f7"
+            />
+          }
+        />
+        <EqKnobItem
+          label="MID"
+          knob={
+            <Knob
+              size={40}
+              min={-12}
+              max={12}
+              defaultValue={0}
+              bipolar
+              value={eqMidB}
+              onValueChange={v => {
+                setEqMidB(v)
+                deckB.setEqMid(v)
+              }}
+              accentColor="#a855f7"
+            />
+          }
+        />
+        <EqKnobItem
+          label="LOW"
+          knob={
+            <Knob
+              size={40}
+              min={-12}
+              max={12}
+              defaultValue={0}
+              bipolar
+              value={eqLowB}
+              onValueChange={v => {
+                setEqLowB(v)
+                deckB.setEqLow(v)
+              }}
+              accentColor="#a855f7"
+            />
+          }
+        />
+      </div>
+    </div>
+  )
+}
+
+function EqKnobItem({ label, knob }: { label: string; knob: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center">
+      <span className="text-[7.5px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">
+        {label}
+      </span>
+      {knob}
+    </div>
+  )
+}

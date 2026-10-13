@@ -21,7 +21,7 @@ function normalizeCamelot(code: string): string | null {
 }
 
 function wrapNumber(n: number): number {
-  return ((n - 1 + 12) % 12) + 1
+  return ((((n - 1) % 12) + 12) % 12) + 1
 }
 
 /**
@@ -180,5 +180,57 @@ export const ALL_OPEN_KEYS: string[] = [
   ...Array.from({ length: 12 }, (_, i) => `${i + 1}m`),
   ...Array.from({ length: 12 }, (_, i) => `${i + 1}d`),
 ]
+
+/**
+ * Shift a Camelot key by a signed number of semitones.
+ * Each semitone corresponds to 7 steps around the circle of fifths (mod 12).
+ * e.g., 8A (Am) + 1 semitone = 3A (Bbm), 11A (F#m) + 1 semitone = 6A (Gm).
+ */
+export function shiftCamelot(camelot: string, semitones: number): string {
+  const code = normalizeCamelot(camelot)
+  if (!code || semitones === 0) return camelot
+  const num = parseInt(code.slice(0, -1), 10)
+  const letter = code.slice(-1)
+  const shiftedNum = wrapNumber(num + semitones * 7)
+  return `${shiftedNum}${letter}`
+}
+
+/**
+ * Calculate the optimal semitone shift (-6 to +6) to harmonize or match
+ * a source Camelot key with a target Camelot key.
+ */
+export function findKeySyncShift(sourceCamelot: string, targetCamelot: string): number {
+  const src = normalizeCamelot(sourceCamelot)
+  const tgt = normalizeCamelot(targetCamelot)
+  if (!src || !tgt) return 0
+
+  const targetNum = parseInt(tgt.slice(0, -1), 10)
+  const targetLetter = tgt.slice(-1)
+
+  let bestShift = 0
+  let bestScore = Infinity
+
+  for (let s = -6; s <= 6; s++) {
+    const shifted = shiftCamelot(src, s)
+    const sNum = parseInt(shifted.slice(0, -1), 10)
+    const sLetter = shifted.slice(-1)
+
+    let score = Infinity
+    if (shifted === tgt) {
+      score = Math.abs(s) // Exact key match
+    } else if (sNum === targetNum && sLetter !== targetLetter) {
+      score = 10 + Math.abs(s) // Relative major/minor
+    } else if (sLetter === targetLetter && (wrapNumber(sNum + 1) === targetNum || wrapNumber(sNum - 1) === targetNum)) {
+      score = 20 + Math.abs(s) // Adjacent compatible key
+    }
+
+    if (score < bestScore) {
+      bestScore = score
+      bestShift = s
+    }
+  }
+
+  return bestShift
+}
 
 export { normalizeCamelot, wrapNumber }
