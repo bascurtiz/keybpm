@@ -250,7 +250,7 @@ export function TraktorDeck({
                     }}
                     className={`h-[18px] w-full rounded-[3px] border text-[8.5px] font-bold flex items-center justify-center transition-all ${
                       isWaiting
-                        ? 'bg-sky-500/20 border-sky-400 text-sky-300 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.5)]'
+                        ? 'bg-[#222222] border-white text-white animate-pulse'
                         : hasCue
                         ? 'bg-[#141414] border-white text-white shadow-sm'
                         : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
