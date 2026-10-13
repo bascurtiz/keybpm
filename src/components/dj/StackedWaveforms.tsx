@@ -356,8 +356,8 @@ export function StackedWaveforms({
           onClick={() => setShowGridEditor(prev => !prev)}
           className={`h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
             showGridEditor
-              ? 'bg-[#3b82f6]/20 border-[#3b82f6] text-[#60a5fa]'
-              : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4]'
+              ? 'bg-[#222222] border-[#555555] text-white'
+              : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
           title="Adjust Beatgrid"
         >
