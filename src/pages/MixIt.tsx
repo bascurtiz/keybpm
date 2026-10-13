@@ -141,7 +141,7 @@ export function MixIt() {
       />
 
       {/* Main DJ Console Workspace - Compact hardware layout matching real DJ controllers */}
-      <main className="flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-4 gap-3">
+      <main className="flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-6">
         {/* Page Title Row */}
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export function MixIt() {
 
         {/* Error notification banner if any */}
         {errorMsg && (
-          <div className="p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between">
+          <div className="mt-4 p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between">
             <span>{errorMsg}</span>
             <button
               type="button"
@@ -170,7 +170,7 @@ export function MixIt() {
         )}
 
         {/* Single Seamless Traktor DJ Hardware Chassis */}
-        <div className="w-full overflow-x-auto pb-2 flex justify-center">
+        <div className="mt-4 w-full overflow-x-auto pb-2 flex justify-center">
           <div className="w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0">
             {/* 1. TOP STRIP: METADATA, COLOR-CODED KEY & BPM, MINI WAVEFORMS, BEAT COUNTER */}
             <TraktorMiddleStrip
