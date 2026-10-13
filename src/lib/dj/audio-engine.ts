@@ -24,6 +24,7 @@ export class AudioEngine {
 
   crossfade = 0
   masterVolume = 0.9
+  masterBpm = 128
   version = 0
   private listeners = new Set<() => void>()
 
@@ -123,6 +124,20 @@ export class AudioEngine {
       this.ctx.currentTime,
       0.01
     )
+    this.emit()
+  }
+
+  setMasterBpm(bpm: number, syncDecks = true) {
+    const validBpm = Math.max(20, Math.min(300, Math.round(bpm * 10) / 10))
+    this.masterBpm = validBpm
+    if (syncDecks) {
+      if (this.decks.A.track?.bpm) {
+        this.decks.A.setRate(validBpm / this.decks.A.track.bpm)
+      }
+      if (this.decks.B.track?.bpm) {
+        this.decks.B.setRate(validBpm / this.decks.B.track.bpm)
+      }
+    }
     this.emit()
   }
 

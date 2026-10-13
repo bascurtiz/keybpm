@@ -157,7 +157,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
   return (
     <div
-      className={`flex items-stretch justify-between gap-2.5 px-3 py-1.5 bg-[#1C1C1C] rounded-xl border border-[#282828] select-none h-full shadow-inner ${className}`}
+      className={`flex items-stretch justify-between gap-2 px-3 py-1.5 bg-[#1C1C1C] rounded-xl border border-[#282828] select-none h-full shadow-inner ${className}`}
     >
       {/* ================= 1. DECK A EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
       <div className="flex flex-col justify-between items-center py-1 w-12 shrink-0">
@@ -263,7 +263,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       </div>
 
       {/* ================= 3. CENTER PANEL (FILTERS + FX + SYNC/KEY) ================= */}
-      <div className="flex flex-col justify-between items-center py-1 px-2.5 bg-[#161616] rounded-lg border border-[#282828] flex-1 min-w-[140px]">
+      <div className="flex flex-col justify-between items-center py-1 px-2 bg-[#161616] rounded-lg border border-[#282828] w-[132px] shrink-0">
         {/* Top: Filter Knobs A & B */}
         <div className="flex items-center justify-center gap-4 w-full pt-1">
           <div className="flex flex-col items-center">

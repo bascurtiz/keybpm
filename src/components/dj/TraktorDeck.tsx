@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { JogWheel } from './JogWheel'
 import { Knob } from './Knob'
@@ -37,19 +37,12 @@ export function TraktorDeck({
   const maxPitch = PITCH_RANGES[pitchRangeIdx]
   const pitchPercent = (deck.rate - 1) * 100
 
-  // Pitch bend temporary nudge
-  const pitchBendSavedRate = useRef<number | null>(null)
-  const startPitchBend = (delta: number) => {
-    if (pitchBendSavedRate.current === null) {
-      pitchBendSavedRate.current = deck.rate
-    }
-    deck.setRate(deck.rate + delta)
-  }
-  const endPitchBend = () => {
-    if (pitchBendSavedRate.current !== null) {
-      deck.setRate(pitchBendSavedRate.current)
-      pitchBendSavedRate.current = null
-    }
+  // Incremental BPM tempo adjustment
+  const stepPitchBpm = (deltaBpm: number) => {
+    const baseBpm = deck.track?.bpm || 120
+    const currentBpm = deck.effectiveBpm || baseBpm
+    const targetBpm = Math.max(20, Math.min(300, Math.round((currentBpm + deltaBpm) * 10) / 10))
+    deck.setRate(targetBpm / baseBpm)
   }
 
   // Key Sync logic
@@ -130,21 +123,17 @@ export function TraktorDeck({
           <div className="flex items-center justify-center gap-1 w-full">
             <button
               type="button"
-              onPointerDown={() => startPitchBend(-0.015)}
-              onPointerUp={endPitchBend}
-              onPointerLeave={endPitchBend}
-              className="h-5 flex-1 rounded bg-[#141414] border border-[#282828] text-[10px] font-bold text-[#666666] hover:text-[#d4d4d4] flex items-center justify-center active:bg-[#333333]"
-              title="Pitch bend down (temporary -1.5%)"
+              onClick={() => stepPitchBpm(-0.1)}
+              className="h-5 flex-1 rounded bg-[#141414] border border-[#282828] text-[10px] font-bold text-[#666666] hover:text-[#d4d4d4] flex items-center justify-center active:border-white active:text-white"
+              title="Tempo down (-0.1 BPM)"
             >
               −
             </button>
             <button
               type="button"
-              onPointerDown={() => startPitchBend(0.015)}
-              onPointerUp={endPitchBend}
-              onPointerLeave={endPitchBend}
-              className="h-5 flex-1 rounded bg-[#141414] border border-[#282828] text-[10px] font-bold text-[#666666] hover:text-[#d4d4d4] flex items-center justify-center active:bg-[#333333]"
-              title="Pitch bend up (temporary +1.5%)"
+              onClick={() => stepPitchBpm(0.1)}
+              className="h-5 flex-1 rounded bg-[#141414] border border-[#282828] text-[10px] font-bold text-[#666666] hover:text-[#d4d4d4] flex items-center justify-center active:border-white active:text-white"
+              title="Tempo up (+0.1 BPM)"
             >
               +
             </button>
@@ -237,17 +226,17 @@ export function TraktorDeck({
           </div>
         </div>
 
-        {/* 4 Hot Cue Pads in compact 2x2 grid */}
+        {/* 5 Hot Cue Pads in single vertical column below key elements */}
         <div className="flex flex-col items-center w-full">
           <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider mb-1">
             CUES
           </span>
-          <div className="grid grid-cols-2 gap-1 w-full">
-            {[0, 1, 2, 3].map(i => {
+          <div className="flex flex-col gap-1 w-full">
+            {[0, 1, 2, 3, 4].map(i => {
               const cueTime = deck.hotCues[i]
               const hasCue = cueTime !== null
               return (
-                <div key={i} className="relative group/cue">
+                <div key={i} className="relative group/cue w-full">
                   <button
                     type="button"
                     onClick={e => {
@@ -258,7 +247,7 @@ export function TraktorDeck({
                       e.preventDefault()
                       if (hasCue) deck.clearHotCue(i)
                     }}
-                    className={`h-6 w-full rounded border text-[10px] font-bold flex items-center justify-center transition-all ${
+                    className={`h-[18px] w-full rounded-[3px] border text-[8.5px] font-bold flex items-center justify-center transition-all ${
                       hasCue
                         ? 'bg-[#141414] border-white text-white shadow-sm'
                         : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'

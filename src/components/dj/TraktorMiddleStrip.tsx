@@ -20,6 +20,11 @@ function formatTime(sec: number): string {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
+const CAMELOT_KEYS = [
+  '1A', '2A', '3A', '4A', '5A', '6A', '7A', '8A', '9A', '10A', '11A', '12A',
+  '1B', '2B', '3B', '4B', '5B', '6B', '7B', '8B', '9B', '10B', '11B', '12B',
+]
+
 export function TraktorMiddleStrip({
   engine,
   onLoadTrackClick,
@@ -28,6 +33,7 @@ export function TraktorMiddleStrip({
 }: TraktorMiddleStripProps) {
   const deckA = engine.decks.A
   const deckB = engine.decks.B
+  const [isEditingMasterBpm, setIsEditingMasterBpm] = useState(false)
   const [, setVer] = useState(0)
 
   const timeAEl = useRef<HTMLSpanElement>(null)
@@ -90,9 +96,37 @@ export function TraktorMiddleStrip({
               <span className="text-[8px] font-semibold text-[#888888] uppercase tracking-wider">
                 MST BPM
               </span>
-              <span className="text-xs font-mono font-bold text-[#d4d4d4] tabular-nums">
-                {masterBpm.toFixed(1)}
-              </span>
+              {isEditingMasterBpm ? (
+                <input
+                  type="number"
+                  step="0.1"
+                  autoFocus
+                  defaultValue={masterBpm.toFixed(1)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = parseFloat((e.target as HTMLInputElement).value)
+                      if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
+                      setIsEditingMasterBpm(false)
+                    } else if (e.key === 'Escape') {
+                      setIsEditingMasterBpm(false)
+                    }
+                  }}
+                  onBlur={e => {
+                    const val = parseFloat(e.target.value)
+                    if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
+                    setIsEditingMasterBpm(false)
+                  }}
+                  className="w-12 bg-black border border-white text-white font-mono text-xs font-bold text-center rounded px-0.5 outline-none"
+                />
+              ) : (
+                <span
+                  onClick={() => setIsEditingMasterBpm(true)}
+                  className="text-xs font-mono font-bold text-[#d4d4d4] hover:text-white hover:underline cursor-pointer tabular-nums"
+                  title="Click to overrule Master BPM"
+                >
+                  {masterBpm.toFixed(1)}
+                </span>
+              )}
             </div>
             <div className="flex items-center" title="Master Volume / Gain">
               <Knob
@@ -170,6 +204,9 @@ function DeckHeader({
   onLoadClick: () => void
   side: 'left' | 'right'
 }) {
+  const [isEditingBpm, setIsEditingBpm] = useState(false)
+  const [isEditingKey, setIsEditingKey] = useState(false)
+
   return (
     <div
       className={`flex items-center gap-2.5 min-w-0 ${
@@ -224,43 +261,92 @@ function DeckHeader({
           </p>
 
           {/* BPM & Color-coded Key Display */}
-          <div className="shrink-0 font-sans font-medium text-zinc-300">
-            <span className="font-semibold text-white">
-              {deck.effectiveBpm ? deck.effectiveBpm.toFixed(1) : '---'}
-            </span>
-            {deck.track?.key ? (
+          <div className="shrink-0 font-sans font-medium text-zinc-300 flex items-center gap-0.5">
+            {isEditingBpm ? (
+              <input
+                type="number"
+                step="0.1"
+                autoFocus
+                defaultValue={deck.effectiveBpm ? deck.effectiveBpm.toFixed(1) : ''}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const val = parseFloat((e.target as HTMLInputElement).value)
+                    if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
+                    setIsEditingBpm(false)
+                  } else if (e.key === 'Escape') {
+                    setIsEditingBpm(false)
+                  }
+                }}
+                onBlur={e => {
+                  const val = parseFloat(e.target.value)
+                  if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
+                  setIsEditingBpm(false)
+                }}
+                className="w-12 bg-black border border-white text-white font-mono text-[10px] font-bold text-center rounded px-0.5 outline-none"
+              />
+            ) : (
+              <span
+                onClick={() => {
+                  if (deck.track) setIsEditingBpm(true)
+                }}
+                className={`font-semibold text-white ${
+                  deck.track ? 'hover:underline hover:text-accent cursor-pointer' : ''
+                }`}
+                title={deck.track ? 'Click to overrule BPM' : undefined}
+              >
+                {deck.effectiveBpm ? deck.effectiveBpm.toFixed(1) : '---'}
+              </span>
+            )}
+            {deck.track ? (
               <>
                 <span className="text-zinc-500"> / </span>
-                {deck.keyShift !== 0 ? (
-                  <>
-                    <span
-                      className="font-bold"
-                      style={{
-                        color: camelotColor(shiftCamelot(deck.track.key.camelot, deck.keyShift)),
-                      }}
-                      title={`Shifted key (Original: ${deck.track.key.camelot})`}
-                    >
-                      {shiftCamelot(deck.track.key.camelot, deck.keyShift)}
-                    </span>{' '}
-                    <span
-                      className="text-amber-400 font-semibold"
-                      title={`Shifted by ${deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift} st`}
-                    >
-                      {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
-                    </span>
-                  </>
+                {isEditingKey ? (
+                  <select
+                    autoFocus
+                    value={
+                      deck.keyShift !== 0
+                        ? shiftCamelot(deck.track.key?.camelot || '8A', deck.keyShift)
+                        : deck.track.key?.camelot || '8A'
+                    }
+                    onChange={e => {
+                      deck.setTrackKey(e.target.value)
+                      if (deck.keyShift !== 0) deck.resetKeyShift()
+                      setIsEditingKey(false)
+                    }}
+                    onBlur={() => setIsEditingKey(false)}
+                    className="bg-black border border-white text-white text-[10px] font-bold font-mono rounded px-0.5 outline-none cursor-pointer"
+                  >
+                    {CAMELOT_KEYS.map(k => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
                 ) : (
                   <span
-                    className="font-bold"
-                    style={{ color: camelotColor(deck.track.key.camelot) }}
+                    onClick={() => setIsEditingKey(true)}
+                    className="font-bold cursor-pointer hover:underline"
+                    style={{
+                      color: camelotColor(
+                        deck.keyShift !== 0
+                          ? shiftCamelot(deck.track.key?.camelot || '8A', deck.keyShift)
+                          : deck.track.key?.camelot || '8A'
+                      ),
+                    }}
+                    title="Click to overrule Camelot Key"
                   >
-                    {deck.track.key.camelot}
+                    {deck.keyShift !== 0
+                      ? shiftCamelot(deck.track.key?.camelot || '8A', deck.keyShift)
+                      : deck.track.key?.camelot || '---'}
+                    {deck.keyShift !== 0 && (
+                      <span className="text-amber-400 font-semibold text-[9px] ml-1">
+                        {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
+                      </span>
+                    )}
                   </span>
                 )}
               </>
-            ) : (
-              ''
-            )}
+            ) : null}
           </div>
         </div>
 

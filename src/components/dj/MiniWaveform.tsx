@@ -110,11 +110,37 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
   }, [deck, waveColor])
 
   return (
-    <canvas
-      ref={canvasRef}
-      onMouseDown={handleMouseDown}
-      className={`h-6 w-full cursor-pointer select-none rounded bg-[#161616] border border-[#282828] ${className}`}
-      title="Click or drag to seek in track"
-    />
+    <div
+      className={`relative flex items-center h-6 w-full rounded bg-[#161616] border border-[#282828] overflow-hidden ${className}`}
+    >
+      {/* Skip backwards to start button matching mockup */}
+      <button
+        type="button"
+        onClick={e => {
+          e.stopPropagation()
+          deck.seek(0)
+        }}
+        disabled={!deck.track}
+        className="h-full px-1.5 flex items-center justify-center bg-[#181818] hover:bg-[#252525] active:bg-[#333333] text-[#888888] hover:text-white border-r border-[#282828] transition-colors shrink-0 disabled:opacity-30 disabled:pointer-events-none"
+        title="Skip to start of track (|◀)"
+      >
+        <svg
+          viewBox="0 0 16 16"
+          fill="currentColor"
+          className="w-2.5 h-2.5"
+          aria-hidden="true"
+        >
+          <path d="M2 3a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1zm11.196 1.402A1 1 0 0 0 11.667 4L5.333 7.333a1 1 0 0 0 0 1.334l6.334 3.333A1 1 0 0 0 13.196 11.4V4.602a1 1 0 0 0 0-.2z" />
+        </svg>
+      </button>
+
+      {/* Waveform Canvas */}
+      <canvas
+        ref={canvasRef}
+        onMouseDown={handleMouseDown}
+        className="h-full flex-1 cursor-pointer select-none"
+        title="Click or drag to seek in track"
+      />
+    </div>
   )
 }

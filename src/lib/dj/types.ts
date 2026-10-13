@@ -1,6 +1,6 @@
 export type DeckId = 'A' | 'B'
 
-export const HOT_CUE_COUNT = 4
+export const HOT_CUE_COUNT = 8
 
 export interface BeatGrid {
   /** Beats per minute from the grid analysis. */

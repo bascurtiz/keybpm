@@ -326,6 +326,27 @@ export class DeckEngine {
     return this.posSeconds + ((frame - this.posFrame) / this.ctx.sampleRate) * rate
   }
 
+  setTrackBpm(bpm: number) {
+    if (!this.track) return
+    const validBpm = Math.max(20, Math.min(300, Math.round(bpm * 10) / 10))
+    this.track.bpm = validBpm
+    if (this.track.grid) {
+      this.track.grid.bpm = validBpm
+    }
+    this.updateFxTiming()
+    this.emit()
+  }
+
+  setTrackKey(camelot: string, name?: string) {
+    if (!this.track) return
+    this.track.key = {
+      name: name ?? camelot,
+      camelot,
+    }
+    this.updateKeyLockRouting()
+    this.emit()
+  }
+
   // ----- track loading -----
 
   loadTrack(track: Track) {
