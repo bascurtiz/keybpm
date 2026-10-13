@@ -3,7 +3,10 @@ import type { AudioEngine } from '@/lib/dj/audio-engine'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { MiniWaveform } from './MiniWaveform'
 import { BeatCounter } from './BeatCounter'
-import { camelotColor, shiftCamelot } from '@/lib/camelot'
+import { camelotColor, camelotToOpenKey, shiftCamelot } from '@/lib/camelot'
+import { CAMELOT_TO_KEY } from '@/types/track'
+import { shortKey } from '@/lib/format'
+import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
 import { Knob } from './Knob'
 
 interface TraktorMiddleStripProps {
@@ -20,6 +23,18 @@ function formatTime(sec: number): string {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
+function formatKeyDisplay(camelot: string, mode: WheelMode): string {
+  if (!camelot) return '---'
+  if (mode === 'openkey') {
+    return camelotToOpenKey(camelot) || camelot
+  }
+  if (mode === 'musical') {
+    const full = CAMELOT_TO_KEY[camelot]
+    return full ? shortKey(full) : camelot
+  }
+  return camelot
+}
+
 const CAMELOT_KEYS = [
   '1A', '2A', '3A', '4A', '5A', '6A', '7A', '8A', '9A', '10A', '11A', '12A',
   '1B', '2B', '3B', '4B', '5B', '6B', '7B', '8B', '9B', '10B', '11B', '12B',
@@ -28,13 +43,19 @@ const CAMELOT_KEYS = [
 export function TraktorMiddleStrip({
   engine,
   onLoadTrackClick,
-  onToggleFx,
-  activeFxDeck,
+  onToggleFx: _onToggleFx,
+  activeFxDeck: _activeFxDeck,
 }: TraktorMiddleStripProps) {
   const deckA = engine.decks.A
   const deckB = engine.decks.B
   const [isEditingMasterBpm, setIsEditingMasterBpm] = useState(false)
+  const [keyMode, setKeyMode] = useState<WheelMode>(readWheelMode)
   const [, setVer] = useState(0)
+
+  const handleKeyModeChange = (mode: WheelMode) => {
+    setKeyMode(mode)
+    writeWheelMode(mode)
+  }
 
   const timeAEl = useRef<HTMLSpanElement>(null)
   const timeBEl = useRef<HTMLSpanElement>(null)
@@ -86,9 +107,10 @@ export function TraktorMiddleStrip({
           timeRef={timeAEl}
           onLoadClick={() => onLoadTrackClick?.('A')}
           side="left"
+          keyMode={keyMode}
         />
 
-        {/* ================= CENTER: MASTER BPM, BEAT COUNTER & FX ================= */}
+        {/* ================= CENTER: MASTER BPM, BEAT COUNTER & KEY NOTATION ================= */}
         <div className="flex items-center gap-2.5 px-2.5 py-1 bg-[#161616] rounded-md border border-[#282828] shrink-0">
           {/* Master BPM & Gain */}
           <div className="flex items-center gap-1.5 pr-2 border-r border-[#282828]">
@@ -146,32 +168,49 @@ export function TraktorMiddleStrip({
             <BeatCounter deckA={deckA} deckB={deckB} />
           </div>
 
-          {/* FX A & B Toggle Buttons */}
-          <div className="flex items-center gap-1 pl-1 border-l border-[#282828]">
-            <button
-              type="button"
-              onClick={() => onToggleFx?.('A')}
-              className={`px-2 py-1 text-[9px] font-bold rounded border transition-colors ${
-                activeFxDeck === 'A'
-                  ? 'bg-[#141414] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.25)]'
-                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-              }`}
-              title="Toggle Deck A FX panel"
-            >
-              FX 1
-            </button>
-            <button
-              type="button"
-              onClick={() => onToggleFx?.('B')}
-              className={`px-2 py-1 text-[9px] font-bold rounded border transition-colors ${
-                activeFxDeck === 'B'
-                  ? 'bg-[#141414] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.25)]'
-                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-              }`}
-              title="Toggle Deck B FX panel"
-            >
-              FX 2
-            </button>
+          {/* Key Notation Selector (Camelot / Musical / Open Key) */}
+          <div className="flex flex-col items-center pl-2 border-l border-[#282828] shrink-0">
+            <span className="text-[7.5px] font-semibold text-[#888888] uppercase tracking-wider mb-0.5">
+              KEY NOTATION
+            </span>
+            <div className="inline-flex rounded bg-[#101010] p-0.5 border border-[#282828]">
+              <button
+                type="button"
+                onClick={() => handleKeyModeChange('camelot')}
+                className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-colors ${
+                  keyMode === 'camelot'
+                    ? 'bg-[#282828] text-white shadow-sm'
+                    : 'text-[#777777] hover:text-[#d4d4d4]'
+                }`}
+                title="Camelot notation (e.g. 11A, 8B)"
+              >
+                Camelot
+              </button>
+              <button
+                type="button"
+                onClick={() => handleKeyModeChange('musical')}
+                className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-colors ${
+                  keyMode === 'musical'
+                    ? 'bg-[#282828] text-white shadow-sm'
+                    : 'text-[#777777] hover:text-[#d4d4d4]'
+                }`}
+                title="Musical key notation (e.g. F#m, C)"
+              >
+                Musical
+              </button>
+              <button
+                type="button"
+                onClick={() => handleKeyModeChange('openkey')}
+                className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-colors ${
+                  keyMode === 'openkey'
+                    ? 'bg-[#282828] text-white shadow-sm'
+                    : 'text-[#777777] hover:text-[#d4d4d4]'
+                }`}
+                title="Open Key notation (e.g. 4m, 1d)"
+              >
+                Open Key
+              </button>
+            </div>
           </div>
         </div>
 
@@ -183,6 +222,7 @@ export function TraktorMiddleStrip({
           timeRef={timeBEl}
           onLoadClick={() => onLoadTrackClick?.('B')}
           side="right"
+          keyMode={keyMode}
         />
       </div>
     </div>
@@ -196,6 +236,7 @@ function DeckHeader({
   timeRef,
   onLoadClick,
   side,
+  keyMode,
 }: {
   deck: DeckEngine
   deckId: 'A' | 'B'
@@ -203,9 +244,15 @@ function DeckHeader({
   timeRef: React.RefObject<HTMLSpanElement>
   onLoadClick: () => void
   side: 'left' | 'right'
+  keyMode: WheelMode
 }) {
   const [isEditingBpm, setIsEditingBpm] = useState(false)
   const [isEditingKey, setIsEditingKey] = useState(false)
+
+  const rawCamelot = deck.track?.key?.camelot
+  const effectiveCamelot = rawCamelot
+    ? (deck.keyShift !== 0 ? shiftCamelot(rawCamelot, deck.keyShift) : rawCamelot)
+    : null
 
   return (
     <div
@@ -238,7 +285,7 @@ function DeckHeader({
         </div>
       </div>
 
-      {/* Track Info (Title, Artist, BPM, Camelot Key) */}
+      {/* Track Info (Title, Artist, BPM, Camelot/Musical/Open Key) */}
       <div className="flex-1 min-w-0">
         <div className={`flex items-baseline justify-between gap-1.5 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
           <h2
@@ -303,11 +350,7 @@ function DeckHeader({
                 {isEditingKey ? (
                   <select
                     autoFocus
-                    value={
-                      deck.keyShift !== 0
-                        ? shiftCamelot(deck.track.key?.camelot || '8A', deck.keyShift)
-                        : deck.track.key?.camelot || '8A'
-                    }
+                    value={effectiveCamelot || '8A'}
                     onChange={e => {
                       deck.setTrackKey(e.target.value)
                       if (deck.keyShift !== 0) deck.resetKeyShift()
@@ -318,7 +361,9 @@ function DeckHeader({
                   >
                     {CAMELOT_KEYS.map(k => (
                       <option key={k} value={k}>
-                        {k}
+                        {keyMode === 'camelot'
+                          ? k
+                          : `${formatKeyDisplay(k, keyMode)} (${k})`}
                       </option>
                     ))}
                   </select>
@@ -327,17 +372,15 @@ function DeckHeader({
                     onClick={() => setIsEditingKey(true)}
                     className="font-bold cursor-pointer hover:underline"
                     style={{
-                      color: camelotColor(
-                        deck.keyShift !== 0
-                          ? shiftCamelot(deck.track.key?.camelot || '8A', deck.keyShift)
-                          : deck.track.key?.camelot || '8A'
-                      ),
+                      color: effectiveCamelot ? camelotColor(effectiveCamelot) : undefined,
                     }}
-                    title="Click to overrule Camelot Key"
+                    title={
+                      effectiveCamelot
+                        ? `Click to overrule Key (${effectiveCamelot} • ${CAMELOT_TO_KEY[effectiveCamelot] ?? ''})`
+                        : 'Click to overrule Key'
+                    }
                   >
-                    {deck.keyShift !== 0
-                      ? shiftCamelot(deck.track.key?.camelot || '8A', deck.keyShift)
-                      : deck.track.key?.camelot || '---'}
+                    {effectiveCamelot ? formatKeyDisplay(effectiveCamelot, keyMode) : '---'}
                     {deck.keyShift !== 0 && (
                       <span className="text-amber-400 font-semibold text-[9px] ml-1">
                         {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
