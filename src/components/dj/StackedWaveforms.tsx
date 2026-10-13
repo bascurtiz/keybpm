@@ -497,14 +497,6 @@ function renderDeckLane({
     ctx.textBaseline = 'middle'
     ctx.fillStyle = accentColor
     ctx.fillText(deckLetter, centerX, midY)
-
-    // Corner Deck label watermark (offset to clear zoom buttons on Deck A)
-    ctx.font = 'bold 11px Inter, ui-sans-serif, system-ui, sans-serif'
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'middle'
-    ctx.fillStyle = accentColor
-    ctx.globalAlpha = 0.55
-    ctx.fillText(`DECK ${deckLetter}`, 56, topY + 15)
     ctx.restore()
     return
   }
