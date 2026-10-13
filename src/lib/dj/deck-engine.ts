@@ -347,6 +347,54 @@ export class DeckEngine {
     this.emit()
   }
 
+  // ----- beatgrid adjustment -----
+
+  nudgeBeatGrid(deltaSeconds: number) {
+    if (!this.track) return
+    if (!this.track.grid) {
+      this.track.grid = {
+        bpm: this.track.bpm || 120,
+        firstBeat: 0,
+        firstBar: 0,
+        beatsPerBar: 4,
+      }
+    }
+    this.track.grid.firstBeat = Math.max(0, this.track.grid.firstBeat + deltaSeconds)
+    this.track.grid.firstBar = Math.max(0, this.track.grid.firstBar + deltaSeconds)
+    this.emit()
+  }
+
+  setBeat1AtPosition(pos?: number) {
+    if (!this.track) return
+    const targetPos = Math.max(0, pos ?? this.position)
+    if (!this.track.grid) {
+      this.track.grid = {
+        bpm: this.track.bpm || 120,
+        firstBeat: targetPos,
+        firstBar: targetPos,
+        beatsPerBar: 4,
+      }
+    } else {
+      this.track.grid.firstBeat = targetPos
+      this.track.grid.firstBar = targetPos
+    }
+    this.emit()
+  }
+
+  adjustGridBpm(deltaBpm: number) {
+    if (!this.track) return
+    const curBpm = this.track.grid?.bpm || this.track.bpm || 120
+    const newBpm = Math.max(20, Math.min(300, Math.round((curBpm + deltaBpm) * 10) / 10))
+    this.setTrackBpm(newBpm)
+  }
+
+  multiplyGridBpm(multiplier: 0.5 | 2) {
+    if (!this.track) return
+    const curBpm = this.track.grid?.bpm || this.track.bpm || 120
+    const newBpm = Math.max(20, Math.min(300, Math.round(curBpm * multiplier * 10) / 10))
+    this.setTrackBpm(newBpm)
+  }
+
   // ----- track loading -----
 
   loadTrack(track: Track) {

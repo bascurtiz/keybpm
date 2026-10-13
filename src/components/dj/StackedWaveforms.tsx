@@ -35,6 +35,10 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
     raf: number
   } | null>(null)
 
+  const [showGridEditor, setShowGridEditor] = useState(false)
+  const [selectedDeck, setSelectedDeck] = useState<'A' | 'B'>('A')
+  const activeGridDeck = selectedDeck === 'A' ? deckA : deckB
+
   const zoomIn = () => setWindowSeconds(s => Math.max(3, s - 2))
   const zoomOut = () => setWindowSeconds(s => Math.min(18, s + 2))
 
@@ -275,6 +279,151 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
           +
         </button>
       </div>
+
+      {/* Beatgrid controls & toggle button on top-right corner */}
+      <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={() => setShowGridEditor(prev => !prev)}
+          className={`h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
+            showGridEditor
+              ? 'bg-[#3b82f6]/20 border-[#3b82f6] text-[#60a5fa]'
+              : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4]'
+          }`}
+          title="Adjust Beatgrid"
+        >
+          <span>GRID</span>
+          <span className="text-[9px] opacity-75">{showGridEditor ? '▲' : '▼'}</span>
+        </button>
+      </div>
+
+      {/* Floating Beatgrid Adjustment Panel */}
+      {showGridEditor && (
+        <div
+          onPointerDown={e => e.stopPropagation()}
+          className="absolute top-8 right-2 z-20 flex flex-wrap items-center gap-1.5 p-1.5 rounded bg-[#181818]/95 border border-[#333333] shadow-xl backdrop-blur-md text-[11px] select-none"
+        >
+          {/* Deck Selector pills */}
+          <div className="flex items-center rounded bg-[#101010] p-0.5 border border-[#262626]">
+            <button
+              type="button"
+              onClick={() => setSelectedDeck('A')}
+              className={`h-4.5 px-2 rounded text-[10px] font-bold uppercase transition-colors ${
+                selectedDeck === 'A'
+                  ? 'bg-[#059669]/30 text-[#34d399] border border-[#059669]/60'
+                  : 'text-[#666666] hover:text-[#aaaaaa] border border-transparent'
+              }`}
+            >
+              Deck A
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDeck('B')}
+              className={`h-4.5 px-2 rounded text-[10px] font-bold uppercase transition-colors ${
+                selectedDeck === 'B'
+                  ? 'bg-[#7c3aed]/30 text-[#c084fc] border border-[#7c3aed]/60'
+                  : 'text-[#666666] hover:text-[#aaaaaa] border border-transparent'
+              }`}
+            >
+              Deck B
+            </button>
+          </div>
+
+          <div className="h-4 w-[1px] bg-[#2a2a2a]" />
+
+          {/* Set Beat 1 at Needle */}
+          <button
+            type="button"
+            onClick={() => activeGridDeck.setBeat1AtPosition()}
+            disabled={!activeGridDeck.track}
+            className="h-5 px-2 rounded bg-[#202020] border border-[#333333] hover:border-[#4ade80] text-[#a3e635] hover:text-[#bef264] text-[10px] font-bold uppercase disabled:opacity-30 transition-colors"
+            title="Set Beat 1 (downbeat anchor) at the red playhead needle"
+          >
+            Set Beat 1
+          </button>
+
+          <div className="h-4 w-[1px] bg-[#2a2a2a]" />
+
+          {/* Shift / Nudge Grid Offset */}
+          <div className="flex items-center gap-0.5">
+            <span className="text-[9px] uppercase tracking-wider text-[#666666] mr-0.5 font-bold">Shift</span>
+            <button
+              type="button"
+              onClick={e => activeGridDeck.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)}
+              disabled={!activeGridDeck.track}
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              title="Shift beatgrid left 10ms (Shift-click for 2ms fine step)"
+            >
+              ◀ 10ms
+            </button>
+            <button
+              type="button"
+              onClick={e => activeGridDeck.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)}
+              disabled={!activeGridDeck.track}
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              title="Shift beatgrid right 10ms (Shift-click for 2ms fine step)"
+            >
+              10ms ▶
+            </button>
+          </div>
+
+          <div className="h-4 w-[1px] bg-[#2a2a2a]" />
+
+          {/* Fine BPM stretch/compress */}
+          <div className="flex items-center gap-0.5">
+            <span className="text-[9px] uppercase tracking-wider text-[#666666] mr-0.5 font-bold">Grid BPM</span>
+            <button
+              type="button"
+              onClick={() => activeGridDeck.adjustGridBpm(-0.1)}
+              disabled={!activeGridDeck.track}
+              className="h-5 w-5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[11px] font-bold disabled:opacity-30 flex items-center justify-center"
+              title="Compress grid: −0.1 BPM"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => activeGridDeck.adjustGridBpm(0.1)}
+              disabled={!activeGridDeck.track}
+              className="h-5 w-5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[11px] font-bold disabled:opacity-30 flex items-center justify-center"
+              title="Stretch grid: +0.1 BPM"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={() => activeGridDeck.multiplyGridBpm(0.5)}
+              disabled={!activeGridDeck.track}
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#aaaaaa] hover:text-white font-mono text-[9px] font-bold disabled:opacity-30"
+              title="Halve grid BPM (½×)"
+            >
+              ½
+            </button>
+            <button
+              type="button"
+              onClick={() => activeGridDeck.multiplyGridBpm(2)}
+              disabled={!activeGridDeck.track}
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#aaaaaa] hover:text-white font-mono text-[9px] font-bold disabled:opacity-30"
+              title="Double grid BPM (2×)"
+            >
+              2×
+            </button>
+          </div>
+
+          <div className="h-4 w-[1px] bg-[#2a2a2a]" />
+
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => setShowGridEditor(false)}
+            className="h-5 w-5 rounded bg-transparent hover:bg-[#282828] text-[#777777] hover:text-[#d4d4d4] flex items-center justify-center text-[10px]"
+            title="Close beatgrid adjustment panel"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <canvas
         ref={canvasRef}
