@@ -17,6 +17,7 @@ interface FaderProps {
   className?: string
   accentColor?: string
   analyser?: AnalyserNode
+  invert?: boolean
 }
 
 function clamp01(v: number): number {
@@ -40,10 +41,12 @@ export function Fader({
   className = '',
   accentColor,
   analyser,
+  invert = false,
 }: FaderProps) {
   const vertical = orientation === 'vertical'
   const range = max - min
-  const norm = clamp01((value - min) / range)
+  const rawNorm = clamp01((value - min) / range)
+  const norm = invert ? 1 - rawNorm : rawNorm
   const trackRef = useRef<HTMLDivElement>(null)
   const vuRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ fine: boolean; startNorm: number; startPos: number } | null>(null)
@@ -78,7 +81,8 @@ export function Fader({
 
   const commit = useCallback(
     (n: number) => {
-      let v = min + clamp01(n) * range
+      const effectiveNorm = invert ? 1 - clamp01(n) : clamp01(n)
+      let v = min + effectiveNorm * range
       if (step) v = Math.round(v / step) * step
       if (snapCenter) {
         const mid = (min + max) / 2
@@ -86,7 +90,7 @@ export function Fader({
       }
       onValueChange(Math.min(max, Math.max(min, v)))
     },
-    [min, max, range, step, snapCenter, onValueChange]
+    [min, max, range, step, snapCenter, onValueChange, invert]
   )
 
   const normFromEvent = (e: React.PointerEvent) => {

@@ -117,6 +117,7 @@ export function TraktorDeck({
             defaultValue={1}
             bipolar
             snapCenter
+            invert
             ticks={9}
             onValueChange={r => deck.setRate(r)}
             accentColor={accentColor}
