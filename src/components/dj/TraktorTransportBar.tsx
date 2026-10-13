@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AudioEngine } from '@/lib/dj/audio-engine'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { Fader } from './Fader'
@@ -83,6 +83,41 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
   const currentBeats = LOOP_BEAT_SIZES[selectedLoopIdx]
   const isPlaying = deck.playing
   const isLoopActive = Boolean(deck.loop)
+
+  // Tap Tempo
+  const tapTimesRef = useRef<number[]>([])
+  const [isTapping, setIsTapping] = useState(false)
+  const tapTimeoutRef = useRef<number | null>(null)
+
+  const handleTapTempo = () => {
+    if (!deck.track) return
+    const now = performance.now()
+    const taps = tapTimesRef.current
+
+    // Reset if last tap was more than 2 seconds ago
+    if (taps.length > 0 && now - taps[taps.length - 1] > 2000) {
+      tapTimesRef.current = [now]
+    } else {
+      taps.push(now)
+      if (taps.length > 5) taps.shift() // keep last 5 taps
+    }
+
+    setIsTapping(true)
+    if (tapTimeoutRef.current) window.clearTimeout(tapTimeoutRef.current)
+    tapTimeoutRef.current = window.setTimeout(() => setIsTapping(false), 300)
+
+    if (taps.length >= 2) {
+      const intervals: number[] = []
+      for (let i = 1; i < taps.length; i++) {
+        intervals.push(taps[i] - taps[i - 1])
+      }
+      const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length
+      if (avgMs > 0) {
+        const calculatedBpm = Math.max(30, Math.min(300, Math.round((60000 / avgMs) * 10) / 10))
+        deck.setTrackBpm(calculatedBpm)
+      }
+    }
+  }
 
   const toggleLoop = () => {
     if (!deck.track) return
@@ -205,6 +240,21 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
           &gt;
         </button>
       </div>
+
+      {/* Tap Tempo Button: TAP */}
+      <button
+        type="button"
+        onClick={handleTapTempo}
+        disabled={!deck.track}
+        className={`h-11 px-3 rounded-md border text-[11px] font-bold uppercase tracking-wider flex items-center justify-center transition-all shadow-sm select-none ${
+          isTapping
+            ? 'bg-[#1e1e1e] border-white text-white shadow-[0_0_8px_rgba(255,255,255,0.3)] scale-[0.97]'
+            : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-40'
+        }`}
+        title={`Deck ${deckId} Tap Tempo — Click repeatedly in rhythm to set BPM`}
+      >
+        TAP
+      </button>
     </div>
   )
 }
