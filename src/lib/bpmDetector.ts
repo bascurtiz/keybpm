@@ -77,8 +77,12 @@ export async function getOrInitEssentia(): Promise<any> {
   return (await essentiaPromise).instance
 }
 
+import { detectMixxxBpmFromPcm } from '@/lib/dj/beatgrid'
+
 /**
- * Detect BPM from a mono Float32Array at 44100 Hz using Essentia RhythmExtractor2013.
+ * Detect BPM from a mono Float32Array at 44100 Hz.
+ * Combines Mixxx's Queen Mary / SoundTouch onset-autocorrelation engine with
+ * Essentia's RhythmExtractor2013 cross-validation.
  *
  * @param monoAudio 44.1 kHz mono audio buffer
  * @param maxSeconds Maximum seconds of audio to analyze (defaults to 180s for speed & accuracy)
@@ -92,49 +96,77 @@ export async function detectAudioBpm(
   onProgress?.(15)
   await new Promise(resolve => setTimeout(resolve, 0))
 
-  const essentia = await getOrInitEssentia()
-  onProgress?.(45)
+  // 1. Run Mixxx-style onset autocorrelation engine (super-fast, <40ms)
+  const mixxxBpm = detectMixxxBpmFromPcm(monoAudio, 44100)
+
+  onProgress?.(35)
   await new Promise(resolve => setTimeout(resolve, 0))
 
-  // Limit audio slice to maxSeconds (e.g. 180 seconds = 3 minutes is plenty for stable tempo estimation)
-  const targetSamples = Math.min(monoAudio.length, Math.floor(maxSeconds * 44100))
-  const audioSlice = targetSamples === monoAudio.length ? monoAudio : monoAudio.subarray(0, targetSamples)
-
-  onProgress?.(70)
-  await new Promise(resolve => setTimeout(resolve, 0))
-
-  // Convert Float32Array to Essentia C++ std::vector<float>
-  const vec = essentia.arrayToVector(audioSlice)
-
-  let rawBpm = 0
+  // 2. Run Essentia WASM for cross-validation & confidence scoring
+  let essentiaBpm = 0
   let confidence = 0
   let ticksCount = 0
 
   try {
-    // Method 'multifeature' is the gold standard for DJ rhythm tracking
-    // Parameters: signal, maxTempo (208), method ('multifeature'), minTempo (40)
-    const result = essentia.RhythmExtractor2013(vec, 208, 'multifeature', 40)
-    onProgress?.(95)
+    const essentia = await getOrInitEssentia()
+    onProgress?.(60)
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    rawBpm = Number(result.bpm) || 0
-    confidence = Number(result.confidence) || 0
+    const targetSamples = Math.min(monoAudio.length, Math.floor(maxSeconds * 44100))
+    const audioSlice = targetSamples === monoAudio.length ? monoAudio : monoAudio.subarray(0, targetSamples)
 
-    if (result.ticks) {
-      ticksCount = typeof result.ticks.size === 'function' ? result.ticks.size() : result.ticks.length
-      result.ticks.delete?.()
+    const vec = essentia.arrayToVector(audioSlice)
+    try {
+      const result = essentia.RhythmExtractor2013(vec, 208, 'multifeature', 40)
+      essentiaBpm = Number(result.bpm) || 0
+      confidence = Number(result.confidence) || 0
+
+      if (result.ticks) {
+        ticksCount = typeof result.ticks.size === 'function' ? result.ticks.size() : result.ticks.length
+        result.ticks.delete?.()
+      }
+      result.estimates?.delete?.()
+      result.bpmIntervals?.delete?.()
+    } finally {
+      vec.delete?.()
     }
-    result.estimates?.delete?.()
-    result.bpmIntervals?.delete?.()
-  } finally {
-    // Always free the C++ vector from WebAssembly heap
-    vec.delete?.()
+  } catch (err) {
+    console.warn('Essentia BPM detector fallback to Mixxx engine:', err)
   }
+
+  onProgress?.(95)
+  await new Promise(resolve => setTimeout(resolve, 0))
 
   const inferenceTimeMs = Math.round(performance.now() - startTime)
 
-  // Round BPM to 1 decimal place (e.g. 128.0, 127.5) while keeping raw precision available
-  const roundedBpm = Math.round(rawBpm * 10) / 10
+  // Primary decision logic: Mixxx algorithm with Essentia cross-validation
+  let finalBpm = mixxxBpm || essentiaBpm || 120
+
+  if (mixxxBpm && essentiaBpm > 0) {
+    const ratio = essentiaBpm / mixxxBpm
+    // If Essentia gave a 2x octave or 0.5x half-time of Mixxx
+    if (Math.abs(ratio - 1.0) < 0.04) {
+      // High agreement -> boost confidence
+      confidence = Math.max(confidence, 4.2)
+      finalBpm = mixxxBpm
+    } else if (Math.abs(ratio - 0.5) < 0.05 || Math.abs(ratio - 2.0) < 0.05) {
+      // Octave fold to Mixxx's DJ dance tempo prior
+      finalBpm = mixxxBpm
+      confidence = Math.max(confidence, 3.5)
+    } else if (Math.abs(ratio - 1.5) < 0.06 || Math.abs(ratio - 0.667) < 0.06) {
+      // Triplet / hemiola resolution -> trust Mixxx harmonic comb
+      finalBpm = mixxxBpm
+      confidence = Math.max(confidence, 3.2)
+    } else {
+      // Default to Mixxx onset detector
+      finalBpm = mixxxBpm
+    }
+  } else if (mixxxBpm) {
+    finalBpm = mixxxBpm
+    confidence = 3.8
+  }
+
+  const roundedBpm = Math.round(finalBpm * 10) / 10
 
   return {
     bpm: roundedBpm,

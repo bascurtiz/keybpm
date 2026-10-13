@@ -3,7 +3,6 @@ import { extractAudioMetadata } from '@/lib/audioMetadata'
 import { analyzeBeatGrid } from './beatgrid'
 import { computeAutoGain } from './autogain'
 import { computePeaks } from './peaks'
-import { positiveMod } from './dsp'
 import type { Track } from './types'
 
 export interface AnalyzeProgress {
@@ -101,41 +100,10 @@ export async function analyzeTrackFile(
   const peaks = computePeaks(buffer)
   const gain = computeAutoGain(buffer)
 
+  // Mixxx BeatGrid analyzer provides the definitive, synchronized BPM & BeatGrid
   let bpm = gridResult?.bpm ?? keyResult?.bpm ?? null
-
-  // Reconcile Beatgrid BPM with Essentia RhythmExtractor BPM
-  if (gridResult && keyResult?.bpm && keyResult.bpm > 0) {
-    const r = keyResult.bpm / gridResult.bpm
-    // If beatgrid locked onto a 2/3 hemiola / dotted quarter (e.g. 84.9 vs 127.4)
-    if (Math.abs(r - 1.5) < 0.08) {
-      gridResult.bpm = Math.round(gridResult.bpm * 1.5 * 10) / 10
-      bpm = gridResult.bpm
-      const beatLen = 60 / gridResult.bpm
-      gridResult.firstBeat = positiveMod(gridResult.firstBeat, beatLen)
-      gridResult.firstBar = positiveMod(gridResult.firstBar, beatLen * gridResult.beatsPerBar)
-    }
-    // If beatgrid locked onto half-time (e.g. 64 vs 128)
-    else if (Math.abs(r - 2.0) < 0.08 && keyResult.bpm >= 100) {
-      gridResult.bpm = Math.round(gridResult.bpm * 2.0 * 10) / 10
-      bpm = gridResult.bpm
-      const beatLen = 60 / gridResult.bpm
-      gridResult.firstBeat = positiveMod(gridResult.firstBeat, beatLen)
-      gridResult.firstBar = positiveMod(gridResult.firstBar, beatLen * gridResult.beatsPerBar)
-    }
-    // If Essentia has high confidence and beatgrid significantly drifted outside dance tempo
-    else if (
-      keyResult.bpmConfidence &&
-      keyResult.bpmConfidence > 0.75 &&
-      Math.abs(keyResult.bpm - gridResult.bpm) > 6 &&
-      keyResult.bpm >= 100 &&
-      keyResult.bpm <= 165
-    ) {
-      gridResult.bpm = keyResult.bpm
-      bpm = keyResult.bpm
-      const beatLen = 60 / gridResult.bpm
-      gridResult.firstBeat = positiveMod(gridResult.firstBeat, beatLen)
-      gridResult.firstBar = positiveMod(gridResult.firstBar, beatLen * gridResult.beatsPerBar)
-    }
+  if (bpm) {
+    bpm = Math.round(bpm * 10) / 10
   }
 
   const key = keyResult
