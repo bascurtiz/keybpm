@@ -24,7 +24,66 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     }
   }, [engine, deckA, deckB])
 
+  const [loopBeatsA, setLoopBeatsA] = useState(4)
+  const [loopBeatsB, setLoopBeatsB] = useState(4)
+
+  // Auto-Fade animation state
+  const autoFadeRafRef = useRef<number | null>(null)
+  const [isFading, setIsFading] = useState<'left' | 'right' | null>(null)
+
+  const triggerAutoFade = (targetDirection: 'left' | 'right') => {
+    if (autoFadeRafRef.current) {
+      cancelAnimationFrame(autoFadeRafRef.current)
+      autoFadeRafRef.current = null
+    }
+
+    const startVal = engine.crossfade
+    const targetVal = targetDirection === 'left' ? -1 : 1
+    if (Math.abs(startVal - targetVal) < 0.001) return
+
+    // Duration in seconds: based on loop beats of the playing or target deck
+    const relevantDeck = targetDirection === 'left' ? deckA : deckB
+    const otherDeck = targetDirection === 'left' ? deckB : deckA
+    const activeDeck = relevantDeck.playing ? relevantDeck : otherDeck.playing ? otherDeck : relevantDeck
+    const beats = targetDirection === 'left' ? loopBeatsA : loopBeatsB
+    const bpm = activeDeck.effectiveBpm || activeDeck.track?.bpm || engine.masterBpm || 128
+    const beatSec = 60 / bpm
+    const durationMs = Math.max(500, beats * beatSec * 1000)
+
+    const startTime = performance.now()
+    setIsFading(targetDirection)
+
+    const step = (now: number) => {
+      const elapsed = now - startTime
+      const progress = Math.min(1, elapsed / durationMs)
+      // Smooth linear or slightly eased progress
+      const currentVal = startVal + (targetVal - startVal) * progress
+      engine.setCrossfade(currentVal)
+
+      if (progress < 1) {
+        autoFadeRafRef.current = requestAnimationFrame(step)
+      } else {
+        engine.setCrossfade(targetVal)
+        autoFadeRafRef.current = null
+        setIsFading(null)
+      }
+    }
+
+    autoFadeRafRef.current = requestAnimationFrame(step)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (autoFadeRafRef.current) cancelAnimationFrame(autoFadeRafRef.current)
+    }
+  }, [])
+
   const nudgeCrossfade = (delta: number) => {
+    if (autoFadeRafRef.current) {
+      cancelAnimationFrame(autoFadeRafRef.current)
+      autoFadeRafRef.current = null
+      setIsFading(null)
+    }
     engine.setCrossfade(engine.crossfade + delta)
   }
 
@@ -34,11 +93,25 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     >
       {/* ================= DECK A TRANSPORT (LEFT) ================= */}
       <div className="flex items-center justify-start">
-        <DeckTransport deck={deckA} deckId="A" />
+        <DeckTransport deck={deckA} deckId="A" onLoopBeatsChange={setLoopBeatsA} />
       </div>
 
-      {/* ================= CENTER: CROSSFADER (CENTERED UNDER MIXER) ================= */}
-      <div className="w-[380px] flex items-center justify-center">
+      {/* ================= CENTER: AUTO-FADE CHEVRONS + CROSSFADER (CENTERED UNDER MIXER) ================= */}
+      <div className="w-[380px] flex items-center justify-center gap-2">
+        {/* Auto-fade Left: << */}
+        <button
+          type="button"
+          onClick={() => triggerAutoFade('left')}
+          className={`h-7 px-1.5 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
+            isFading === 'left'
+              ? 'bg-[#34d399]/20 text-[#34d399] border border-[#34d399]/50 shadow-[0_0_8px_rgba(52,211,153,0.3)] animate-pulse'
+              : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
+          }`}
+          title={`Auto-fade to Deck A over ${loopBeatsA} beats`}
+        >
+          &lt;&lt;
+        </button>
+
         <div className="w-[200px] flex items-center justify-between gap-1.5 px-2.5 py-1 bg-[#141414] rounded-lg border border-[#282828]">
           <button
             type="button"
@@ -58,7 +131,14 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             bipolar
             snapCenter
             ticks={5}
-            onValueChange={v => engine.setCrossfade(v)}
+            onValueChange={v => {
+              if (autoFadeRafRef.current) {
+                cancelAnimationFrame(autoFadeRafRef.current)
+                autoFadeRafRef.current = null
+                setIsFading(null)
+              }
+              engine.setCrossfade(v)
+            }}
             label="Crossfader"
             className="h-6 w-[140px] max-w-[140px]"
           />
@@ -72,11 +152,25 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             &gt;
           </button>
         </div>
+
+        {/* Auto-fade Right: >> */}
+        <button
+          type="button"
+          onClick={() => triggerAutoFade('right')}
+          className={`h-7 px-1.5 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
+            isFading === 'right'
+              ? 'bg-[#a855f7]/20 text-[#a855f7] border border-[#a855f7]/50 shadow-[0_0_8px_rgba(168,85,247,0.3)] animate-pulse'
+              : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
+          }`}
+          title={`Auto-fade to Deck B over ${loopBeatsB} beats`}
+        >
+          &gt;&gt;
+        </button>
       </div>
 
       {/* ================= DECK B TRANSPORT (RIGHT) ================= */}
       <div className="flex items-center justify-end">
-        <DeckTransport deck={deckB} deckId="B" />
+        <DeckTransport deck={deckB} deckId="B" onLoopBeatsChange={setLoopBeatsB} />
       </div>
     </div>
   )
@@ -84,44 +178,69 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
 const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
 
-function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }) {
+function DeckTransport({
+  deck,
+  deckId,
+  onLoopBeatsChange,
+}: {
+  deck: DeckEngine
+  deckId: 'A' | 'B'
+  onLoopBeatsChange?: (beats: number) => void
+}) {
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
   const currentBeats = LOOP_BEAT_SIZES[selectedLoopIdx]
   const isPlaying = deck.playing
   const isLoopActive = Boolean(deck.loop)
 
-  // Tap Tempo
+  useEffect(() => {
+    onLoopBeatsChange?.(currentBeats)
+  }, [currentBeats, onLoopBeatsChange])
+
+  // 4-Tap Tempo System
   const tapTimesRef = useRef<number[]>([])
-  const [isTapping, setIsTapping] = useState(false)
-  const tapTimeoutRef = useRef<number | null>(null)
+  const [tapCount, setTapCount] = useState(0)
+  const tapResetTimerRef = useRef<number | null>(null)
 
   const handleTapTempo = () => {
     if (!deck.track) return
     const now = performance.now()
     const taps = tapTimesRef.current
 
-    // Reset if last tap was more than 2 seconds ago
-    if (taps.length > 0 && now - taps[taps.length - 1] > 2000) {
-      tapTimesRef.current = [now]
-    } else {
-      taps.push(now)
-      if (taps.length > 5) taps.shift() // keep last 5 taps
+    // Reset if previous tap was more than 2.5 seconds ago
+    if (taps.length > 0 && now - taps[taps.length - 1] > 2500) {
+      taps.length = 0
     }
 
-    setIsTapping(true)
-    if (tapTimeoutRef.current) window.clearTimeout(tapTimeoutRef.current)
-    tapTimeoutRef.current = window.setTimeout(() => setIsTapping(false), 300)
+    taps.push(now)
+    const count = taps.length
+    setTapCount(count)
 
+    if (tapResetTimerRef.current) window.clearTimeout(tapResetTimerRef.current)
+    tapResetTimerRef.current = window.setTimeout(() => {
+      taps.length = 0
+      setTapCount(0)
+    }, 2500)
+
+    // Calculate BPM over intervals as user taps
     if (taps.length >= 2) {
       const intervals: number[] = []
       for (let i = 1; i < taps.length; i++) {
         intervals.push(taps[i] - taps[i - 1])
       }
-      const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length
-      if (avgMs > 0) {
-        const calculatedBpm = Math.max(30, Math.min(300, Math.round((60000 / avgMs) * 10) / 10))
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length
+      if (avgInterval > 0) {
+        const calculatedBpm = Math.max(30, Math.min(300, Math.round((60000 / avgInterval) * 10) / 10))
         deck.setTrackBpm(calculatedBpm)
       }
+    }
+
+    // After 4 full taps, complete sequence
+    if (taps.length >= 4) {
+      if (tapResetTimerRef.current) window.clearTimeout(tapResetTimerRef.current)
+      tapResetTimerRef.current = window.setTimeout(() => {
+        taps.length = 0
+        setTapCount(0)
+      }, 700)
     }
   }
 
@@ -247,19 +366,24 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
         </button>
       </div>
 
-      {/* Tap Tempo Button: TAP */}
+      {/* Tap Tempo Button: TAP (shows 4-tap counter: TAP, 1/4, 2/4, 3/4, 4/4) */}
       <button
         type="button"
         onClick={handleTapTempo}
         disabled={!deck.track}
-        className={`h-11 px-3 rounded-md border text-[11px] font-bold uppercase tracking-wider flex items-center justify-center transition-all shadow-sm select-none ${
-          isTapping
-            ? 'bg-[#1e1e1e] border-white text-white shadow-[0_0_8px_rgba(255,255,255,0.3)] scale-[0.97]'
+        className={`h-11 min-w-[48px] px-2.5 rounded-md border text-[10.5px] font-bold uppercase tracking-wider flex flex-col items-center justify-center transition-all shadow-sm select-none ${
+          tapCount > 0
+            ? 'bg-[#222222] border-white text-white shadow-[0_0_8px_rgba(255,255,255,0.35)] scale-[0.97]'
             : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-40'
         }`}
-        title={`Deck ${deckId} Tap Tempo — Click repeatedly in rhythm to set BPM`}
+        title={`Deck ${deckId} Tap Tempo — Tap 4 times in rhythm to set BPM`}
       >
-        TAP
+        <span>TAP</span>
+        {tapCount > 0 && (
+          <span className="text-[8px] font-mono font-bold leading-none text-emerald-400 mt-0.5">
+            {tapCount}/4
+          </span>
+        )}
       </button>
     </div>
   )
