@@ -37,13 +37,13 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
         <DeckTransport deck={deckA} deckId="A" />
       </div>
 
-      {/* ================= CENTER: CROSSFADER (CENTERED UNDER 380px MIXER) ================= */}
+      {/* ================= CENTER: CROSSFADER (CENTERED UNDER MIXER) ================= */}
       <div className="w-[380px] flex items-center justify-center">
-        <div className="w-full flex items-center justify-between gap-2 px-3 py-1 bg-[#141414] rounded-lg border border-[#282828]">
+        <div className="w-[200px] flex items-center justify-between gap-1.5 px-2.5 py-1 bg-[#141414] rounded-lg border border-[#282828]">
           <button
             type="button"
             onClick={() => nudgeCrossfade(-0.05)}
-            className="text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] rounded px-1.5 py-0.5 transition-colors select-none"
+            className="text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] rounded px-1 py-0.5 transition-colors select-none"
             title="Nudge Crossfader toward Deck A"
           >
             &lt;
@@ -60,13 +60,13 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             ticks={5}
             onValueChange={v => engine.setCrossfade(v)}
             label="Crossfader"
-            className="h-6 flex-1 max-w-[280px]"
+            className="h-6 w-[140px] max-w-[140px]"
           />
 
           <button
             type="button"
             onClick={() => nudgeCrossfade(0.05)}
-            className="text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] rounded px-1.5 py-0.5 transition-colors select-none"
+            className="text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] rounded px-1 py-0.5 transition-colors select-none"
             title="Nudge Crossfader toward Deck B"
           >
             &gt;
