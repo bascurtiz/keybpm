@@ -240,7 +240,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">
           A
         </span>
-        <div className="flex-1 flex items-center justify-center">
+        <div className="h-[135px] flex items-center justify-center my-auto">
           <Fader
             orientation="vertical"
             min={0}
@@ -397,7 +397,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         <span className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-2">
           B
         </span>
-        <div className="flex-1 flex items-center justify-center">
+        <div className="h-[135px] flex items-center justify-center my-auto">
           <Fader
             orientation="vertical"
             min={0}

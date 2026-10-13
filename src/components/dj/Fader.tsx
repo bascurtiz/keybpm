@@ -153,6 +153,12 @@ export function Fader({
   const fillStart = bipolar ? Math.min(norm, 0.5) : 0
   const fillSize = bipolar ? Math.abs(norm - 0.5) : norm
 
+  const hasCustomH = /(?:^|\s)!?h-/.test(className)
+  const hasCustomW = /(?:^|\s)!?w-/.test(className)
+  const sizeClasses = vertical
+    ? `${hasCustomH ? '' : 'h-full'} ${hasCustomW ? '' : 'w-9'}`
+    : `${hasCustomH ? '' : 'h-8'} ${hasCustomW ? '' : 'w-full'}`
+
   return (
     <div
       role="slider"
@@ -169,9 +175,9 @@ export function Fader({
       onPointerUp={handlePointerUp}
       onWheel={handleWheel}
       onDoubleClick={reset}
-      className={`group relative touch-none select-none outline-none ${
-        vertical ? 'h-full w-9' : 'h-8 w-full'
-      } ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
+      className={`group relative touch-none select-none outline-none ${sizeClasses.trim()} ${
+        disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+      } ${className}`}
       title={label ? `${label}: ${format ? format(value) : value.toFixed(2)}` : undefined}
     >
       {/* Ticks */}
