@@ -237,7 +237,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       {/* ================= 2. DECK A CHANNEL FADER ================= */}
       <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-2">
+        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">
           A
         </span>
         <div className="flex-1 flex items-center justify-center">
@@ -394,7 +394,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       {/* ================= 4. DECK B CHANNEL FADER ================= */}
       <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2">
+        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-2">
           B
         </span>
         <div className="flex-1 flex items-center justify-center">
