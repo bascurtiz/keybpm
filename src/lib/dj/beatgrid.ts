@@ -14,10 +14,13 @@ import type { BeatGrid } from './types'
  *  6. Least-squares regression with outlier rejection into a constant grid.
  *  7. Downbeat detection against low-band flux (bars start where the bass lands).
  */
-export async function analyzeBeatGrid(buffer: AudioBuffer): Promise<BeatGrid | null> {
+export async function analyzeBeatGrid(
+  buffer: AudioBuffer,
+  hintBpm?: number
+): Promise<BeatGrid | null> {
   try {
     await new Promise(r => setTimeout(r, 0))
-    return analyze(buffer)
+    return analyze(buffer, hintBpm)
   } catch {
     return null
   }
@@ -30,7 +33,7 @@ const MAX_BPM = 200
 const BEATS_PER_BAR = 4
 const ANALYSIS_SECONDS = 90
 
-function analyze(buffer: AudioBuffer): BeatGrid | null {
+function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
   if (buffer.duration < 8) return null
 
   // 1. loudest window, mono, decimated
@@ -60,7 +63,6 @@ function analyze(buffer: AudioBuffer): BeatGrid | null {
   const envRate = srA / HOP
   const flux = new Float32Array(frames)
   const lowFlux = new Float32Array(frames)
-  const lowEnergy = new Float32Array(frames)
   {
     const fft = makeFft(WIN)
     const hann = new Float32Array(WIN)
@@ -96,7 +98,6 @@ function analyze(buffer: AudioBuffer): BeatGrid | null {
       }
       let s = 0
       let sLow = 0
-      let eLow = 0
       for (let b = 0; b < BANDS; b++) {
         const L = Math.log1p(bandMag[b])
         const d = L - prevLog[b]
@@ -104,12 +105,10 @@ function analyze(buffer: AudioBuffer): BeatGrid | null {
           s += d
           if (b <= lowBandMax) sLow += d
         }
-        if (b <= lowBandMax) eLow += bandMag[b]
         prevLog[b] = L
       }
       flux[f] = s
       lowFlux[f] = sLow
-      lowEnergy[f] = eLow
     }
   }
 
@@ -122,11 +121,8 @@ function analyze(buffer: AudioBuffer): BeatGrid | null {
   for (let i = 0; i < frames; i++) combined[i] = flux[i] + 1.5 * lowFlux[i]
   normalizeStd(combined)
   const env = gaussianSmooth(combined, 2)
-  const lowEnv = gaussianSmooth(lowFlux, 2)
-  zScore(lowEnergy)
-  const lowEnergyEnv = gaussianSmooth(lowEnergy, 2)
 
-  // 4. tempo candidates
+  // 4. tempo candidates with DJ dance music prior
   const minLag = Math.floor((envRate * 60) / MAX_BPM)
   const maxLag = Math.ceil((envRate * 60) / MIN_BPM)
   const acf = new Float32Array(maxLag * 3 + 2)
@@ -141,10 +137,10 @@ function analyze(buffer: AudioBuffer): BeatGrid | null {
     const i = Math.round(lag)
     return i >= 0 && i < acf.length ? acf[i] : 0
   }
-  const prior = (bpm: number) => Math.exp(-0.5 * Math.pow(Math.log2(bpm / 128) / 0.7, 2))
+  const prior = (bpm: number) => Math.exp(-0.5 * Math.pow(Math.log2(bpm / 126) / 0.45, 2))
   const scoreAt = (lag: number) =>
     (acfAt(lag) + acfAt(lag * 2) / 2 + acfAt(lag * 3) / 3) *
-    (0.6 + 0.4 * prior((60 * envRate) / lag))
+    (0.35 + 0.65 * prior((60 * envRate) / lag))
 
   const peaks: { lag: number; score: number }[] = []
   for (let lag = minLag + 1; lag < maxLag; lag++) {
@@ -159,13 +155,20 @@ function analyze(buffer: AudioBuffer): BeatGrid | null {
     if (candidates.some(c => Math.abs(c - bpm) / bpm < 0.04)) return
     candidates.push(bpm)
   }
+  if (hintBpm && hintBpm >= MIN_BPM && hintBpm <= MAX_BPM) {
+    addCandidate(hintBpm)
+    addCandidate(hintBpm * 2)
+    addCandidate(hintBpm / 2)
+  }
   for (const p of peaks.slice(0, 5)) addCandidate((60 * envRate) / p.lag)
   for (const p of peaks.slice(0, 3)) {
     const bpm = (60 * envRate) / p.lag
     addCandidate(bpm * 2)
     addCandidate(bpm / 2)
-    addCandidate(bpm * 1.5)
-    addCandidate((bpm * 2) / 3)
+    // If a detected peak lag is slow (< 95 BPM), also test its 1.5x duple complement (e.g. 84.9 -> 127.35)
+    if (bpm < 95) {
+      addCandidate(bpm * 1.5)
+    }
   }
   if (candidates.length === 0) return null
 
@@ -191,47 +194,96 @@ function analyze(buffer: AudioBuffer): BeatGrid | null {
       s += interp(env, p)
     }
     if (k < 16) continue
-    const contrast = (s / k) * fit.keptRatio * (0.6 + 0.4 * prior(bpm))
+    const hintBonus = hintBpm && Math.abs(bpm - hintBpm) / hintBpm < 0.03 ? 1.35 : 1.0
+    const contrast = (s / k) * fit.keptRatio * (0.35 + 0.65 * prior(bpm)) * hintBonus
     if (!best || contrast > best.score) {
       best = { bpm, anchorFrame: fit.intercept, beatFrames: fit.slope, score: contrast }
     }
   }
   if (!best || best.score <= 0) return null
 
-  // 7. downbeat among the four rotations
-  let bestBarOffset = 0
-  let bestBarScore = -Infinity
-  for (let c = 0; c < BEATS_PER_BAR; c++) {
-    let s = 0
-    let k = 0
-    for (
-      let p = best.anchorFrame + c * best.beatFrames;
-      p < frames - 5 && p >= 0;
-      p += best.beatFrames * BEATS_PER_BAR, k++
-    ) {
-      s += interp(lowEnergyEnv, p + 4) + 0.5 * interp(lowEnv, p) + 0.25 * interp(env, p)
-    }
-    const score = k > 0 ? s / k : -Infinity
-    if (score > bestBarScore) {
-      bestBarScore = score
-      bestBarOffset = c
-    }
-  }
-
   const ONSET_LEAD = 0.01
   const toSeconds = (frame: number) =>
     start / buffer.sampleRate + (frame * HOP + WIN / 2) / srA + ONSET_LEAD
   const beatLen = 60 / best.bpm
-  const barLen = beatLen * BEATS_PER_BAR
-  const firstBeatRaw = toSeconds(best.anchorFrame)
-  const firstBarRaw = toSeconds(best.anchorFrame + bestBarOffset * best.beatFrames)
+  const gridPhaseSeconds = toSeconds(best.anchorFrame)
+
+  // 7. Anchor Bar 1 to the actual first downbeat / kick at the start of the audio file
+  const firstBarTime = findFirstBeatAtIntro(buffer, best.bpm, gridPhaseSeconds)
 
   return {
     bpm: Math.round(best.bpm * 100) / 100,
-    firstBeat: positiveMod(firstBeatRaw, beatLen),
-    firstBar: positiveMod(firstBarRaw, barLen),
+    firstBeat: positiveMod(firstBarTime, beatLen),
+    firstBar: firstBarTime,
     beatsPerBar: BEATS_PER_BAR,
   }
+}
+
+/**
+ * Scans the first ~25 seconds of the track to locate the actual first kick / downbeat
+ * and snaps it to the established grid phase. This guarantees Bar 1 lands on Beat 1,
+ * avoiding the common error of placing the downbeat on the snare/clap on Beat 2.
+ */
+function findFirstBeatAtIntro(
+  buffer: AudioBuffer,
+  bpm: number,
+  phaseOffsetSeconds: number
+): number {
+  const beatLen = 60 / bpm
+  const barLen = beatLen * BEATS_PER_BAR
+  const sr = buffer.sampleRate
+  const scanSeconds = Math.min(buffer.duration, 25)
+  const scanSamples = Math.floor(scanSeconds * sr)
+  if (scanSamples <= 0) return positiveMod(phaseOffsetSeconds, barLen)
+
+  // Downmix intro to mono
+  const intro = new Float32Array(scanSamples)
+  const tmp = new Float32Array(scanSamples)
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    buffer.copyFromChannel(tmp, ch, 0)
+    for (let i = 0; i < scanSamples; i++) {
+      intro[i] += tmp[i] / buffer.numberOfChannels
+    }
+  }
+
+  // Energy in 25ms blocks
+  const blockSize = Math.floor(sr * 0.025)
+  const numBlocks = Math.floor(scanSamples / blockSize)
+  let maxEnergy = 0
+  const energies = new Float32Array(numBlocks)
+
+  for (let b = 0; b < numBlocks; b++) {
+    let sum = 0
+    const base = b * blockSize
+    for (let i = 0; i < blockSize; i += 4) {
+      sum += intro[base + i] * intro[base + i]
+    }
+    energies[b] = sum
+    if (sum > maxEnergy) maxEnergy = sum
+  }
+
+  if (maxEnergy <= 0) return positiveMod(phaseOffsetSeconds, barLen)
+
+  // Find first block with onset energy >= 12% of intro peak
+  const threshold = Math.max(maxEnergy * 0.12, 0.001 * blockSize)
+  let firstBlock = -1
+  for (let b = 0; b < numBlocks; b++) {
+    if (energies[b] >= threshold) {
+      firstBlock = b
+      break
+    }
+  }
+
+  if (firstBlock < 0) return positiveMod(phaseOffsetSeconds, barLen)
+
+  const firstOnsetTime = (firstBlock * blockSize) / sr
+
+  // Snap to established grid phase
+  const phase = positiveMod(phaseOffsetSeconds, beatLen)
+  const k = Math.round((firstOnsetTime - phase) / beatLen)
+  const snappedTime = phase + k * beatLen
+
+  return snappedTime >= 0 ? snappedTime : positiveMod(snappedTime, barLen)
 }
 
 function trackBeats(env: Float32Array, tau: number): number[] {
@@ -356,19 +408,6 @@ function normalizeStd(x: Float32Array) {
   let sum = 0
   for (let i = 0; i < x.length; i++) sum += x[i] * x[i]
   const std = Math.sqrt(sum / x.length)
-  if (std > 0) for (let i = 0; i < x.length; i++) x[i] /= std
-}
-
-function zScore(x: Float32Array) {
-  let mean = 0
-  for (let i = 0; i < x.length; i++) mean += x[i]
-  mean /= x.length
-  let varSum = 0
-  for (let i = 0; i < x.length; i++) {
-    x[i] -= mean
-    varSum += x[i] * x[i]
-  }
-  const std = Math.sqrt(varSum / x.length)
   if (std > 0) for (let i = 0; i < x.length; i++) x[i] /= std
 }
 
