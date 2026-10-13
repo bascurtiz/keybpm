@@ -405,10 +405,10 @@ export function StackedWaveforms({
             type="button"
             onClick={() => activeGridDeck.setBeat1AtPosition()}
             disabled={!activeGridDeck.track}
-            className="h-5 px-2 rounded bg-[#202020] border border-[#333333] hover:border-[#4ade80] text-[#a3e635] hover:text-[#bef264] text-[10px] font-bold uppercase disabled:opacity-30 transition-colors"
+            className="h-5 px-2 rounded bg-[#202020] border border-[#333333] hover:border-[#666666] text-white hover:text-white text-[10px] font-bold uppercase disabled:opacity-30 transition-colors"
             title="Set Beat 1 (downbeat anchor) at the red playhead needle"
           >
-            Set Beat 1
+            SET BEAT 1
           </button>
 
           <div className="h-4 w-[1px] bg-[#2a2a2a]" />
@@ -463,19 +463,19 @@ export function StackedWaveforms({
               type="button"
               onClick={() => activeGridDeck.multiplyGridBpm(0.5)}
               disabled={!activeGridDeck.track}
-              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#aaaaaa] hover:text-white font-mono text-[9px] font-bold disabled:opacity-30"
-              title="Halve grid BPM (½×)"
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              title="Halve grid BPM (/2)"
             >
-              ½
+              /2
             </button>
             <button
               type="button"
               onClick={() => activeGridDeck.multiplyGridBpm(2)}
               disabled={!activeGridDeck.track}
-              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#aaaaaa] hover:text-white font-mono text-[9px] font-bold disabled:opacity-30"
-              title="Double grid BPM (2×)"
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              title="Double grid BPM (x2)"
             >
-              2×
+              x2
             </button>
           </div>
 
