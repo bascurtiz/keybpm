@@ -62,31 +62,31 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
 
   return (
     <div
-      className={`flex flex-col justify-between p-1 rounded bg-[#161616] border border-[#282828] shadow-inner select-none ${className}`}
+      className={`w-full flex flex-col justify-center px-1.5 py-1 rounded bg-[#101010] border border-[#282828] shadow-inner select-none ${className}`}
       title="4-Beat Metronome Bar Counter (Deck A: Green, Deck B: Purple)"
     >
       {/* Deck A 4-beat metronome row */}
-      <div className="grid grid-cols-4 gap-1 h-[7px] w-full">
+      <div className="grid grid-cols-4 gap-1.5 h-[8px] w-full">
         {[0, 1, 2, 3].map(i => (
           <div
             key={i}
             ref={el => {
               beatAEls.current[i] = el
             }}
-            className="h-full rounded-[1.5px] border border-[#282828] bg-[#141414] transition-all duration-75"
+            className="h-full rounded-[2px] border border-[#282828] bg-[#141414] transition-all duration-75"
           />
         ))}
       </div>
 
       {/* Deck B 4-beat metronome row */}
-      <div className="grid grid-cols-4 gap-1 h-[7px] w-full mt-1">
+      <div className="grid grid-cols-4 gap-1.5 h-[8px] w-full mt-1">
         {[0, 1, 2, 3].map(i => (
           <div
             key={i}
             ref={el => {
               beatBEls.current[i] = el
             }}
-            className="h-full rounded-[1.5px] border border-[#282828] bg-[#141414] transition-all duration-75"
+            className="h-full rounded-[2px] border border-[#282828] bg-[#141414] transition-all duration-75"
           />
         ))}
       </div>

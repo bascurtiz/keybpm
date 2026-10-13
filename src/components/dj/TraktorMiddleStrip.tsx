@@ -164,8 +164,8 @@ export function TraktorMiddleStrip({
           </div>
 
           {/* Beat Counter (4-Beat Metronome Bar Steps for Deck A & Deck B - EXACT CENTER) */}
-          <div className="w-28 shrink-0 flex items-center justify-center">
-            <BeatCounter deckA={deckA} deckB={deckB} />
+          <div className="w-36 shrink-0 flex items-center justify-center px-1">
+            <BeatCounter deckA={deckA} deckB={deckB} className="w-full" />
           </div>
 
           {/* Key Notation Dropdown Selector (Right symmetrical wing) */}
