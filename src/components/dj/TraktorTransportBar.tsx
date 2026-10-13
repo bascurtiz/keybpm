@@ -89,26 +89,35 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
     if (deck.loop) {
       deck.exitLoop()
     } else {
-      const bpm = deck.effectiveBpm || deck.track.bpm || 120
+      const grid = deck.track.grid
+      const bpm = grid?.bpm || deck.effectiveBpm || deck.track.bpm || 120
       const beatLen = 60 / bpm
       const loopLenSeconds = currentBeats * beatLen
-      const start = deck.position
+      const start = deck.snapToBeat(deck.position)
       deck.setLoop(start, start + loopLenSeconds)
     }
   }
 
   const loopHalf = () => {
-    setSelectedLoopIdx(i => Math.max(0, i - 1))
-    if (deck.loop) {
-      const halfLen = (deck.loop.end - deck.loop.start) / 2
+    const nextIdx = Math.max(0, selectedLoopIdx - 1)
+    setSelectedLoopIdx(nextIdx)
+    if (deck.loop && deck.track) {
+      const bpm = deck.track.grid?.bpm || deck.effectiveBpm || deck.track.bpm || 120
+      const beatLen = 60 / bpm
+      const halfBeats = LOOP_BEAT_SIZES[nextIdx]
+      const halfLen = halfBeats * beatLen
       deck.setLoop(deck.loop.start, deck.loop.start + halfLen)
     }
   }
 
   const loopDouble = () => {
-    setSelectedLoopIdx(i => Math.min(LOOP_BEAT_SIZES.length - 1, i + 1))
-    if (deck.loop) {
-      const doubleLen = (deck.loop.end - deck.loop.start) * 2
+    const nextIdx = Math.min(LOOP_BEAT_SIZES.length - 1, selectedLoopIdx + 1)
+    setSelectedLoopIdx(nextIdx)
+    if (deck.loop && deck.track) {
+      const bpm = deck.track.grid?.bpm || deck.effectiveBpm || deck.track.bpm || 120
+      const beatLen = 60 / bpm
+      const doubleBeats = LOOP_BEAT_SIZES[nextIdx]
+      const doubleLen = doubleBeats * beatLen
       deck.setLoop(deck.loop.start, deck.loop.start + doubleLen)
     }
   }

@@ -621,13 +621,29 @@ export class DeckEngine {
     this.echoDelay.delayTime.setTargetAtTime(seconds, this.ctx.currentTime, 0.05)
   }
 
+  // ----- beatgrid snap helper -----
+
+  snapToBeat(time: number): number {
+    if (!this.track) return time
+    const grid = this.track.grid
+    const bpm = grid?.bpm ?? this.track.bpm
+    if (!bpm || bpm <= 0) return time
+
+    const beatLen = 60 / bpm
+    const anchor = grid?.firstBeat ?? 0
+    const beatIndex = Math.round((time - anchor) / beatLen)
+    const snapped = anchor + beatIndex * beatLen
+    return Math.max(0, Math.min(snapped, this.duration))
+  }
+
   // ----- hot cues -----
 
   triggerHotCue(index: number) {
     if (!this.track) return
     const existing = this.hotCues[index]
     if (existing === null) {
-      this.hotCues[index] = this.position
+      // Snap newly created cue to nearest beat if grid is available
+      this.hotCues[index] = this.snapToBeat(this.position)
       this.emit()
     } else {
       this.seek(existing)
@@ -648,9 +664,13 @@ export class DeckEngine {
     if (!this.track) return
     const grid = this.track.grid
     const bpm = grid?.bpm ?? this.track.bpm ?? 120
-    const barSec = (60 / bpm) * (grid?.beatsPerBar ?? 4)
+    const beatsPerBar = grid?.beatsPerBar ?? 4
+    const beatLen = 60 / bpm
+    const barSec = beatLen * beatsPerBar
     const len = bars * barSec
-    const start = this.position
+
+    // Snap start to nearest beatgrid downbeat/beat
+    const start = this.snapToBeat(this.position)
     const end = Math.min(start + len, this.duration)
     this.loop = { start, end, bars }
     this.post({ t: 'loop', loop: this.loop })
@@ -659,8 +679,10 @@ export class DeckEngine {
 
   setLoop(start: number, end: number) {
     if (!this.track) return
-    const s = Math.max(0, Math.min(start, this.duration))
-    const e = Math.max(s + 0.05, Math.min(end, this.duration))
+    const snappedStart = this.snapToBeat(start)
+    const snappedEnd = this.snapToBeat(end)
+    const s = Math.max(0, Math.min(snappedStart, this.duration))
+    const e = Math.max(s + 0.05, Math.min(snappedEnd > s ? snappedEnd : end, this.duration))
     this.loop = { start: s, end: e, bars: 0 }
     this.post({ t: 'loop', loop: this.loop })
     this.emit()
