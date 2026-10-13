@@ -141,6 +141,34 @@ export class AudioEngine {
     this.emit()
   }
 
+  get snapMode(): boolean {
+    return this.decks.A.snapMode && this.decks.B.snapMode
+  }
+
+  setSnapMode(on: boolean) {
+    this.decks.A.setSnapMode(on)
+    this.decks.B.setSnapMode(on)
+    this.emit()
+  }
+
+  toggleSnapMode() {
+    this.setSnapMode(!this.snapMode)
+  }
+
+  get quantMode(): boolean {
+    return this.decks.A.quantMode && this.decks.B.quantMode
+  }
+
+  setQuantMode(on: boolean) {
+    this.decks.A.setQuantMode(on)
+    this.decks.B.setQuantMode(on)
+    this.emit()
+  }
+
+  toggleQuantMode() {
+    this.setQuantMode(!this.quantMode)
+  }
+
   get recording() {
     return this.recorder?.state === 'recording'
   }

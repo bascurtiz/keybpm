@@ -163,10 +163,38 @@ export function TraktorMiddleStrip({
             </div>
           </div>
 
+          {/* S Button: Snap Mode */}
+          <button
+            type="button"
+            onClick={() => engine.toggleSnapMode()}
+            className={`h-6 w-[22px] shrink-0 rounded border text-[11px] font-mono font-bold flex items-center justify-center transition-all select-none ${
+              engine.snapMode
+                ? 'bg-[#141414] border-sky-400 text-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.35)]'
+                : 'bg-[#141414] border-[#282828] text-[#555555] hover:text-[#999999] hover:border-[#444444]'
+            }`}
+            title={`SNAP MODE (${engine.snapMode ? 'ON' : 'OFF'})\nSnaps to closest beat when setting cue points and loops.`}
+          >
+            S
+          </button>
+
           {/* Beat Counter (4-Beat Metronome Bar Steps for Deck A & Deck B - EXACT CENTER) */}
           <div className="w-36 shrink-0 flex items-center justify-center px-1">
             <BeatCounter deckA={deckA} deckB={deckB} className="w-full" />
           </div>
+
+          {/* Q Button: Quantize Mode */}
+          <button
+            type="button"
+            onClick={() => engine.toggleQuantMode()}
+            className={`h-6 w-[22px] shrink-0 rounded border text-[11px] font-mono font-bold flex items-center justify-center transition-all select-none ${
+              engine.quantMode
+                ? 'bg-[#141414] border-sky-400 text-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.35)]'
+                : 'bg-[#141414] border-[#282828] text-[#555555] hover:text-[#999999] hover:border-[#444444]'
+            }`}
+            title={`QUANT MODE (${engine.quantMode ? 'ON' : 'OFF'})\nEnables beat-accurate (quantized) skipping between cue points.`}
+          >
+            Q
+          </button>
 
           {/* Key Notation Dropdown Selector (Right symmetrical wing) */}
           <div className="w-[96px] shrink-0 flex flex-col items-center justify-center pl-2 border-l border-[#282828]">

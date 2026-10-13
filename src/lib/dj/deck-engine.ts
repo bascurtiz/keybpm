@@ -63,6 +63,39 @@ export class DeckEngine {
   cuePoint = 0
   loop: LoopRegion | null = null
 
+  // Snap & Quantize modes (Default ON as required for DJ performance)
+  snapMode = true
+  quantMode = true
+  private quantizeTimer: number | null = null
+  private pendingQuantizedCue: number | null = null
+  private pendingQuantizedIndex: number | null = null
+
+  get isWaitingQuantizedCue(): boolean {
+    return this.pendingQuantizedCue !== null
+  }
+
+  get waitingCueIndex(): number | null {
+    return this.pendingQuantizedIndex
+  }
+
+  setSnapMode(on: boolean) {
+    this.snapMode = on
+    this.emit()
+  }
+
+  toggleSnapMode() {
+    this.setSnapMode(!this.snapMode)
+  }
+
+  setQuantMode(on: boolean) {
+    this.quantMode = on
+    this.emit()
+  }
+
+  toggleQuantMode() {
+    this.setQuantMode(!this.quantMode)
+  }
+
   private _playing = false
   private _scratching = false
   private _rate = 1
@@ -420,6 +453,12 @@ export class DeckEngine {
   }
 
   ejectTrack() {
+    if (this.quantizeTimer) {
+      window.clearTimeout(this.quantizeTimer)
+      this.quantizeTimer = null
+      this.pendingQuantizedCue = null
+      this.pendingQuantizedIndex = null
+    }
     this.pause()
     this.track = null
     this.posSeconds = 0
@@ -445,6 +484,12 @@ export class DeckEngine {
   }
 
   pause() {
+    if (this.quantizeTimer) {
+      window.clearTimeout(this.quantizeTimer)
+      this.quantizeTimer = null
+      this.pendingQuantizedCue = null
+      this.pendingQuantizedIndex = null
+    }
     if (!this._playing) return
     this.post({ t: 'pause' })
     this._playing = false
@@ -459,10 +504,16 @@ export class DeckEngine {
   async cue() {
     if (!this.track) return
     if (this._playing) {
+      if (this.quantizeTimer) {
+        window.clearTimeout(this.quantizeTimer)
+        this.quantizeTimer = null
+        this.pendingQuantizedCue = null
+        this.pendingQuantizedIndex = null
+      }
       this.pause()
       this.seek(this.cuePoint)
     } else {
-      this.cuePoint = this.position
+      this.cuePoint = this.snapMode ? this.snapToBeat(this.position) : this.position
       this.emit()
     }
   }
@@ -642,16 +693,75 @@ export class DeckEngine {
     if (!this.track) return
     const existing = this.hotCues[index]
     if (existing === null) {
-      // Snap newly created cue to nearest beat if grid is available
-      this.hotCues[index] = this.snapToBeat(this.position)
+      // Snap newly created cue to nearest beat if snap mode is enabled
+      this.hotCues[index] = this.snapMode ? this.snapToBeat(this.position) : this.position
       this.emit()
-    } else {
+      return
+    }
+
+    // Skipping to existing cue point
+    if (!this._playing || !this.quantMode) {
+      if (this.quantizeTimer) {
+        window.clearTimeout(this.quantizeTimer)
+        this.quantizeTimer = null
+        this.pendingQuantizedCue = null
+        this.pendingQuantizedIndex = null
+      }
       this.seek(existing)
       if (!this._playing) void this.play()
+      return
     }
+
+    // QUANT MODE active during playback: beat-accurate skipping between cue points
+    const grid = this.track.grid
+    const bpm = grid?.bpm || this.effectiveBpm || this.track.bpm || 120
+    const beatLen = 60 / bpm
+    const anchor = grid?.firstBeat ?? 0
+    const currentPos = this.position
+    const elapsedInBeat = positiveMod(currentPos - anchor, beatLen)
+    const timeUntilNextBeat = beatLen - elapsedInBeat
+
+    // If clicked right on the beat (within 35ms of the beat onset), jump immediately in phase
+    if (elapsedInBeat < 0.035) {
+      if (this.quantizeTimer) {
+        window.clearTimeout(this.quantizeTimer)
+        this.quantizeTimer = null
+        this.pendingQuantizedCue = null
+        this.pendingQuantizedIndex = null
+      }
+      this.seek(existing + elapsedInBeat)
+      return
+    }
+
+    // Otherwise, delay jump until the next beat boundary so it lands on beat
+    if (this.quantizeTimer) {
+      window.clearTimeout(this.quantizeTimer)
+      this.quantizeTimer = null
+    }
+    this.pendingQuantizedCue = existing
+    this.pendingQuantizedIndex = index
+    this.emit()
+
+    const delayMs = Math.max(10, Math.min(1000, (timeUntilNextBeat / this._rate) * 1000))
+    this.quantizeTimer = window.setTimeout(() => {
+      this.quantizeTimer = null
+      const target = this.pendingQuantizedCue
+      this.pendingQuantizedCue = null
+      this.pendingQuantizedIndex = null
+      if (target !== null && this._playing) {
+        this.seek(target)
+      }
+      this.emit()
+    }, delayMs)
   }
 
   clearHotCue(index: number) {
+    if (this.pendingQuantizedIndex === index && this.quantizeTimer) {
+      window.clearTimeout(this.quantizeTimer)
+      this.quantizeTimer = null
+      this.pendingQuantizedCue = null
+      this.pendingQuantizedIndex = null
+    }
     if (this.hotCues[index] !== null) {
       this.hotCues[index] = null
       this.emit()
@@ -669,8 +779,8 @@ export class DeckEngine {
     const barSec = beatLen * beatsPerBar
     const len = bars * barSec
 
-    // Snap start to nearest beatgrid downbeat/beat
-    const start = this.snapToBeat(this.position)
+    // Snap start to nearest beatgrid downbeat/beat if snap mode is enabled
+    const start = this.snapMode ? this.snapToBeat(this.position) : this.position
     const end = Math.min(start + len, this.duration)
     this.loop = { start, end, bars }
     this.post({ t: 'loop', loop: this.loop })
@@ -679,8 +789,8 @@ export class DeckEngine {
 
   setLoop(start: number, end: number) {
     if (!this.track) return
-    const snappedStart = this.snapToBeat(start)
-    const snappedEnd = this.snapToBeat(end)
+    const snappedStart = this.snapMode ? this.snapToBeat(start) : start
+    const snappedEnd = this.snapMode ? this.snapToBeat(end) : end
     const s = Math.max(0, Math.min(snappedStart, this.duration))
     const e = Math.max(s + 0.05, Math.min(snappedEnd > s ? snappedEnd : end, this.duration))
     this.loop = { start: s, end: e, bars: 0 }

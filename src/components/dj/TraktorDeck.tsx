@@ -228,13 +228,42 @@ export function TraktorDeck({
 
         {/* 4 Hot Cue Pads in single vertical column below key elements */}
         <div className="flex flex-col items-center w-full">
-          <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider mb-1">
-            CUES
-          </span>
+          <div className="flex items-center justify-between w-full px-0.5 mb-1">
+            <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider">
+              CUES
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => deck.toggleSnapMode()}
+                className={`text-[7px] font-mono font-bold px-1 py-0.5 rounded border transition-colors ${
+                  deck.snapMode
+                    ? 'border-sky-400 text-sky-400 bg-sky-400/10'
+                    : 'border-[#282828] text-[#555555] hover:text-[#888888]'
+                }`}
+                title={`SNAP MODE (${deck.snapMode ? 'ON' : 'OFF'})\nSnaps to closest beat when setting cue points and loops.`}
+              >
+                S
+              </button>
+              <button
+                type="button"
+                onClick={() => deck.toggleQuantMode()}
+                className={`text-[7px] font-mono font-bold px-1 py-0.5 rounded border transition-colors ${
+                  deck.quantMode
+                    ? 'border-sky-400 text-sky-400 bg-sky-400/10'
+                    : 'border-[#282828] text-[#555555] hover:text-[#888888]'
+                }`}
+                title={`QUANT MODE (${deck.quantMode ? 'ON' : 'OFF'})\nEnables beat-accurate (quantized) skipping between cue points.`}
+              >
+                Q
+              </button>
+            </div>
+          </div>
           <div className="flex flex-col gap-1 w-full">
             {[0, 1, 2, 3].map(i => {
               const cueTime = deck.hotCues[i]
               const hasCue = cueTime !== null
+              const isWaiting = deck.waitingCueIndex === i
               return (
                 <div key={i} className="relative group/cue w-full">
                   <button
@@ -248,7 +277,9 @@ export function TraktorDeck({
                       if (hasCue) deck.clearHotCue(i)
                     }}
                     className={`h-[18px] w-full rounded-[3px] border text-[8.5px] font-bold flex items-center justify-center transition-all ${
-                      hasCue
+                      isWaiting
+                        ? 'bg-sky-500/20 border-sky-400 text-sky-300 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.5)]'
+                        : hasCue
                         ? 'bg-[#141414] border-white text-white shadow-sm'
                         : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
                     }`}

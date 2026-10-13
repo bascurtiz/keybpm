@@ -253,7 +253,7 @@ function DeckTransport({
       const bpm = grid?.bpm || deck.effectiveBpm || deck.track.bpm || 120
       const beatLen = 60 / bpm
       const loopLenSeconds = currentBeats * beatLen
-      const start = deck.snapToBeat(deck.position)
+      const start = deck.snapMode ? deck.snapToBeat(deck.position) : deck.position
       deck.setLoop(start, start + loopLenSeconds)
     }
   }
