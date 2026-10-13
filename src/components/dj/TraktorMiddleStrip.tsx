@@ -169,8 +169,8 @@ export function TraktorMiddleStrip({
             onClick={() => engine.toggleSnapMode()}
             className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
               engine.snapMode
-                ? 'bg-[#141414] border-white text-white'
-                : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+                ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
+                : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
             }`}
             title={`SNAP MODE (${engine.snapMode ? 'ON' : 'OFF'})\nSnaps to closest beat when setting cue points and loops.`}
           >
@@ -188,8 +188,8 @@ export function TraktorMiddleStrip({
             onClick={() => engine.toggleQuantMode()}
             className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
               engine.quantMode
-                ? 'bg-[#141414] border-white text-white'
-                : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+                ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
+                : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
             }`}
             title={`QUANT MODE (${engine.quantMode ? 'ON' : 'OFF'})\nEnables beat-accurate (quantized) skipping between cue points.`}
           >
