@@ -7,6 +7,8 @@ interface StackedWaveformsProps {
   deckA: DeckEngine
   deckB: DeckEngine
   className?: string
+  onDropFile?: (deckId: 'A' | 'B', file: File) => void
+  onLoadClick?: (deckId: 'A' | 'B') => void
 }
 
 const zoomPeaksCache = new WeakMap<Track, Float32Array>()
@@ -21,9 +23,16 @@ function getZoomPeaks(track: Track): Float32Array {
   return peaks
 }
 
-export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWaveformsProps) {
+export function StackedWaveforms({
+  deckA,
+  deckB,
+  className = '',
+  onDropFile,
+  onLoadClick,
+}: StackedWaveformsProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [windowSeconds, setWindowSeconds] = useState(8)
+  const [dragOverDeck, setDragOverDeck] = useState<'A' | 'B' | null>(null)
 
   const dragRef = useRef<{
     deck: DeckEngine
@@ -41,6 +50,38 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
 
   const zoomIn = () => setWindowSeconds(s => Math.max(3, s - 2))
   const zoomOut = () => setWindowSeconds(s => Math.min(18, s + 2))
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (rect.height === 0) return
+    const y = e.clientY - rect.top
+    const isDeckA = y < rect.height / 2
+    const target = isDeckA ? 'A' : 'B'
+    if (dragOverDeck !== target) {
+      setDragOverDeck(target)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverDeck(null)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const rect = e.currentTarget.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const target = y < rect.height / 2 ? 'A' : 'B'
+    setDragOverDeck(null)
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0 && onDropFile) {
+      onDropFile(target, files[0])
+    }
+  }
 
   const startDecayLoop = () => {
     const step = () => {
@@ -68,7 +109,10 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
     const y = e.clientY - rect.top
     const isDeckA = y < rect.height / 2
     const activeDeck = isDeckA ? deckA : deckB
-    if (!activeDeck.track) return
+    if (!activeDeck.track) {
+      onLoadClick?.(isDeckA ? 'A' : 'B')
+      return
+    }
 
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
@@ -257,7 +301,29 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
   }, [deckA, deckB, windowSeconds])
 
   return (
-    <div className={`relative overflow-hidden rounded-[3px] border border-[#282828] bg-[#161616] ${className}`}>
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`relative overflow-hidden rounded-[3px] border border-[#282828] bg-[#161616] ${className}`}
+    >
+      {/* Drag & Drop Overlays for Deck A (Top Half) and Deck B (Bottom Half) */}
+      {dragOverDeck === 'A' && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 z-30 flex items-center justify-center bg-emerald-500/10 border-2 border-dashed border-emerald-400/70 backdrop-blur-[1px] transition-all">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#141414]/90 border border-emerald-500/60 text-emerald-400 text-xs font-bold shadow-lg">
+            <span>Drop track to load Deck A</span>
+          </div>
+        </div>
+      )}
+
+      {dragOverDeck === 'B' && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 z-30 flex items-center justify-center bg-purple-500/10 border-2 border-dashed border-purple-400/70 backdrop-blur-[1px] transition-all">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#141414]/90 border border-purple-500/60 text-purple-400 text-xs font-bold shadow-lg">
+            <span>Drop track to load Deck B</span>
+          </div>
+        </div>
+      )}
+
       {/* Zoom controls embedded on top-left corner */}
       <div className="absolute top-1.5 left-2 z-10 flex items-center gap-1">
         <button

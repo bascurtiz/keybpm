@@ -200,6 +200,11 @@ export function MixIt() {
               <StackedWaveforms
                 deckA={deckA}
                 deckB={deckB}
+                onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
+                onLoadClick={deckId => {
+                  if (deckId === 'A') fileInputARef.current?.click()
+                  else fileInputBRef.current?.click()
+                }}
                 className="h-full w-full rounded-none border-none"
               />
             </div>
