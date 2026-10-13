@@ -112,11 +112,11 @@ export function TraktorMiddleStrip({
 
         {/* ================= CENTER: MASTER BPM, BEAT COUNTER & KEY NOTATION ================= */}
         <div className="flex items-center gap-2.5 px-2.5 py-1 bg-[#161616] rounded-md border border-[#282828] shrink-0">
-          {/* Master BPM & Gain */}
-          <div className="flex items-center gap-1.5 pr-2 border-r border-[#282828]">
+          {/* Master BPM & Gain (Left symmetrical wing) */}
+          <div className="w-[96px] shrink-0 flex items-center justify-center gap-2 pr-2 border-r border-[#282828]">
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-semibold text-[#888888] uppercase tracking-wider">
-                MST BPM
+              <span className="text-[7.5px] font-semibold text-[#888888] uppercase tracking-wider mb-0.5">
+                MASTER BPM
               </span>
               {isEditingMasterBpm ? (
                 <input
@@ -150,7 +150,7 @@ export function TraktorMiddleStrip({
                 </span>
               )}
             </div>
-            <div className="flex items-center" title="Master Volume / Gain">
+            <div className="flex items-center pt-2" title="Master Volume / Gain">
               <Knob
                 size={18}
                 min={0}
@@ -163,20 +163,20 @@ export function TraktorMiddleStrip({
             </div>
           </div>
 
-          {/* Beat Counter (4-Beat Metronome Bar Steps for Deck A & Deck B) */}
-          <div className="w-28 shrink-0">
+          {/* Beat Counter (4-Beat Metronome Bar Steps for Deck A & Deck B - EXACT CENTER) */}
+          <div className="w-28 shrink-0 flex items-center justify-center">
             <BeatCounter deckA={deckA} deckB={deckB} />
           </div>
 
-          {/* Key Notation Dropdown Selector */}
-          <div className="flex flex-col items-center pl-2 border-l border-[#282828] shrink-0">
+          {/* Key Notation Dropdown Selector (Right symmetrical wing) */}
+          <div className="w-[96px] shrink-0 flex flex-col items-center justify-center pl-2 border-l border-[#282828]">
             <span className="text-[7.5px] font-semibold text-[#888888] uppercase tracking-wider mb-0.5">
-              KEY
+              KEY NOTATION
             </span>
             <select
               value={keyMode}
               onChange={e => handleKeyModeChange(e.target.value as WheelMode)}
-              className="h-5 px-1 bg-[#141414] hover:bg-[#1a1a1a] border border-[#282828] hover:border-[#444444] rounded text-[10px] font-bold text-[#d4d4d4] focus:text-white focus:border-zinc-500 outline-none cursor-pointer transition-colors"
+              className="h-5 w-full px-1 bg-[#141414] hover:bg-[#1a1a1a] border border-[#282828] hover:border-[#444444] rounded text-[10px] font-bold text-[#d4d4d4] focus:text-white focus:border-zinc-500 outline-none cursor-pointer transition-colors text-center"
               title="Key notation preference"
             >
               <option value="camelot" className="bg-[#141414] text-white">Camelot</option>
