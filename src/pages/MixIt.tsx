@@ -172,16 +172,7 @@ export function MixIt() {
         {/* Single Seamless Traktor DJ Hardware Chassis */}
         <div className="w-full overflow-x-auto pb-2 flex justify-center">
           <div className="w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0">
-            {/* 1. TOP SECTION: FULL-WIDTH STACKED SCROLLING WAVEFORMS */}
-            <div className="w-full h-[290px] border-b border-[#282828] bg-[#161616]">
-              <StackedWaveforms
-                deckA={deckA}
-                deckB={deckB}
-                className="h-full w-full rounded-none border-none"
-              />
-            </div>
-
-            {/* 2. MIDDLE STRIP: METADATA, COLOR-CODED KEY & BPM, MINI WAVEFORMS, BEAT COUNTER */}
+            {/* 1. TOP STRIP: METADATA, COLOR-CODED KEY & BPM, MINI WAVEFORMS, BEAT COUNTER */}
             <TraktorMiddleStrip
               engine={engine}
               onLoadTrackClick={deckId => {
@@ -194,7 +185,7 @@ export function MixIt() {
               activeFxDeck={activeFxDeck}
             />
 
-            {/* 3. OPTIONAL FX DRAWER */}
+            {/* 2. OPTIONAL FX DRAWER */}
             {activeFxDeck && (
               <TraktorFxDrawer
                 deck={activeFxDeck === 'A' ? deckA : deckB}
@@ -203,6 +194,15 @@ export function MixIt() {
                 onClose={() => setActiveFxDeck(null)}
               />
             )}
+
+            {/* 3. FULL-WIDTH STACKED SCROLLING WAVEFORMS */}
+            <div className="w-full h-[290px] border-b border-[#282828] bg-[#161616]">
+              <StackedWaveforms
+                deckA={deckA}
+                deckB={deckB}
+                className="h-full w-full rounded-none border-none"
+              />
+            </div>
 
             {/* 4. MAIN CONSOLE SURFACE: DECK A (GREEN) | 2-COLUMN MIXER | DECK B (PURPLE) */}
             <div className="grid grid-cols-[1fr_auto_1fr] items-stretch justify-center h-[280px] px-3 py-2 bg-[#1C1C1C] gap-4">
