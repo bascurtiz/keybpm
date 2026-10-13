@@ -173,7 +173,7 @@ export function MixIt() {
         <div className="w-full overflow-x-auto pb-2 flex justify-center">
           <div className="w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0">
             {/* 1. TOP SECTION: FULL-WIDTH STACKED SCROLLING WAVEFORMS */}
-            <div className="w-full h-[145px] border-b border-[#282828] bg-[#161616]">
+            <div className="w-full h-[290px] border-b border-[#282828] bg-[#161616]">
               <StackedWaveforms
                 deckA={deckA}
                 deckB={deckB}
