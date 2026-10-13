@@ -168,49 +168,21 @@ export function TraktorMiddleStrip({
             <BeatCounter deckA={deckA} deckB={deckB} />
           </div>
 
-          {/* Key Notation Selector (Camelot / Musical / Open Key) */}
+          {/* Key Notation Dropdown Selector */}
           <div className="flex flex-col items-center pl-2 border-l border-[#282828] shrink-0">
             <span className="text-[7.5px] font-semibold text-[#888888] uppercase tracking-wider mb-0.5">
-              KEY NOTATION
+              KEY
             </span>
-            <div className="inline-flex rounded bg-[#101010] p-0.5 border border-[#282828]">
-              <button
-                type="button"
-                onClick={() => handleKeyModeChange('camelot')}
-                className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-colors ${
-                  keyMode === 'camelot'
-                    ? 'bg-[#282828] text-white shadow-sm'
-                    : 'text-[#777777] hover:text-[#d4d4d4]'
-                }`}
-                title="Camelot notation (e.g. 11A, 8B)"
-              >
-                Camelot
-              </button>
-              <button
-                type="button"
-                onClick={() => handleKeyModeChange('musical')}
-                className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-colors ${
-                  keyMode === 'musical'
-                    ? 'bg-[#282828] text-white shadow-sm'
-                    : 'text-[#777777] hover:text-[#d4d4d4]'
-                }`}
-                title="Musical key notation (e.g. F#m, C)"
-              >
-                Musical
-              </button>
-              <button
-                type="button"
-                onClick={() => handleKeyModeChange('openkey')}
-                className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-colors ${
-                  keyMode === 'openkey'
-                    ? 'bg-[#282828] text-white shadow-sm'
-                    : 'text-[#777777] hover:text-[#d4d4d4]'
-                }`}
-                title="Open Key notation (e.g. 4m, 1d)"
-              >
-                Open Key
-              </button>
-            </div>
+            <select
+              value={keyMode}
+              onChange={e => handleKeyModeChange(e.target.value as WheelMode)}
+              className="h-5 px-1 bg-[#141414] hover:bg-[#1a1a1a] border border-[#282828] hover:border-[#444444] rounded text-[10px] font-bold text-[#d4d4d4] focus:text-white focus:border-zinc-500 outline-none cursor-pointer transition-colors"
+              title="Key notation preference"
+            >
+              <option value="camelot" className="bg-[#141414] text-white">Camelot</option>
+              <option value="musical" className="bg-[#141414] text-white">Musical</option>
+              <option value="openkey" className="bg-[#141414] text-white">Open Key</option>
+            </select>
           </div>
         </div>
 

@@ -476,26 +476,33 @@ function renderDeckLane({
     ctx.lineTo(w, midY)
     ctx.stroke()
 
-    // Large DJ Deck Letter Badge in center
-    const isA = deckLetter === 'A'
-    const accentColor = isA ? '#34d399' : '#a855f7'
+    // Squared DJ Deck Letter Badge in center (grayscaled, matching artwork box style)
     const centerX = w / 2
+    const boxSize = 36
+    const halfBox = boxSize / 2
 
-    // Outer subtle ring/box
     ctx.save()
-    ctx.fillStyle = '#181818'
-    ctx.strokeStyle = '#2a2a2a'
+    ctx.fillStyle = '#161616'
+    ctx.strokeStyle = '#282828'
     ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.arc(centerX, midY, 19, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.stroke()
 
-    // Deck Letter text
+    if (typeof ctx.roundRect === 'function') {
+      ctx.beginPath()
+      ctx.roundRect(centerX - halfBox, midY - halfBox, boxSize, boxSize, 3)
+      ctx.fill()
+      ctx.stroke()
+    } else {
+      ctx.beginPath()
+      ctx.rect(centerX - halfBox, midY - halfBox, boxSize, boxSize)
+      ctx.fill()
+      ctx.stroke()
+    }
+
+    // Grayscaled Deck Letter text
     ctx.font = 'bold 15px Inter, ui-sans-serif, system-ui, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillStyle = accentColor
+    ctx.fillStyle = '#888888'
     ctx.fillText(deckLetter, centerX, midY)
     ctx.restore()
     return
