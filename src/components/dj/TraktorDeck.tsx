@@ -228,37 +228,9 @@ export function TraktorDeck({
 
         {/* 4 Hot Cue Pads in single vertical column below key elements */}
         <div className="flex flex-col items-center w-full">
-          <div className="flex items-center justify-between w-full px-0.5 mb-1">
-            <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider">
-              CUES
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => deck.toggleSnapMode()}
-                className={`text-[7px] font-mono font-bold px-1 py-0.5 rounded border transition-colors ${
-                  deck.snapMode
-                    ? 'border-sky-400 text-sky-400 bg-sky-400/10'
-                    : 'border-[#282828] text-[#555555] hover:text-[#888888]'
-                }`}
-                title={`SNAP MODE (${deck.snapMode ? 'ON' : 'OFF'})\nSnaps to closest beat when setting cue points and loops.`}
-              >
-                S
-              </button>
-              <button
-                type="button"
-                onClick={() => deck.toggleQuantMode()}
-                className={`text-[7px] font-mono font-bold px-1 py-0.5 rounded border transition-colors ${
-                  deck.quantMode
-                    ? 'border-sky-400 text-sky-400 bg-sky-400/10'
-                    : 'border-[#282828] text-[#555555] hover:text-[#888888]'
-                }`}
-                title={`QUANT MODE (${deck.quantMode ? 'ON' : 'OFF'})\nEnables beat-accurate (quantized) skipping between cue points.`}
-              >
-                Q
-              </button>
-            </div>
-          </div>
+          <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider mb-1">
+            CUES
+          </span>
           <div className="flex flex-col gap-1 w-full">
             {[0, 1, 2, 3].map(i => {
               const cueTime = deck.hotCues[i]
