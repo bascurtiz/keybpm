@@ -209,6 +209,7 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
       renderDeckLane({
         ctx,
         deck: deckA,
+        deckLetter: 'A',
         topY: 0,
         laneH: halfH,
         windowSeconds,
@@ -230,6 +231,7 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
       renderDeckLane({
         ctx,
         deck: deckB,
+        deckLetter: 'B',
         topY: halfH,
         laneH: halfH,
         windowSeconds,
@@ -441,6 +443,7 @@ export function StackedWaveforms({ deckA, deckB, className = '' }: StackedWavefo
 function renderDeckLane({
   ctx,
   deck,
+  deckLetter,
   topY,
   laneH,
   windowSeconds,
@@ -451,6 +454,7 @@ function renderDeckLane({
 }: {
   ctx: CanvasRenderingContext2D
   deck: DeckEngine
+  deckLetter: 'A' | 'B'
   topY: number
   laneH: number
   windowSeconds: number
@@ -464,12 +468,44 @@ function renderDeckLane({
   const midY = topY + laneH / 2
 
   if (!track) {
-    ctx.strokeStyle = '#282828'
+    // Subtle horizontal center baseline
+    ctx.strokeStyle = '#222222'
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(0, midY)
     ctx.lineTo(w, midY)
     ctx.stroke()
+
+    // Large DJ Deck Letter Badge in center
+    const isA = deckLetter === 'A'
+    const accentColor = isA ? '#34d399' : '#a855f7'
+    const centerX = w / 2
+
+    // Outer subtle ring/box
+    ctx.save()
+    ctx.fillStyle = '#181818'
+    ctx.strokeStyle = '#2a2a2a'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(centerX, midY, 19, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+
+    // Deck Letter text
+    ctx.font = 'bold 15px Inter, ui-sans-serif, system-ui, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = accentColor
+    ctx.fillText(deckLetter, centerX, midY)
+
+    // Corner Deck label watermark (offset to clear zoom buttons on Deck A)
+    ctx.font = 'bold 11px Inter, ui-sans-serif, system-ui, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = accentColor
+    ctx.globalAlpha = 0.55
+    ctx.fillText(`DECK ${deckLetter}`, 56, topY + 15)
+    ctx.restore()
     return
   }
 
