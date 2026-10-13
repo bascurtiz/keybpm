@@ -82,7 +82,7 @@ export function Fader({
       if (step) v = Math.round(v / step) * step
       if (snapCenter) {
         const mid = (min + max) / 2
-        if (Math.abs(v - mid) < range * 0.02) v = mid
+        if (Math.abs(v - mid) < range * 0.035) v = mid
       }
       onValueChange(Math.min(max, Math.max(min, v)))
     },
