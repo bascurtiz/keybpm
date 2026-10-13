@@ -226,13 +226,13 @@ export function TraktorDeck({
           </div>
         </div>
 
-        {/* 5 Hot Cue Pads in single vertical column below key elements */}
+        {/* 4 Hot Cue Pads in single vertical column below key elements */}
         <div className="flex flex-col items-center w-full">
           <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider mb-1">
             CUES
           </span>
           <div className="flex flex-col gap-1 w-full">
-            {[0, 1, 2, 3, 4].map(i => {
+            {[0, 1, 2, 3].map(i => {
               const cueTime = deck.hotCues[i]
               const hasCue = cueTime !== null
               return (
