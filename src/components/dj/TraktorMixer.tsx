@@ -244,7 +244,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           <Fader
             orientation="vertical"
             min={0}
-            max={1.5}
+            max={1}
             step={0.01}
             value={volumeA}
             defaultValue={1}
@@ -401,7 +401,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           <Fader
             orientation="vertical"
             min={0}
-            max={1.5}
+            max={1}
             step={0.01}
             value={volumeB}
             defaultValue={1}

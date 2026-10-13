@@ -151,7 +151,7 @@ export function MixIt() {
             </span>
           </div>
           <p className="text-xs text-text-muted text-right">
-            Two-deck web DJ player &amp; mixer with harmonic Key Sync, stacked waveforms, and auto-detect.
+            Drop two tracks onto the decks, lock the keys, and start mixing live.
           </p>
         </div>
 
