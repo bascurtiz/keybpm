@@ -237,10 +237,10 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       {/* ================= 2. DECK A CHANNEL FADER ================= */}
       <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-[9.5px] font-bold text-emerald-400 uppercase tracking-wider mb-1">
-          CH A
+        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-2">
+          A
         </span>
-        <div className="flex-1 flex items-center justify-center my-0.5">
+        <div className="flex-1 flex items-center justify-center">
           <Fader
             orientation="vertical"
             min={0}
@@ -254,7 +254,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             }}
             accentColor="#34d399"
             analyser={deckA.analyser}
-            className="w-7 h-[155px]"
+            className="w-7 h-[135px]"
           />
         </div>
         <span className="text-[9px] font-mono text-zinc-400 mt-1 tabular-nums font-semibold">
@@ -394,10 +394,10 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       {/* ================= 4. DECK B CHANNEL FADER ================= */}
       <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-[9.5px] font-bold text-purple-400 uppercase tracking-wider mb-1">
-          CH B
+        <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2">
+          B
         </span>
-        <div className="flex-1 flex items-center justify-center my-0.5">
+        <div className="flex-1 flex items-center justify-center">
           <Fader
             orientation="vertical"
             min={0}
@@ -411,7 +411,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             }}
             accentColor="#a855f7"
             analyser={deckB.analyser}
-            className="w-7 h-[155px]"
+            className="w-7 h-[135px]"
           />
         </div>
         <span className="text-[9px] font-mono text-zinc-400 mt-1 tabular-nums font-semibold">
