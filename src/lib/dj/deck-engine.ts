@@ -106,6 +106,7 @@ export class DeckEngine {
 
   private _playing = false
   private _scratching = false
+  private _cuePreviewing = false
   private _rate = 1
   private _nudgeFactor = 1.0
   private posSeconds = 0
@@ -276,6 +277,7 @@ export class DeckEngine {
       if (d.f !== undefined) this.posFrame = d.f
     } else if (d.t === 'ended') {
       this._playing = false
+      this._cuePreviewing = false
       this.emit()
     }
   }
@@ -289,6 +291,10 @@ export class DeckEngine {
 
   get playing() {
     return this._playing
+  }
+
+  get cuePreviewing() {
+    return this._cuePreviewing
   }
 
   get scratching() {
@@ -502,6 +508,12 @@ export class DeckEngine {
   // ----- transport -----
 
   async play() {
+    if (this._cuePreviewing && this._playing) {
+      // Transition from temporary CUE preview to normal playback
+      this._cuePreviewing = false
+      this.emit()
+      return
+    }
     if (!this.track || this._playing) return
     if (this.ctx.state === 'suspended') await this.ctx.resume()
     if (this.posSeconds >= this.duration - 0.01) {
@@ -514,20 +526,27 @@ export class DeckEngine {
     this.emit()
   }
 
-  pause() {
+  pause(instant = false) {
+    this._cuePreviewing = false
     if (this.quantizeTimer) {
       window.clearTimeout(this.quantizeTimer)
       this.quantizeTimer = null
       this.pendingQuantizedCue = null
       this.pendingQuantizedIndex = null
     }
-    if (!this._playing) return
-    this.post({ t: 'pause' })
+    if (!this._playing && !instant) return
+    this.post({ t: 'pause', instant })
     this._playing = false
     this.emit()
   }
 
   async togglePlay() {
+    if (this._cuePreviewing) {
+      // Transition from temporary CUE preview to permanent PLAY (latch)
+      this._cuePreviewing = false
+      this.emit()
+      return
+    }
     if (this._playing) this.pause()
     else await this.play()
   }
@@ -541,17 +560,66 @@ export class DeckEngine {
         this.pendingQuantizedCue = null
         this.pendingQuantizedIndex = null
       }
-      this.pause()
+      this.pause(true)
       this.seek(this.cuePoint)
     } else {
       this.cuePoint = this.snapMode ? this.snapToBeat(this.position) : this.position
+      this.seek(this.cuePoint)
       this.emit()
+    }
+  }
+
+  /**
+   * Standard DJ CUE button behavior:
+   * - If already playing: immediately stop and return to cue point.
+   * - If paused: if playhead moved away from cuePoint, set new cuePoint.
+   *   Then start preview playback immediately while held.
+   */
+  async cueDown() {
+    if (!this.track) return
+    if (this.ctx.state === 'suspended') await this.ctx.resume()
+
+    if (this._playing) {
+      this._cuePreviewing = false
+      if (this.quantizeTimer) {
+        window.clearTimeout(this.quantizeTimer)
+        this.quantizeTimer = null
+        this.pendingQuantizedCue = null
+        this.pendingQuantizedIndex = null
+      }
+      this.pause(true)
+      this.seek(this.cuePoint)
+      return
+    }
+
+    // Currently paused:
+    const currentPos = this.position
+    if (Math.abs(currentPos - this.cuePoint) > 0.015) {
+      this.cuePoint = this.snapMode ? this.snapToBeat(currentPos) : currentPos
+    }
+    this.seek(this.cuePoint)
+    this._cuePreviewing = true
+    await this.play()
+  }
+
+  /**
+   * Release CUE button: if previewing from cue, instantly stop and snap back to cue point.
+   */
+  cueUp() {
+    if (!this.track) return
+    if (this._cuePreviewing) {
+      this._cuePreviewing = false
+      this.pause(true)
+      this.seek(this.cuePoint)
     }
   }
 
   seek(time: number) {
     if (!this.track) return
     const t = Math.min(Math.max(time, 0), this.duration)
+    if (this._cuePreviewing && Math.abs(t - this.cuePoint) > 0.01) {
+      this._cuePreviewing = false
+    }
     if (this.loop && (t < this.loop.start || t > this.loop.end)) {
       this.loop = null
       this.post({ t: 'loop', loop: null })
@@ -683,6 +751,7 @@ export class DeckEngine {
 
   async scratchBegin() {
     if (!this.track) return
+    this._cuePreviewing = false
     if (this.ctx.state === 'suspended') await this.ctx.resume()
     this._scratching = true
     this.updateKeyLockRouting()
@@ -902,6 +971,7 @@ export class DeckEngine {
 
   triggerHotCue(index: number) {
     if (!this.track) return
+    this._cuePreviewing = false
     const existing = this.hotCues[index]
     if (existing === null) {
       // Snap newly created cue to nearest beat if snap mode is enabled

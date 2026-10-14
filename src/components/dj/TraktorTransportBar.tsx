@@ -301,13 +301,61 @@ function DeckTransport({
     }
   }
 
-  const handleCue = () => {
+  const handleCueDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    e.preventDefault()
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
     if (deck.track) {
-      void deck.cue()
+      void deck.cueDown()
+    }
+    if (hasYt) {
+      youtubeBridge.seekTo(deckId, 0)
+      youtubeBridge.play(deckId)
+    }
+  }
+
+  const handleCueUp = (e?: React.PointerEvent) => {
+    if (e) {
+      try {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (deck.track) {
+      deck.cueUp()
     }
     if (hasYt) {
       youtubeBridge.seekTo(deckId, 0)
       youtubeBridge.pause(deckId)
+    }
+  }
+
+  const handleCueKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (!e.repeat) {
+        if (deck.track) void deck.cueDown()
+        if (hasYt) {
+          youtubeBridge.seekTo(deckId, 0)
+          youtubeBridge.play(deckId)
+        }
+      }
+    }
+  }
+
+  const handleCueKeyUp = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (deck.track) deck.cueUp()
+      if (hasYt) {
+        youtubeBridge.seekTo(deckId, 0)
+        youtubeBridge.pause(deckId)
+      }
     }
   }
 
@@ -331,10 +379,22 @@ function DeckTransport({
       {/* CUE button matching Traktor */}
       <button
         type="button"
-        onClick={handleCue}
+        onPointerDown={handleCueDown}
+        onPointerUp={handleCueUp}
+        onPointerCancel={handleCueUp}
+        onKeyDown={handleCueKeyDown}
+        onKeyUp={handleCueKeyUp}
+        onClick={e => e.preventDefault()}
+        onContextMenu={e => e.preventDefault()}
         disabled={!isDeckReady}
-        className="h-11 px-4 rounded-md border text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all shadow-sm select-none bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white disabled:opacity-40"
-        title={`Deck ${deckId} Cue (Return to cue point or set new cue)`}
+        className={`h-11 px-4 rounded-md border text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all shadow-sm select-none ${
+          deck.cuePreviewing
+            ? 'bg-amber-500/30 border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+            : isPlayingActive
+            ? 'bg-[#141414] border-[#282828] text-[#555555] hover:text-[#d4d4d4] hover:border-[#444444]'
+            : 'bg-[#161616] border-[#383838] text-amber-400/90 hover:text-amber-300 hover:border-amber-500/60'
+        } disabled:opacity-40`}
+        title={`Deck ${deckId} Cue (Hold to preview, release to snap back)`}
       >
         CUE
       </button>

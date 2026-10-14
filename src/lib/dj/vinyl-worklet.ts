@@ -67,11 +67,15 @@ class VinylPlayer extends AudioWorkletProcessor {
       case "play":
         this.playing = true;
         this.pitchRate = d.rate;
+        this.rate = d.rate;
         this.endedSent = false;
         break;
       case "pause":
         this.playing = false;
         this.cueHeld = false;
+        if (d.instant) {
+          this.rate = 0;
+        }
         break;
       case "rate":
         this.pitchRate = d.rate;

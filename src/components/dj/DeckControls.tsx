@@ -93,7 +93,7 @@ export function DeckControls({
   const currentLoopBars = LOOP_OPTIONS[selectedLoopIdx]
   const maxPitch = PITCH_RANGES[pitchRangeIdx]
   const isSynced = deck.syncLocked
-  const isCueActive = !isPlaying && Boolean(deck.track)
+  const isCueActive = (!isPlaying || deck.cuePreviewing) && Boolean(deck.track)
 
   // Key Sync logic: harmonizes current deck with other deck's effective key
   const deckBaseCamelot = deck.track?.key?.camelot
@@ -534,15 +534,39 @@ export function DeckControls({
         <div className="h-9 flex items-center justify-center">
           <button
             type="button"
-            onClick={() => deck.cue()}
+            onPointerDown={(e) => {
+              if (e.button !== 0 && e.pointerType === 'mouse') return
+              e.preventDefault()
+              try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
+              void deck.cueDown()
+            }}
+            onPointerUp={(e) => {
+              try {
+                if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                  e.currentTarget.releasePointerCapture(e.pointerId)
+                }
+              } catch {}
+              deck.cueUp()
+            }}
+            onPointerCancel={() => deck.cueUp()}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                if (!e.repeat) void deck.cueDown()
+              }
+            }}
+            onKeyUp={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') deck.cueUp()
+            }}
+            onClick={(e) => e.preventDefault()}
+            onContextMenu={(e) => e.preventDefault()}
             disabled={!deck.track}
             className={`h-9 w-9 rounded-full border text-[11px] font-bold transition-all flex items-center justify-center shrink-0 tracking-tight active:scale-95 disabled:opacity-30 ${
-              isCueActive
+              isCueActive || deck.cuePreviewing
                 ? 'font-extrabold'
                 : 'border-[#2a2d33] bg-[#161616] text-zinc-400 hover:text-white hover:border-zinc-500 hover:bg-[#252830]'
             }`}
-            style={getLedButtonStyle(isCueActive, '#f59e0b')}
-            title="CDJ Cue"
+            style={getLedButtonStyle(isCueActive || deck.cuePreviewing, '#f59e0b')}
+            title="CDJ Cue (Hold to preview, release to snap back)"
           >
             Cue
           </button>
