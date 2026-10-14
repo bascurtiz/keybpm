@@ -202,43 +202,44 @@ export function JogWheel({
 
         {/* Inner Disc / Center Area (where track cover art or video thumb is loaded) */}
         <div
-          onPointerDown={e => {
-            e.stopPropagation()
-            void deck.triggerBackspin()
-          }}
-          className="absolute inset-[18%] rounded-full overflow-hidden shadow-lg flex items-center justify-center border border-[#282828] bg-[#1C1C1C] pointer-events-auto cursor-pointer hover:border-zinc-400 group/spindle transition-all"
-          title="Center platter: click for vinyl backspin"
+          className="absolute inset-[18%] rounded-full overflow-hidden shadow-lg flex items-center justify-center border border-[#282828] bg-[#1C1C1C]"
         >
           {coverUrl ? (
             <div className="relative w-full h-full">
               <img
                 src={coverUrl}
                 alt=""
-                className="w-full h-full object-cover pointer-events-none select-none group-hover/spindle:scale-105 transition-transform"
+                className="w-full h-full object-cover pointer-events-none select-none"
               />
-              {/* Center vinyl spindle dot */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="h-6 w-6 rounded-full border border-white/20 bg-[#161616]/80 flex items-center justify-center backdrop-blur-[1px] group-hover/spindle:border-white/50">
-                  <div
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: accentColor }}
-                  />
-                </div>
-              </div>
             </div>
           ) : (
             <div className="w-full h-full bg-[#1C1C1C] flex items-center justify-center">
-              {/* Center vinyl label spindle */}
-              <div className="h-8 w-8 rounded-full border border-zinc-600 flex items-center justify-center bg-[#161616] group-hover/spindle:border-zinc-400">
-                <div
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: accentColor }}
-                />
-              </div>
+              <div className="h-16 w-16 rounded-full border border-white/5 pointer-events-none" />
             </div>
           )}
         </div>
       </div>
+
+      {/* Stationary Center Spindle (Fixed central axle, perfectly centered with zero wobble) */}
+      <button
+        type="button"
+        onPointerDown={e => {
+          e.preventDefault()
+          e.stopPropagation()
+          void deck.triggerBackspin()
+        }}
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full border border-zinc-500 bg-[#141414] shadow-md flex items-center justify-center cursor-pointer hover:border-white hover:scale-105 active:scale-95 transition-all group/spindle"
+        title="Center spindle: click for vinyl backspin"
+      >
+        {/* Metallic spindle outer bevel */}
+        <div className="h-5 w-5 rounded-full border border-white/20 bg-gradient-to-b from-[#282828] to-[#121212] flex items-center justify-center shadow-inner group-hover/spindle:border-white/50">
+          {/* Spindle center pin / dot */}
+          <div
+            className="h-2 w-2 rounded-full shadow-[0_0_6px_rgba(0,0,0,0.8)]"
+            style={{ backgroundColor: accentColor }}
+          />
+        </div>
+      </button>
     </div>
   )
 }

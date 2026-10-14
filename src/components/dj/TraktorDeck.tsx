@@ -202,7 +202,7 @@ export function TraktorDeck({
         <JogWheel
           deck={deck}
           deckId={deckId}
-          size={195}
+          size={196}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />
