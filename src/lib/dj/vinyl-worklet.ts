@@ -30,6 +30,7 @@ class VinylPlayer extends AudioWorkletProcessor {
     this.scratchRate = 0;     // signed rate from the platter
     this.rate = 0;            // smoothed actual rate
     this.loop = null;         // { s, e } in buffer frames
+    this.cueHeld = false;
     this.slipMode = false;
     this.ghost = 0;           // slip ghost playhead (buffer frames)
     this.endedSent = false;
@@ -38,7 +39,7 @@ class VinylPlayer extends AudioWorkletProcessor {
   }
 
   slipEngaged() {
-    return this.slipMode && this.playing && (this.scratching || this.loop);
+    return this.slipMode && this.playing && (this.scratching || this.loop !== null || this.cueHeld);
   }
 
   slipRelease() {
@@ -59,6 +60,7 @@ class VinylPlayer extends AudioWorkletProcessor {
         this.rate = 0;
         this.scratchRate = 0;
         this.loop = null;
+        this.cueHeld = false;
         this.endedSent = false;
         break;
       case "play":
@@ -68,14 +70,32 @@ class VinylPlayer extends AudioWorkletProcessor {
         break;
       case "pause":
         this.playing = false;
+        this.cueHeld = false;
         break;
       case "rate":
         this.pitchRate = d.rate;
         break;
       case "seek":
         this.pos = Math.max(0, Math.min(d.s * this.bufferRate, this.length - 1));
+        if (!this.slipEngaged()) this.ghost = this.pos;
         this.endedSent = false;
         break;
+      case "slipCueOn": {
+        if (!this.slipEngaged()) {
+          this.ghost = this.pos;
+        }
+        this.cueHeld = true;
+        this.pos = Math.max(0, Math.min(d.s * this.bufferRate, this.length - 1));
+        this.endedSent = false;
+        break;
+      }
+      case "slipCueOff": {
+        const wasEngaged = this.slipEngaged();
+        this.cueHeld = false;
+        if (wasEngaged && !this.slipEngaged()) this.slipRelease();
+        this.endedSent = false;
+        break;
+      }
       case "scratchOn":
         this.scratching = true;
         this.scratchRate = 0;
@@ -104,6 +124,7 @@ class VinylPlayer extends AudioWorkletProcessor {
         break;
       case "shift":
         this.pos = Math.max(0, Math.min(this.pos + d.s * this.bufferRate, this.length - 1));
+        if (!this.slipEngaged()) this.ghost = this.pos;
         break;
     }
   }
@@ -112,7 +133,8 @@ class VinylPlayer extends AudioWorkletProcessor {
     if (++this.postCounter >= 2) {
       this.postCounter = 0;
       const s = Math.max(0, Math.min(this.pos, this.length - 1)) / this.bufferRate;
-      this.port.postMessage({ t: "pos", s, f: currentFrame });
+      const g = Math.max(0, Math.min(this.ghost, this.length - 1)) / this.bufferRate;
+      this.port.postMessage({ t: "pos", s, g, f: currentFrame });
     }
   }
 

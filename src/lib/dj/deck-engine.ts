@@ -1,23 +1,24 @@
 import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
-import { createRubberBandNode, type RubberBandNode } from './rubberband-node'
 import { HOT_CUE_COUNT, type FxType, type LoopRegion, type Track } from './types'
 import { positiveMod } from './dsp'
 
 interface WorkletMessage {
   t: string
   s?: number
+  g?: number
   f?: number
 }
 
 /**
  * Deck audio graph:
- * vinyl worklet -> [KeyLock Stage (RubberBandNode R3 / SoundTouch vs Bypass)] -> autoGain -> trim ->
+ * vinyl worklet -> [KeyLock Stage (SoundTouch vs Bypass)] -> autoGain -> trim ->
  * 3-band EQ -> filter -> channel fader -> crossfader gain -> master.
  *
  * KEYLOCK:
  * Keylock (Master Tempo) preserves original pitch when tempo/playbackRate changes.
- * Powered by Breakfast Quay's Rubberband R3 SW (Mixxx's pitch-bending & keylock engine).
- * When active, Rubberband compensates pitch proportionally while tempo = 1.0 (zero drift).
+ * Powered by SoundTouch real-time AudioWorklet.
+ * When active, pitch is compensated proportionally (1 / rate) to lock key.
+ * When keyShift is adjusted, pitch is transposed by +/- 12 semitones.
  * When scratching, bypassing or rate == 1.0, clean direct path is used.
  */
 export class DeckEngine {
@@ -35,7 +36,6 @@ export class DeckEngine {
 
   // KeyLock / Master Tempo nodes
   private _keyLock = true
-  private rbNode: RubberBandNode | null = null
   private stNode: SoundTouchNode | null = null
   private readonly keyLockDryGain: GainNode
   private readonly keyLockWetGain: GainNode
@@ -123,7 +123,7 @@ export class DeckEngine {
     ctx: AudioContext,
     destination: AudioNode,
     vinylWorkletReady: Promise<unknown>,
-    rubberbandReady?: Promise<unknown>,
+    _rubberbandReady?: Promise<unknown>,
     soundTouchReady?: Promise<unknown>
   ) {
     this.ctx = ctx
@@ -240,27 +240,10 @@ export class DeckEngine {
         }
         this.pendingMessages = []
 
-        // Hook up Rubberband R3 (Mixxx Keylock & Pitch-Bending Engine)
-        if (rubberbandReady) {
-          rubberbandReady
-            .then(() => {
-              try {
-                this.rbNode = createRubberBandNode(this.ctx)
-                node.connect(this.rbNode)
-                this.rbNode.connect(this.keyLockWetGain)
-                this.updateKeyLockRouting()
-              } catch (err) {
-                console.warn('RubberBandNode instantiation failed, will fallback to SoundTouch:', err)
-              }
-            })
-            .catch(err => console.warn('RubberBand worklet not ready:', err))
-        }
-
-        // If SoundTouch is available as backup
+        // Hook up SoundTouch (real-time keylock & pitch transposition)
         if (soundTouchReady) {
           soundTouchReady
             .then(() => {
-              if (this.rbNode) return // Already using Rubberband
               try {
                 this.stNode = new SoundTouchNode({
                   context: this.ctx,
@@ -284,9 +267,12 @@ export class DeckEngine {
     else this.pendingMessages.push({ msg, transfer })
   }
 
+  private ghostSeconds = 0
+
   private onWorkletMessage(d: WorkletMessage) {
     if (d.t === 'pos' && d.s !== undefined) {
       this.posSeconds = d.s
+      if (d.g !== undefined) this.ghostSeconds = d.g
       if (d.f !== undefined) this.posFrame = d.f
     } else if (d.t === 'ended') {
       this._playing = false
@@ -322,19 +308,17 @@ export class DeckEngine {
   }
 
   get keyLock(): boolean {
-    return true
+    return this._keyLock
   }
 
-  setKeyLock(_on?: boolean) {
-    this._keyLock = true
+  setKeyLock(on = true) {
+    this._keyLock = on
     this.updateKeyLockRouting()
     this.emit()
   }
 
   toggleKeyLock() {
-    this._keyLock = true
-    this.updateKeyLockRouting()
-    this.emit()
+    this.setKeyLock(!this._keyLock)
   }
 
   private _keyShift = 0
@@ -356,24 +340,22 @@ export class DeckEngine {
   private updateKeyLockRouting() {
     const t = this.ctx.currentTime
     const effectiveRate = this._rate * this._nudgeFactor * this._pllCorrection
-    const isOffPitch = Math.abs(effectiveRate - 1) > 0.001
-    const useKeyLock = (this._keyLock && isOffPitch) || this._keyShift !== 0
-    const active = useKeyLock && !this._scratching && (!!this.rbNode || !!this.stNode)
+    const needsKeyLock = this._keyLock || this._keyShift !== 0
+    const active = needsKeyLock && !this._scratching && !!this.stNode
 
-    if (active) {
-      const pitchRatio = Math.pow(2, this._keyShift / 12)
-      if (this.rbNode) {
-        // Rubberband R3 (Mixxx): vinylNode plays at effectiveRate.
-        // Pitch is compensated by 1 / effectiveRate * pitchRatio to lock key.
-        // Tempo is kept at 1.0 (zero drift, no double time-stretch).
-        const targetPitch = this._keyLock ? (1 / effectiveRate) * pitchRatio : pitchRatio
-        this.rbNode.setPitch(targetPitch)
-        this.rbNode.setTempo(1.0)
-        this.rbNode.setHighQuality(true)
-      } else if (this.stNode) {
-        this.stNode.playbackRate.setTargetAtTime(1.0, t, 0.01)
-        this.stNode.pitch.setTargetAtTime(this._keyLock ? (1 / effectiveRate) * pitchRatio : pitchRatio, t, 0.01)
-      }
+    if (active && this.stNode) {
+      // SoundTouch:
+      // pipe.pitch = pitch * Math.pow(2, pitchSemitones / 12) / playbackRate
+      // playbackRate is kept at 1.0 (vinyl worklet resamples at effectiveRate).
+      // Keylock factor (1 / effectiveRate) cancels out the pitch shift caused by speed adjustments.
+      const targetPitch = this._keyLock ? 1 / effectiveRate : 1.0
+      this.stNode.playbackRate.value = 1.0
+      this.stNode.playbackRate.setValueAtTime(1.0, t)
+      this.stNode.pitch.value = targetPitch
+      this.stNode.pitch.setValueAtTime(targetPitch, t)
+      this.stNode.pitchSemitones.value = this._keyShift
+      this.stNode.pitchSemitones.setValueAtTime(this._keyShift, t)
+
       this.keyLockWetGain.gain.setTargetAtTime(1, t, 0.015)
       this.keyLockDryGain.gain.setTargetAtTime(0, t, 0.015)
     } else {
@@ -718,16 +700,104 @@ export class DeckEngine {
     this.post({ t: 'scratchOff' })
   }
 
-  // ----- slip mode -----
+  // ----- FLUX / Slip Mode -----
+
+  get fluxMode(): boolean {
+    return this._slipMode
+  }
 
   get slipMode() {
     return this._slipMode
+  }
+
+  setFluxMode(on: boolean) {
+    this.setSlip(on)
+  }
+
+  toggleFluxMode() {
+    this.setFluxMode(!this._slipMode)
   }
 
   setSlip(on: boolean) {
     this._slipMode = on
     this.post({ t: 'slip', on })
     this.emit()
+  }
+
+  get fluxPosition(): number {
+    return Math.min(Math.max(this.ghostSeconds, 0), this.duration)
+  }
+
+  private fxDecayRaf: number | null = null
+
+  async triggerBrake(durationMs = 700) {
+    if (!this.track) return
+    if (this.fxDecayRaf) {
+      cancelAnimationFrame(this.fxDecayRaf)
+      this.fxDecayRaf = null
+    }
+    const wasPlaying = this._playing
+    if (!wasPlaying) return
+    await this.scratchBegin()
+    const start = performance.now()
+    const isFlux = this._slipMode
+
+    const step = () => {
+      const elapsed = performance.now() - start
+      const p = Math.min(1, elapsed / durationMs)
+      // Exponential brake curve: motor deceleration
+      const rate = Math.pow(1 - p, 2.5)
+      this.scratchMove(rate)
+      if (p < 1) {
+        this.fxDecayRaf = requestAnimationFrame(step)
+      } else {
+        this.fxDecayRaf = null
+        this.scratchEnd()
+        if (isFlux) {
+          // When FLUX is on: keep playing through from virtual timeline
+          if (!this._playing) void this.play()
+        } else {
+          // When FLUX is off: really stop the track
+          this.pause()
+        }
+      }
+    }
+    this.fxDecayRaf = requestAnimationFrame(step)
+  }
+
+  async triggerBackspin(durationMs = 950) {
+    if (!this.track) return
+    if (this.fxDecayRaf) {
+      cancelAnimationFrame(this.fxDecayRaf)
+      this.fxDecayRaf = null
+    }
+    const wasPlaying = this._playing
+    if (!wasPlaying) return
+    await this.scratchBegin()
+    const start = performance.now()
+    const isFlux = this._slipMode
+
+    const step = () => {
+      const elapsed = performance.now() - start
+      const p = Math.min(1, elapsed / durationMs)
+      // Real vinyl backspin: initial high reverse speed (-9.0), smooth deceleration
+      const rate = -9.0 * Math.pow(1 - p, 2.4)
+      this.scratchMove(rate)
+      if (p < 1) {
+        this.fxDecayRaf = requestAnimationFrame(step)
+      } else {
+        this.fxDecayRaf = null
+        this.scratchEnd()
+        if (isFlux) {
+          // When FLUX is on: keep playing through from virtual timeline
+          if (!this._playing) void this.play()
+        } else {
+          // When FLUX is off: really stop the track
+          this.pause()
+        }
+      }
+    }
+    this.fxDecayRaf = requestAnimationFrame(step)
   }
 
   // ----- FX -----
@@ -801,6 +871,33 @@ export class DeckEngine {
   }
 
   // ----- hot cues -----
+
+  hotCueDown(index: number) {
+    if (!this.track) return
+    const existing = this.hotCues[index]
+    if (existing === null) {
+      this.hotCues[index] = this.snapMode ? this.snapToBeat(this.position) : this.position
+      this.emit()
+      return
+    }
+
+    if (this._slipMode && this._playing) {
+      // In FLUX mode: start playing from cue while virtual ghost continues
+      this.post({ t: 'slipCueOn', s: existing })
+      this.emit()
+    } else {
+      this.triggerHotCue(index)
+    }
+  }
+
+  hotCueUp(_index: number) {
+    if (!this.track) return
+    if (this._slipMode && this._playing) {
+      // In FLUX mode: release back to ghost playhead
+      this.post({ t: 'slipCueOff' })
+      this.emit()
+    }
+  }
 
   triggerHotCue(index: number) {
     if (!this.track) return

@@ -306,6 +306,22 @@ export function TraktorDeck({
           </div>
         </div>
 
+        {/* FLUX Mode Toggle Button (Center between Key and Cues) */}
+        <div className="flex items-center justify-center w-full my-1">
+          <button
+            type="button"
+            onClick={() => deck.toggleFluxMode()}
+            className={`h-[16px] w-full rounded-[3px] border text-[7.5px] font-mono font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
+              deck.fluxMode
+                ? 'bg-emerald-950/80 border-emerald-400 text-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.35)]'
+                : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+            }`}
+            title={`FLUX MODE (${deck.fluxMode ? 'ON' : 'OFF'})\nTimeline continues in background during cues, loops and FX, snapping back on release.`}
+          >
+            FLUX
+          </button>
+        </div>
+
         {/* 4 Hot Cue Pads in single vertical column below key elements */}
         <div className="flex flex-col items-center w-full">
           <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider mb-1">
@@ -320,9 +336,20 @@ export function TraktorDeck({
                 <div key={i} className="relative group/cue w-full">
                   <button
                     type="button"
-                    onClick={e => {
-                      if (e.shiftKey) deck.clearHotCue(i)
-                      else deck.triggerHotCue(i)
+                    onPointerDown={e => {
+                      if (e.button !== 0) return
+                      if (e.shiftKey) {
+                        deck.clearHotCue(i)
+                        return
+                      }
+                      deck.hotCueDown(i)
+                    }}
+                    onPointerUp={e => {
+                      if (e.button !== 0) return
+                      deck.hotCueUp(i)
+                    }}
+                    onPointerLeave={() => {
+                      deck.hotCueUp(i)
                     }}
                     onContextMenu={e => {
                       e.preventDefault()

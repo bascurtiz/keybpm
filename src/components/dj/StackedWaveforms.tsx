@@ -284,6 +284,33 @@ export function StackedWaveforms({
         downbeatColor: '#f4f4f5',
       })
 
+      // Virtual FLUX Mode Playhead Needles (Green)
+      if (deckA.fluxMode) {
+        const ghostXA = Math.round(centerPlayheadX + (deckA.fluxPosition - deckA.position) / secPerPx)
+        if (ghostXA >= 0 && ghostXA <= w) {
+          ctx.fillStyle = '#22c55e'
+          ctx.shadowColor = '#22c55e'
+          ctx.shadowBlur = 4
+          ctx.fillRect(ghostXA, 0, 1.5, halfH)
+          ctx.fillRect(ghostXA - 2, 0, 5.5, 3)
+          ctx.fillRect(ghostXA - 2, Math.round(halfH - 3), 5.5, 3)
+          ctx.shadowBlur = 0
+        }
+      }
+
+      if (deckB.fluxMode) {
+        const ghostXB = Math.round(centerPlayheadX + (deckB.fluxPosition - deckB.position) / secPerPx)
+        if (ghostXB >= 0 && ghostXB <= w) {
+          ctx.fillStyle = '#22c55e'
+          ctx.shadowColor = '#22c55e'
+          ctx.shadowBlur = 4
+          ctx.fillRect(ghostXB, halfH, 1.5, halfH)
+          ctx.fillRect(ghostXB - 2, Math.round(halfH), 5.5, 3)
+          ctx.fillRect(ghostXB - 2, h - 3, 5.5, 3)
+          ctx.shadowBlur = 0
+        }
+      }
+
       // Traktor Red Center Playhead Needle
       ctx.shadowBlur = 0
       ctx.fillStyle = '#ef4444'

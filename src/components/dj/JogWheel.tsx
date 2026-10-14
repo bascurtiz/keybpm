@@ -202,18 +202,23 @@ export function JogWheel({
 
         {/* Inner Disc / Center Area (where track cover art or video thumb is loaded) */}
         <div
-          className="absolute inset-[18%] rounded-full overflow-hidden shadow-lg flex items-center justify-center border border-[#282828] bg-[#1C1C1C]"
+          onPointerDown={e => {
+            e.stopPropagation()
+            void deck.triggerBackspin()
+          }}
+          className="absolute inset-[18%] rounded-full overflow-hidden shadow-lg flex items-center justify-center border border-[#282828] bg-[#1C1C1C] pointer-events-auto cursor-pointer hover:border-zinc-400 group/spindle transition-all"
+          title="Center platter: click for vinyl backspin"
         >
           {coverUrl ? (
             <div className="relative w-full h-full">
               <img
                 src={coverUrl}
                 alt=""
-                className="w-full h-full object-cover pointer-events-none select-none"
+                className="w-full h-full object-cover pointer-events-none select-none group-hover/spindle:scale-105 transition-transform"
               />
               {/* Center vinyl spindle dot */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="h-6 w-6 rounded-full border border-white/20 bg-[#161616]/80 flex items-center justify-center backdrop-blur-[1px]">
+                <div className="h-6 w-6 rounded-full border border-white/20 bg-[#161616]/80 flex items-center justify-center backdrop-blur-[1px] group-hover/spindle:border-white/50">
                   <div
                     className="h-2 w-2 rounded-full"
                     style={{ backgroundColor: accentColor }}
@@ -224,7 +229,7 @@ export function JogWheel({
           ) : (
             <div className="w-full h-full bg-[#1C1C1C] flex items-center justify-center">
               {/* Center vinyl label spindle */}
-              <div className="h-8 w-8 rounded-full border border-zinc-600 flex items-center justify-center bg-[#161616]">
+              <div className="h-8 w-8 rounded-full border border-zinc-600 flex items-center justify-center bg-[#161616] group-hover/spindle:border-zinc-400">
                 <div
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: accentColor }}

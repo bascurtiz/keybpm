@@ -150,22 +150,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     const activeTargets = targets.length > 0 ? targets : [deckA]
     for (const target of activeTargets) {
       if (!target.track) continue
-      await target.scratchBegin()
-      const start = performance.now()
-      const duration = 650
-      const step = () => {
-        const elapsed = performance.now() - start
-        const p = Math.min(1, elapsed / duration)
-        const rate = Math.pow(1 - p, 2)
-        target.scratchMove(rate)
-        if (p < 1) {
-          requestAnimationFrame(step)
-        } else {
-          target.scratchEnd()
-          target.pause()
-        }
-      }
-      requestAnimationFrame(step)
+      void target.triggerBrake()
     }
   }
 
@@ -179,21 +164,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     const activeTargets = targets.length > 0 ? targets : [deckA]
     for (const target of activeTargets) {
       if (!target.track) continue
-      await target.scratchBegin()
-      const start = performance.now()
-      const duration = 500
-      const step = () => {
-        const elapsed = performance.now() - start
-        const p = Math.min(1, elapsed / duration)
-        const rate = -3.5 * Math.pow(1 - p, 2)
-        target.scratchMove(rate)
-        if (p < 1) {
-          requestAnimationFrame(step)
-        } else {
-          target.scratchEnd()
-        }
-      }
-      requestAnimationFrame(step)
+      void target.triggerBackspin()
     }
   }
 
@@ -435,7 +406,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
             title="Vinyl Brake stop effect"
           >
-            BRK
+            BREAK
           </button>
           <button
             type="button"
