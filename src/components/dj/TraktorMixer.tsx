@@ -370,18 +370,6 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             </button>
             <button
               type="button"
-              onClick={() => setFxAssign('B')}
-              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-                fxAssign === 'B'
-                  ? 'bg-[#161616] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.45)]'
-                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-              }`}
-              title="Assign FX to Deck B"
-            >
-              B
-            </button>
-            <button
-              type="button"
               onClick={() => setFxAssign('MST')}
               className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
                 fxAssign === 'MST'
@@ -392,21 +380,33 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             >
               MST
             </button>
+            <button
+              type="button"
+              onClick={() => setFxAssign('B')}
+              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+                fxAssign === 'B'
+                  ? 'bg-[#161616] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.45)]'
+                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Assign FX to Deck B"
+            >
+              B
+            </button>
           </div>
 
-          {/* Circuit Routing Bracket connecting A/B/MST to FX block */}
+          {/* Circuit Routing Bracket connecting A/MST/B to FX block */}
           <svg
-            className="w-full h-[12px] my-1 pointer-events-none"
+            className="w-full h-[12px] mt-2 mb-0.5 pointer-events-none"
             viewBox="0 0 104 12"
             fill="none"
           >
             {/* Left tick down from A */}
             <line x1="15.5" y1="0" x2="15.5" y2="6" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
-            {/* Right tick down from MST */}
+            {/* Right tick down from B */}
             <line x1="88.5" y1="0" x2="88.5" y2="6" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
             {/* Horizontal connecting bar */}
             <line x1="15.5" y1="6" x2="88.5" y2="6" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
-            {/* Center cross/stem under B */}
+            {/* Center cross/stem under MST */}
             <line x1="52" y1="1" x2="52" y2="12" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
           </svg>
         </div>
