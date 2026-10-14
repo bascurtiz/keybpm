@@ -306,7 +306,7 @@ export function TraktorDeck({
           </div>
         </div>
 
-        {/* FLUX Mode Toggle Button (Center between Key and Cues) */}
+        {/* SLIP Mode Toggle Button (Center between Key and Cues) */}
         <div className="flex items-center justify-center w-full my-1">
           <button
             type="button"
@@ -316,9 +316,9 @@ export function TraktorDeck({
                 ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
                 : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
-            title={`FLUX MODE (${deck.fluxMode ? 'ON' : 'OFF'})\nTimeline continues in background during cues, loops and FX, snapping back on release.`}
+            title={`SLIP MODE (${deck.fluxMode ? 'ON' : 'OFF'})\nTimeline continues in background during cues, loops and FX, snapping back on release.`}
           >
-            FLUX
+            SLIP
           </button>
         </div>
 

@@ -321,9 +321,9 @@ function DeckHeader({
             {deck.fluxMode && (
               <span
                 className="px-1 py-0.5 rounded-[2px] text-[7.5px] font-mono font-bold tracking-wider uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.4)] shrink-0 leading-none"
-                title="FLUX Mode is active: phrasing is preserved during cues, loops and FX"
+                title="SLIP Mode is active: phrasing is preserved during cues, loops and FX"
               >
-                FLUX
+                SLIP
               </span>
             )}
           </div>
