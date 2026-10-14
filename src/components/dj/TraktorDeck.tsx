@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { JogWheel } from './JogWheel'
 import { Knob } from './Knob'
@@ -26,13 +26,50 @@ export function TraktorDeck({
 }: TraktorDeckProps) {
   const [, setVer] = useState(0)
   const [pitchRangeIdx, setPitchRangeIdx] = useState(1) // Default ±10%
+  const [activeNudge, setActiveNudge] = useState<-1 | 0 | 1>(0)
+  const nudgeIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     const unsub = deck.subscribe(() => setVer(v => v + 1))
     return () => {
       unsub()
+      if (nudgeIntervalRef.current) clearInterval(nudgeIntervalRef.current)
+      deck.nudge(0)
     }
   }, [deck])
+
+  const handleNudgeStart = (dir: -1 | 1, e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId)
+    } catch {}
+    setActiveNudge(dir)
+    deck.nudge(dir)
+
+    if (!deck.playing) {
+      if (nudgeIntervalRef.current) clearInterval(nudgeIntervalRef.current)
+      nudgeIntervalRef.current = window.setInterval(() => {
+        deck.nudge(dir)
+      }, 100)
+    }
+  }
+
+  const handleNudgeEnd = (e?: React.PointerEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch {}
+    }
+    if (nudgeIntervalRef.current) {
+      clearInterval(nudgeIntervalRef.current)
+      nudgeIntervalRef.current = null
+    }
+    setActiveNudge(0)
+    deck.nudge(0)
+  }
 
   const maxPitch = PITCH_RANGES[pitchRangeIdx]
   const pitchPercent = (deck.rate - 1) * 100
@@ -150,9 +187,9 @@ export function TraktorDeck({
         </div>
       </div>
 
-      {/* ================= 2. CENTER: JOG WHEEL ================= */}
+      {/* ================= 2. CENTER: JOG WHEEL & NUDGE BUTTONS ================= */}
       <div
-        className="flex items-center justify-center shrink-0"
+        className="relative flex items-center justify-center shrink-0"
         onClick={() => {
           if (!deck.track) onLoadClick?.()
         }}
@@ -164,6 +201,40 @@ export function TraktorDeck({
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />
+
+        {/* Nudge Slow Down (−) */}
+        <button
+          type="button"
+          onPointerDown={e => handleNudgeStart(-1, e)}
+          onPointerUp={handleNudgeEnd}
+          onPointerCancel={handleNudgeEnd}
+          disabled={!deck.track}
+          className={`absolute bottom-1 left-1.5 z-20 w-6 h-6 rounded-full border text-[13px] font-bold flex items-center justify-center transition-all select-none shadow-md ${
+            activeNudge === -1
+              ? 'bg-white text-black border-white shadow-[0_0_8px_rgba(255,255,255,0.6)] scale-95'
+              : 'bg-[#181818] text-[#888888] border-[#333333] hover:text-white hover:border-[#555555] active:bg-white active:text-black disabled:opacity-30'
+          }`}
+          title="Nudge − (Hold to temporarily slow down)"
+        >
+          −
+        </button>
+
+        {/* Nudge Speed Up (+) */}
+        <button
+          type="button"
+          onPointerDown={e => handleNudgeStart(1, e)}
+          onPointerUp={handleNudgeEnd}
+          onPointerCancel={handleNudgeEnd}
+          disabled={!deck.track}
+          className={`absolute bottom-1 right-1.5 z-20 w-6 h-6 rounded-full border text-[13px] font-bold flex items-center justify-center transition-all select-none shadow-md ${
+            activeNudge === 1
+              ? 'bg-white text-black border-white shadow-[0_0_8px_rgba(255,255,255,0.6)] scale-95'
+              : 'bg-[#181818] text-[#888888] border-[#333333] hover:text-white hover:border-[#555555] active:bg-white active:text-black disabled:opacity-30'
+          }`}
+          title="Nudge + (Hold to temporarily speed up)"
+        >
+          +
+        </button>
       </div>
 
       {/* ================= 3. INNER EDGE: KEY ADJUST & HOT CUES ================= */}
@@ -173,7 +244,11 @@ export function TraktorDeck({
       >
         {/* Key Transpose Section */}
         <div className="flex flex-col items-center" title="Key Transpose (-6 to +6 semitones)">
-          <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider mb-1">
+          <span
+            className={`text-[7.5px] font-bold uppercase tracking-wider mb-1 transition-colors ${
+              isKeySynced ? 'text-amber-400' : 'text-[#888888]'
+            }`}
+          >
             KEY
           </span>
           <Knob
@@ -198,7 +273,7 @@ export function TraktorDeck({
               <span
                 className={
                   deck.keyShift !== 0
-                    ? 'text-[#d4d4d4] font-bold hover:text-white'
+                    ? 'text-amber-400 font-bold hover:text-amber-300'
                     : 'text-[#666666] hover:text-[#d4d4d4]'
                 }
               >
@@ -216,7 +291,7 @@ export function TraktorDeck({
               disabled={!deck.track || !otherDeck?.track}
               className={`h-[9px] w-6 font-sans text-[7.5px] font-bold leading-none select-none flex items-center justify-center rounded-[2px] transition-colors ${
                 isKeySynced
-                  ? 'text-[#d4d4d4] font-bold hover:text-white'
+                  ? 'text-amber-400 font-bold hover:text-amber-300'
                   : 'text-[#666666] hover:text-white disabled:opacity-30'
               }`}
               title="Harmonic Key Sync"

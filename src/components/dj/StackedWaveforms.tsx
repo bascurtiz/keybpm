@@ -44,9 +44,8 @@ export function StackedWaveforms({
     raf: number
   } | null>(null)
 
-  const [showGridEditor, setShowGridEditor] = useState(false)
-  const [selectedDeck, setSelectedDeck] = useState<'A' | 'B'>('A')
-  const activeGridDeck = selectedDeck === 'A' ? deckA : deckB
+  const [activeGridDeckId, setActiveGridDeckId] = useState<'A' | 'B' | null>(null)
+  const activeGridDeck = activeGridDeckId === 'A' ? deckA : deckB
 
   const zoomIn = () => setWindowSeconds(s => Math.max(3, s - 2))
   const zoomOut = () => setWindowSeconds(s => Math.min(18, s + 2))
@@ -348,54 +347,59 @@ export function StackedWaveforms({
         </button>
       </div>
 
-      {/* Beatgrid controls & toggle button on top-right corner */}
+      {/* Beatgrid controls toggle button for Deck A (top lane) */}
       <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
-          onClick={() => setShowGridEditor(prev => !prev)}
+          onClick={() => setActiveGridDeckId(prev => (prev === 'A' ? null : 'A'))}
           className={`h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
-            showGridEditor
-              ? 'bg-[#222222] border-[#555555] text-white'
+            activeGridDeckId === 'A'
+              ? 'bg-[#222222] border-emerald-500/70 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
               : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
-          title="Adjust Beatgrid"
+          title="Adjust Deck A Beatgrid"
         >
-          <span>GRID</span>
-          <span className="text-[9px] opacity-75">{showGridEditor ? '▲' : '▼'}</span>
+          <span>GRID A</span>
+          <span className="text-[9px] opacity-75">{activeGridDeckId === 'A' ? '▲' : '▼'}</span>
+        </button>
+      </div>
+
+      {/* Beatgrid controls toggle button for Deck B (bottom lane) */}
+      <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-1.5">
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={() => setActiveGridDeckId(prev => (prev === 'B' ? null : 'B'))}
+          className={`h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
+            activeGridDeckId === 'B'
+              ? 'bg-[#222222] border-purple-500/70 text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
+              : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
+          }`}
+          title="Adjust Deck B Beatgrid"
+        >
+          <span>GRID B</span>
+          <span className="text-[9px] opacity-75">{activeGridDeckId === 'B' ? '▲' : '▼'}</span>
         </button>
       </div>
 
       {/* Floating Beatgrid Adjustment Panel */}
-      {showGridEditor && (
+      {activeGridDeckId && (
         <div
           onPointerDown={e => e.stopPropagation()}
-          className="absolute top-8 right-2 z-20 flex flex-wrap items-center gap-1.5 p-1.5 rounded bg-[#181818]/95 border border-[#333333] shadow-xl backdrop-blur-md text-[11px] select-none"
+          className={`absolute z-20 flex flex-wrap items-center gap-1.5 p-1.5 rounded bg-[#181818]/95 border border-[#333333] shadow-xl backdrop-blur-md text-[11px] select-none ${
+            activeGridDeckId === 'A' ? 'top-8 right-2' : 'top-[calc(50%+30px)] right-2'
+          }`}
         >
-          {/* Deck Selector pills */}
-          <div className="flex items-center rounded bg-[#101010] p-0.5 border border-[#262626]">
-            <button
-              type="button"
-              onClick={() => setSelectedDeck('A')}
-              className={`h-4.5 px-2 rounded text-[10px] font-bold uppercase transition-colors ${
-                selectedDeck === 'A'
-                  ? 'bg-[#059669]/30 text-[#34d399] border border-[#059669]/60'
-                  : 'text-[#666666] hover:text-[#aaaaaa] border border-transparent'
+          {/* Deck Badge */}
+          <div className="flex items-center rounded bg-[#101010] px-2 py-0.5 border border-[#262626]">
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wider ${
+                activeGridDeckId === 'A' ? 'text-[#34d399]' : 'text-[#c084fc]'
               }`}
             >
-              Deck A
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedDeck('B')}
-              className={`h-4.5 px-2 rounded text-[10px] font-bold uppercase transition-colors ${
-                selectedDeck === 'B'
-                  ? 'bg-[#7c3aed]/30 text-[#c084fc] border border-[#7c3aed]/60'
-                  : 'text-[#666666] hover:text-[#aaaaaa] border border-transparent'
-              }`}
-            >
-              Deck B
-            </button>
+              Deck {activeGridDeckId}
+            </span>
           </div>
 
           <div className="h-4 w-[1px] bg-[#2a2a2a]" />
@@ -484,7 +488,7 @@ export function StackedWaveforms({
           {/* Close button */}
           <button
             type="button"
-            onClick={() => setShowGridEditor(false)}
+            onClick={() => setActiveGridDeckId(null)}
             className="h-5 w-5 rounded bg-transparent hover:bg-[#282828] text-[#777777] hover:text-[#d4d4d4] flex items-center justify-center text-[10px]"
             title="Close beatgrid adjustment panel"
           >

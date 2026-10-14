@@ -99,6 +99,7 @@ export class DeckEngine {
   private _playing = false
   private _scratching = false
   private _rate = 1
+  private _nudgeFactor = 1.0
   private posSeconds = 0
   private posFrame = 0
 
@@ -286,6 +287,10 @@ export class DeckEngine {
     return this._rate
   }
 
+  get nudgeFactor() {
+    return this._nudgeFactor
+  }
+
   get duration() {
     return this.track?.duration ?? 0
   }
@@ -324,14 +329,15 @@ export class DeckEngine {
 
   private updateKeyLockRouting() {
     const t = this.ctx.currentTime
-    const isOffPitch = Math.abs(this._rate - 1) > 0.001
+    const effectiveRate = this._rate * this._nudgeFactor
+    const isOffPitch = Math.abs(effectiveRate - 1) > 0.001
     const useKeyLock = (this._keyLock && isOffPitch) || this._keyShift !== 0
     const active = useKeyLock && !this._scratching && !!this.stNode
 
     if (active && this.stNode) {
       const pitchRatio = Math.pow(2, this._keyShift / 12)
-      this.stNode.playbackRate.setTargetAtTime(this._rate, t, 0.01)
-      this.stNode.pitch.setTargetAtTime(this._keyLock ? pitchRatio : this._rate * pitchRatio, t, 0.01)
+      this.stNode.playbackRate.setTargetAtTime(effectiveRate, t, 0.01)
+      this.stNode.pitch.setTargetAtTime(this._keyLock ? pitchRatio : effectiveRate * pitchRatio, t, 0.01)
       this.keyLockWetGain.gain.setTargetAtTime(1, t, 0.015)
       this.keyLockDryGain.gain.setTargetAtTime(0, t, 0.015)
     } else {
@@ -548,8 +554,30 @@ export class DeckEngine {
 
   setRate(rate: number) {
     this._rate = Math.max(0.2, Math.min(2.0, rate))
-    this.post({ t: 'rate', rate: this._rate })
+    this.post({ t: 'rate', rate: this._rate * this._nudgeFactor })
     this.updateFxTiming()
+    this.updateKeyLockRouting()
+    this.emit()
+  }
+
+  /**
+   * Temporary pitch bend (nudge) while pushing button:
+   * direction: -1 (slow down), +1 (speed up), 0 (release back to standard rate)
+   */
+  nudge(direction: -1 | 0 | 1, factor: number = 0.08) {
+    if (direction === 0) {
+      this._nudgeFactor = 1.0
+    } else if (direction > 0) {
+      this._nudgeFactor = 1.0 + factor
+    } else {
+      this._nudgeFactor = Math.max(0.1, 1.0 - factor)
+    }
+
+    if (!this._playing && direction !== 0) {
+      this.seek(this.position + direction * 0.03)
+    }
+
+    this.post({ t: 'rate', rate: this._rate * this._nudgeFactor })
     this.updateKeyLockRouting()
     this.emit()
   }

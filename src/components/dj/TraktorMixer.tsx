@@ -468,7 +468,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             disabled={!deckA.track || !deckB.track}
             className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
               isKeySyncedA
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                ? 'bg-[#221808] text-amber-400 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.35)]'
                 : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
             }`}
             title="Deck A Harmonic Key Sync"
@@ -481,7 +481,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             disabled={!deckB.track || !deckA.track}
             className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
               isKeySyncedB
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                ? 'bg-[#221808] text-amber-400 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.35)]'
                 : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
             }`}
             title="Deck B Harmonic Key Sync"
