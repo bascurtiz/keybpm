@@ -365,6 +365,8 @@ export class DeckEngine {
     this.track.bpm = validBpm
     if (this.track.grid) {
       this.track.grid.bpm = validBpm
+      const beatLen = 60 / validBpm
+      this.track.grid.firstBeat = positiveMod(this.track.grid.firstBar, beatLen)
     }
     this.updateFxTiming()
     this.emit()
@@ -384,32 +386,36 @@ export class DeckEngine {
 
   nudgeBeatGrid(deltaSeconds: number) {
     if (!this.track) return
+    const bpm = this.track.grid?.bpm || this.track.bpm || 120
+    const beatLen = 60 / bpm
     if (!this.track.grid) {
       this.track.grid = {
-        bpm: this.track.bpm || 120,
+        bpm,
         firstBeat: 0,
         firstBar: 0,
         beatsPerBar: 4,
       }
     }
-    this.track.grid.firstBeat = Math.max(0, this.track.grid.firstBeat + deltaSeconds)
     this.track.grid.firstBar = Math.max(0, this.track.grid.firstBar + deltaSeconds)
+    this.track.grid.firstBeat = positiveMod(this.track.grid.firstBar, beatLen)
     this.emit()
   }
 
   setBeat1AtPosition(pos?: number) {
     if (!this.track) return
     const targetPos = Math.max(0, pos ?? this.position)
+    const bpm = this.track.grid?.bpm || this.track.bpm || 120
+    const beatLen = 60 / bpm
     if (!this.track.grid) {
       this.track.grid = {
-        bpm: this.track.bpm || 120,
-        firstBeat: targetPos,
+        bpm,
+        firstBeat: positiveMod(targetPos, beatLen),
         firstBar: targetPos,
         beatsPerBar: 4,
       }
     } else {
-      this.track.grid.firstBeat = targetPos
       this.track.grid.firstBar = targetPos
+      this.track.grid.firstBeat = positiveMod(targetPos, beatLen)
     }
     this.emit()
   }

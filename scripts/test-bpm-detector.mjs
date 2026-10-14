@@ -121,7 +121,7 @@ function analyzeMixxxBeatGrid(audio, sr, hintBpm) {
   const MAX_BPM = 195;
   const minLag = Math.floor((envRate * 60) / MAX_BPM);
   const maxLag = Math.ceil((envRate * 60) / MIN_BPM);
-  const maxAcfLag = maxLag * 2 + 4;
+  const maxAcfLag = maxLag * 3 + 4;
   const acf = new Float32Array(maxAcfLag);
 
   for (let lag = minLag; lag < maxAcfLag; lag++) {
@@ -173,9 +173,9 @@ function analyzeMixxxBeatGrid(audio, sr, hintBpm) {
   const y2 = scoreAt(topLag + 1);
   const denom = 2 * (y0 - 2 * y1 + y2);
   let delta = 0;
-  if (Math.abs(denom) > 1e-6) {
+  if (denom < -1e-6) {
     delta = (y0 - y2) / denom;
-    if (Math.abs(delta) > 1) delta = 0;
+    delta = Math.max(-0.5, Math.min(0.5, delta));
   }
   let continuousLag = topLag + delta;
 
@@ -230,17 +230,61 @@ function analyzeMixxxBeatGrid(audio, sr, hintBpm) {
   const phaseSec = (bestPhaseFrame * HOP + WIN / 2) / sr;
 
   // Mixxx First Beat Anchor:
-  // Directly evaluate candidate beat frames f_k = p0 + k * beatFrames
-  const p0 = positiveMod(bestPhaseFrame, beatFrames);
-  const maxScanBeats = Math.min(Math.floor(30 / beatSec), Math.floor((frames - p0) / beatFrames));
+  // 160Hz Butterworth lowpass filter to isolate kick drum fundamental
+  const fc = 160;
+  const w0 = (2 * Math.PI * fc) / sr;
+  const alpha = Math.sin(w0) / (2 * 0.707);
+  const cosw0 = Math.cos(w0);
+  const b0 = (1 - cosw0) / 2;
+  const b1 = 1 - cosw0;
+  const b2 = (1 - cosw0) / 2;
+  const a0 = 1 + alpha;
+  const a1 = -2 * cosw0;
+  const a2 = 1 - alpha;
 
+  const invA0 = 1 / a0;
+  const cB0 = b0 * invA0;
+  const cB1 = b1 * invA0;
+  const cB2 = b2 * invA0;
+  const cA1 = a1 * invA0;
+  const cA2 = a2 * invA0;
+
+  const scanSamples = Math.min(audio.length, Math.floor(30 * sr));
+  const filtered = new Float32Array(scanSamples);
+  let fx1 = 0, fx2 = 0, fy1 = 0, fy2 = 0;
+  for (let i = 0; i < scanSamples; i++) {
+    const x0 = audio[i];
+    const y0 = cB0 * x0 + cB1 * fx1 + cB2 * fx2 - cA1 * fy1 - cA2 * fy2;
+    fx2 = fx1; fx1 = x0; fy2 = fy1; fy1 = y0;
+    filtered[i] = y0;
+  }
+
+  const blockSize = Math.floor(sr * 0.02);
+  const numBlocks = Math.floor(scanSamples / blockSize);
+  const kickEnergy = new Float32Array(numBlocks);
+  for (let b = 0; b < numBlocks; b++) {
+    let s = 0;
+    const base = b * blockSize;
+    for (let i = 0; i < blockSize; i += 2) {
+      const v = filtered[base + i];
+      s += v * v;
+    }
+    kickEnergy[b] = s;
+  }
+
+  const phase0 = positiveMod(phaseSec, beatSec);
+  const maxBeats = Math.floor(scanSamples / (sr * beatSec));
   const beatEnergies = [];
-  for (let k = 0; k < maxScanBeats; k++) {
-    const fCenter = Math.round(p0 + k * beatFrames);
+
+  for (let k = 0; k < maxBeats; k++) {
+    const t = phase0 + k * beatSec;
+    const centerBlock = Math.round((t * sr) / blockSize);
     let e = 0;
     for (let w = -2; w <= 2; w++) {
-      const idx = fCenter + w;
-      if (idx >= 0 && idx < frames) e = Math.max(e, kickFlux[idx]);
+      const idx = centerBlock + w;
+      if (idx >= 0 && idx < numBlocks) {
+        e = Math.max(e, kickEnergy[idx]);
+      }
     }
     beatEnergies.push(e);
   }
@@ -249,10 +293,10 @@ function analyzeMixxxBeatGrid(audio, sr, hintBpm) {
   const medianE = sortedE[Math.floor(sortedE.length * 0.7)] || 0;
   const threshold = Math.max(0.005, medianE * 0.12);
 
-  let firstBarTime = (p0 * HOP + WIN / 2) / sr;
-  for (let k = 0; k < maxScanBeats; k++) {
+  let firstBarTime = phase0;
+  for (let k = 0; k < maxBeats; k++) {
     if (beatEnergies[k] >= threshold) {
-      firstBarTime = ((p0 + k * beatFrames) * HOP + WIN / 2) / sr;
+      firstBarTime = phase0 + k * beatSec;
       break;
     }
   }
@@ -301,4 +345,41 @@ function testBpm(targetBpm) {
 }
 
 [120.0, 124.0, 126.5, 128.0, 130.0, 140.0, 174.0].forEach(testBpm);
+
+// Test high-frequency intro (hi-hats / synth lead) before first kick at 2.0s
+function testIntroWithHighFrequencyLead() {
+  const sr = 22050;
+  const duration = 20;
+  const targetBpm = 128.0;
+  const beatSec = 60 / targetBpm;
+  const numSamples = Math.floor(sr * duration);
+  const audio = new Float32Array(numSamples);
+
+  // High-frequency hi-hat count-in during 0s - 2.0s (e.g. at 0.5s, 1.0s, 1.5s)
+  for (let t = 0.5; t < 2.0; t += 0.5) {
+    const startSample = Math.floor(t * sr);
+    for (let i = 0; i < 500; i++) {
+      audio[startSample + i] += 0.6 * Math.sin((2 * Math.PI * 4500 * i) / sr);
+    }
+  }
+
+  // First kick drops at 2.0s
+  for (let t = 2.0; t < duration; t += beatSec) {
+    const startSample = Math.floor(t * sr);
+    const kickLen = Math.floor(sr * 0.05);
+    for (let i = 0; i < kickLen && startSample + i < numSamples; i++) {
+      const env = Math.exp(-i / (sr * 0.015));
+      const freq = 130 * (1 - i / kickLen) + 45;
+      audio[startSample + i] += 0.9 * env * Math.sin((2 * Math.PI * freq * i) / sr);
+    }
+  }
+
+  const res = analyzeMixxxBeatGrid(audio, sr);
+  console.log(`High-freq intro test: 128 BPM -> Detected: ${res.bpm} BPM | firstBar: ${res.firstBar.toFixed(3)}s`);
+  assert(Math.abs(res.bpm - 128.0) < 0.6, `Error: got ${res.bpm}`);
+  assert(Math.abs(res.firstBar - 2.0) < 0.08, `Expected firstBar ~2.0s, got ${res.firstBar}`);
+  console.log('Passed noisy intro test: correctly locked Beat 1 to first kick drop at 2.0s!');
+}
+
+testIntroWithHighFrequencyLead();
 console.log('All BPM tests passed with flying colors!');

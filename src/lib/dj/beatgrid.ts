@@ -158,7 +158,7 @@ function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
   // 4. Autocorrelation across the lag range
   const minLag = Math.floor((envRate * 60) / MAX_BPM)
   const maxLag = Math.ceil((envRate * 60) / MIN_BPM)
-  const maxAcfLag = maxLag * 2 + 4
+  const maxAcfLag = maxLag * 3 + 4
   const acf = new Float32Array(maxAcfLag)
 
   for (let lag = minLag; lag < maxAcfLag; lag++) {
@@ -209,9 +209,9 @@ function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
   const y2 = scoreAt(topLag + 1)
   const denom = 2 * (y0 - 2 * y1 + y2)
   let delta = 0
-  if (Math.abs(denom) > 1e-6) {
+  if (denom < -1e-6) {
     delta = (y0 - y2) / denom
-    if (Math.abs(delta) > 1) delta = 0
+    delta = Math.max(-0.5, Math.min(0.5, delta))
   }
   let continuousLag = topLag + delta
 
@@ -305,8 +305,39 @@ function findMixxxFirstBeatAtIntro(
     }
   }
 
-  // Sub-band filter: low-pass / band-pass for kick drum frequencies (40 - 180 Hz)
-  // Short 25ms windowed RMS energy
+  // 2nd-order lowpass filter (Butterworth, fc = 160 Hz) to isolate kick drum fundamental
+  // This filters out vocal intros, synth melodies, vinyl noise, and hi-hats
+  const fc = 160
+  const w0 = (2 * Math.PI * fc) / sr
+  const alpha = Math.sin(w0) / (2 * 0.707)
+  const cosw0 = Math.cos(w0)
+  const b0 = (1 - cosw0) / 2
+  const b1 = 1 - cosw0
+  const b2 = (1 - cosw0) / 2
+  const a0 = 1 + alpha
+  const a1 = -2 * cosw0
+  const a2 = 1 - alpha
+
+  const invA0 = 1 / a0
+  const cB0 = b0 * invA0
+  const cB1 = b1 * invA0
+  const cB2 = b2 * invA0
+  const cA1 = a1 * invA0
+  const cA2 = a2 * invA0
+
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0
+  const filtered = new Float32Array(scanSamples)
+  for (let i = 0; i < scanSamples; i++) {
+    const x0 = intro[i]
+    const y0 = cB0 * x0 + cB1 * x1 + cB2 * x2 - cA1 * y1 - cA2 * y2
+    x2 = x1
+    x1 = x0
+    y2 = y1
+    y1 = y0
+    filtered[i] = y0
+  }
+
+  // Short 20ms windowed kick energy
   const blockSize = Math.floor(sr * 0.02)
   const numBlocks = Math.floor(scanSamples / blockSize)
   const kickEnergy = new Float32Array(numBlocks)
@@ -315,7 +346,7 @@ function findMixxxFirstBeatAtIntro(
     let s = 0
     const base = b * blockSize
     for (let i = 0; i < blockSize; i += 2) {
-      const v = intro[base + i]
+      const v = filtered[base + i]
       s += v * v
     }
     kickEnergy[b] = s
@@ -442,16 +473,21 @@ export function detectMixxxBpmFromPcm(
     }
     start = bestStart * block
   }
-
+  start = Math.max(0, Math.min(start, Math.max(0, monoAudio.length - maxSamples)))
   const monoLen = Math.floor(maxSamples / decim)
   const mono = new Float32Array(monoLen)
   if (decim === 2) {
     for (let i = 0; i < monoLen; i++) {
-      mono[i] = (monoAudio[start + 2 * i] + monoAudio[start + 2 * i + 1]) * 0.5
+      const idx0 = start + 2 * i
+      const idx1 = idx0 + 1
+      const s0 = idx0 < monoAudio.length ? monoAudio[idx0] : 0
+      const s1 = idx1 < monoAudio.length ? monoAudio[idx1] : s0
+      mono[i] = (s0 + s1) * 0.5
     }
   } else {
     for (let i = 0; i < monoLen; i++) {
-      mono[i] = monoAudio[start + i]
+      const idx = start + i
+      mono[i] = idx < monoAudio.length ? monoAudio[idx] : 0
     }
   }
 
@@ -509,7 +545,7 @@ export function detectMixxxBpmFromPcm(
 
   const minLag = Math.floor((envRate * 60) / MAX_BPM)
   const maxLag = Math.ceil((envRate * 60) / MIN_BPM)
-  const maxAcfLag = maxLag * 2 + 4
+  const maxAcfLag = maxLag * 3 + 4
   const acf = new Float32Array(maxAcfLag)
 
   for (let lag = minLag; lag < maxAcfLag; lag++) {
@@ -556,9 +592,9 @@ export function detectMixxxBpmFromPcm(
   const y2 = scoreAt(topLag + 1)
   const denom = 2 * (y0 - 2 * y1 + y2)
   let delta = 0
-  if (Math.abs(denom) > 1e-6) {
+  if (denom < -1e-6) {
     delta = (y0 - y2) / denom
-    if (Math.abs(delta) > 1) delta = 0
+    delta = Math.max(-0.5, Math.min(0.5, delta))
   }
   let continuousLag = topLag + delta
 
