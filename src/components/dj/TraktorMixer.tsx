@@ -412,7 +412,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         </div>
 
         {/* Middle: 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SPIN] */}
-        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] my-0.5">
+        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] -mt-2 mb-0.5">
           <button
             type="button"
             onClick={toggleEcho}
