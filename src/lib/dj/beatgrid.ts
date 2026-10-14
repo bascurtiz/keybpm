@@ -811,22 +811,10 @@ function findMixxxFirstBeatAtIntro(
     }
   }
 
-  // Check kick energy in the first 8 beats after music starts
-  const sortedE = [...beatEnergies].sort((a, b) => a - b)
-  const medianE = sortedE[Math.floor(sortedE.length * 0.7)] || 0
-  const threshold = Math.max(0.005, medianE * 0.12)
-
-  let earlyKickBeatIdx = -1
-  const maxEarlyCheck = Math.min(maxBeats, firstMusicBeatIdx + 8)
-  for (let k = firstMusicBeatIdx; k < maxEarlyCheck; k++) {
-    if (beatEnergies[k] >= threshold) {
-      earlyKickBeatIdx = k
-      break
-    }
-  }
-
-  const selectedBeatIdx = earlyKickBeatIdx !== -1 ? earlyKickBeatIdx : firstMusicBeatIdx
-  return phase0 + selectedBeatIdx * beatSec
+  // Anchor Bar 1 / first beat directly to the very first beat of the music (firstMusicBeatIdx),
+  // exactly matching Mixxx and Pioneer CDJs / Traktor where CUE is placed at the intro drop.
+  const firstBarTime = Math.max(0, phase0 + firstMusicBeatIdx * beatSec)
+  return firstBarTime
 }
 
 /**

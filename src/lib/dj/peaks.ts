@@ -5,13 +5,13 @@
 export function computePeaks(buffer: AudioBuffer, buckets = 2400): Float32Array {
   const peaks = new Float32Array(buckets)
   const channels = buffer.numberOfChannels
-  const samplesPerBucket = Math.max(1, Math.floor(buffer.length / buckets))
+  const len = buffer.length
 
   for (let ch = 0; ch < channels; ch++) {
     const data = buffer.getChannelData(ch)
     for (let i = 0; i < buckets; i++) {
-      const start = i * samplesPerBucket
-      const end = Math.min(start + samplesPerBucket, data.length)
+      const start = Math.floor((i * len) / buckets)
+      const end = Math.min(len, Math.floor(((i + 1) * len) / buckets))
       let max = 0
       // Stride through large buckets so huge files stay fast.
       const step = Math.max(1, Math.floor((end - start) / 64))

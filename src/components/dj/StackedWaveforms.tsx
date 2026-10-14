@@ -681,7 +681,7 @@ function renderDeckLane({
   for (let x = 0; x < w; x++) {
     const t = tStart + x * secPerPx
     if (t < 0 || t >= track.duration) continue
-    const idx = Math.floor(t * ZOOM_PPS)
+    const idx = Math.floor((t / track.duration) * peaks.length)
     const val = peaks[idx] ?? 0
     const ampOuter = Math.max(val * (laneH / 2 - 3), 0.5)
     const ampInner = Math.max(ampOuter * 0.52, 0.5)
