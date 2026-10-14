@@ -54,7 +54,8 @@ class VinylPlayer extends AudioWorkletProcessor {
         this.channels = d.channels.map((b) => new Float32Array(b));
         this.length = d.length;
         this.bufferRate = d.rate;
-        this.pos = 0;
+        this.pos = Math.max(0, Math.min((d.initialSec || 0) * this.bufferRate, this.length - 1));
+        this.ghost = this.pos;
         this.playing = false;
         this.scratching = false;
         this.rate = 0;

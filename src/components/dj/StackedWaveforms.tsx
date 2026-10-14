@@ -613,11 +613,12 @@ function renderDeckLane({
   const grid = track.grid
   if (grid) {
     const beatLen = 60 / grid.bpm
+    const minGridT = Math.max(0, (grid.firstBar ?? 0) - 0.02)
     const firstVisibleBeat = Math.ceil((tStart - grid.firstBeat) / beatLen)
     for (let k = firstVisibleBeat; ; k++) {
       const t = grid.firstBeat + k * beatLen
       if (t > tStart + windowSeconds) break
-      if (t < 0) continue
+      if (t < minGridT) continue
       const x = (t - tStart) / secPerPx
 
       const beatsFromBar = Math.round((t - grid.firstBar) / beatLen)
@@ -709,4 +710,25 @@ function renderDeckLane({
     ctx.font = 'bold 9px Inter, ui-sans-serif, sans-serif'
     ctx.fillText(`${i + 1}`, x + 3, topY + 12)
   })
+
+  // 5. Main CUE Marker
+  if (deck.cuePoint !== null && deck.cuePoint >= 0) {
+    const xCue = (deck.cuePoint - tStart) / secPerPx
+    if (xCue >= 0 && xCue <= w) {
+      ctx.fillStyle = '#f59e0b' // Amber/Orange CUE
+      ctx.globalAlpha = 0.95
+      ctx.fillRect(xCue - 1, topY, 2, laneH)
+      // CUE badge at top
+      ctx.fillStyle = '#f59e0b'
+      ctx.beginPath()
+      ctx.roundRect(xCue - 13, topY + 2, 26, 12, 2)
+      ctx.fill()
+      ctx.fillStyle = '#000000'
+      ctx.font = 'bold 8px Inter, ui-sans-serif, system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('CUE', xCue, topY + 8)
+      ctx.globalAlpha = 1
+    }
+  }
 }

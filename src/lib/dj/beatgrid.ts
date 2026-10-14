@@ -60,6 +60,224 @@ export async function analyzeBeatGrid(
   }
 }
 
+interface ConstRegion {
+  firstBeat: number
+  beatLength: number
+}
+
+const K_MAX_SECS_PHASE_ERROR = 0.025
+const K_MAX_SECS_PHASE_ERROR_SUM = 0.1
+const K_MAX_OUTLIERS_COUNT = 1
+const K_MIN_REGION_BEAT_COUNT = 16
+
+/**
+ * Mixxx BeatUtils::retrieveConstRegions
+ * Irons coarse beat ticks by grouping stable constant tempo regions within 25ms tolerance.
+ */
+function retrieveConstRegions(beats: number[]): ConstRegion[] {
+  if (beats.length < 2) return []
+  const constantRegions: ConstRegion[] = []
+  let leftIndex = 0
+  let rightIndex = beats.length - 1
+
+  while (leftIndex < beats.length - 1) {
+    const meanBeatLength = (beats[rightIndex] - beats[leftIndex]) / (rightIndex - leftIndex)
+    let outliersCount = 0
+    let ironedBeat = beats[leftIndex]
+    let phaseErrorSum = 0
+    let i = leftIndex + 1
+
+    for (; i <= rightIndex; ++i) {
+      ironedBeat += meanBeatLength
+      const phaseError = ironedBeat - beats[i]
+      phaseErrorSum += phaseError
+      if (Math.abs(phaseError) > K_MAX_SECS_PHASE_ERROR) {
+        outliersCount++
+        if (outliersCount > K_MAX_OUTLIERS_COUNT || i === leftIndex + 1) {
+          break
+        }
+      }
+      if (Math.abs(phaseErrorSum) > K_MAX_SECS_PHASE_ERROR_SUM) {
+        break
+      }
+    }
+
+    if (i > rightIndex) {
+      let regionBorderError = 0
+      if (rightIndex > leftIndex + 2) {
+        const firstBeatLength = beats[leftIndex + 1] - beats[leftIndex]
+        const lastBeatLength = beats[rightIndex] - beats[rightIndex - 1]
+        regionBorderError = Math.abs(firstBeatLength + lastBeatLength - 2 * meanBeatLength)
+      }
+      if (regionBorderError < K_MAX_SECS_PHASE_ERROR / 2) {
+        constantRegions.push({
+          firstBeat: beats[leftIndex],
+          beatLength: meanBeatLength,
+        })
+        leftIndex = rightIndex
+        rightIndex = beats.length - 1
+        continue
+      }
+    }
+    rightIndex--
+  }
+  constantRegions.push({ firstBeat: beats[beats.length - 1], beatLength: 0 })
+  return constantRegions
+}
+
+function trySnap(minBpm: number, centerBpm: number, maxBpm: number, fraction: number): number | null {
+  const snapBpm = Math.round(centerBpm * fraction) / fraction
+  if (snapBpm > minBpm && snapBpm < maxBpm) {
+    return snapBpm
+  }
+  return null
+}
+
+/**
+ * Mixxx BeatUtils::roundBpmWithinRange
+ * Tests snapping to integer, 0.5, 1/3, or 1/12 BPM if it falls within measurement uncertainty.
+ */
+function roundBpmWithinRange(minBpm: number, centerBpm: number, maxBpm: number): number {
+  if (minBpm <= 0 || centerBpm <= 0 || maxBpm <= 0) return centerBpm
+  let snap = trySnap(minBpm, centerBpm, maxBpm, 1.0)
+  if (snap !== null) return snap
+
+  if (centerBpm < 85.0) {
+    snap = trySnap(minBpm, centerBpm, maxBpm, 2.0)
+    if (snap !== null) return snap
+  }
+  if (centerBpm > 127.0) {
+    snap = trySnap(minBpm, centerBpm, maxBpm, 2.0 / 3.0)
+    if (snap !== null) return snap
+  }
+  snap = trySnap(minBpm, centerBpm, maxBpm, 3.0)
+  if (snap !== null) return snap
+
+  snap = trySnap(minBpm, centerBpm, maxBpm, 12.0)
+  if (snap !== null) return snap
+
+  return centerBpm
+}
+
+/**
+ * Mixxx BeatUtils::makeConstBpm
+ * Finds the longest constant region, tests extensions, and calculates constant BPM & initial phase anchor.
+ */
+function makeConstBpm(
+  constantRegions: ConstRegion[]
+): { roundBpm: number; rawFirstBeat: number; firstRegionBeat: number } | null {
+  if (constantRegions.length < 2) return null
+
+  let midRegionIndex = 0
+  let longestRegionLength = 0
+  let longestRegionBeatLength = 0
+
+  for (let i = 0; i < constantRegions.length - 1; ++i) {
+    const len = constantRegions[i + 1].firstBeat - constantRegions[i].firstBeat
+    if (len > longestRegionLength) {
+      longestRegionLength = len
+      longestRegionBeatLength = constantRegions[i].beatLength
+      midRegionIndex = i
+    }
+  }
+
+  if (longestRegionLength === 0 || longestRegionBeatLength <= 0) return null
+
+  let longestRegionNumberOfBeats = Math.round(longestRegionLength / longestRegionBeatLength)
+  let longestRegionBeatLengthMin = longestRegionBeatLength - K_MAX_SECS_PHASE_ERROR / longestRegionNumberOfBeats
+  let longestRegionBeatLengthMax = longestRegionBeatLength + K_MAX_SECS_PHASE_ERROR / longestRegionNumberOfBeats
+  let startRegionIndex = midRegionIndex
+
+  // Extend forward to intro
+  for (let i = 0; i < midRegionIndex; ++i) {
+    const len = constantRegions[i + 1].firstBeat - constantRegions[i].firstBeat
+    const numBeats = Math.round(len / constantRegions[i].beatLength)
+    if (numBeats < K_MIN_REGION_BEAT_COUNT) continue
+
+    const thisMin = constantRegions[i].beatLength - K_MAX_SECS_PHASE_ERROR / numBeats
+    const thisMax = constantRegions[i].beatLength + K_MAX_SECS_PHASE_ERROR / numBeats
+    if (longestRegionBeatLength > thisMin && longestRegionBeatLength < thisMax) {
+      const newLen = constantRegions[midRegionIndex + 1].firstBeat - constantRegions[i].firstBeat
+      const bMin = Math.max(longestRegionBeatLengthMin, thisMin)
+      const bMax = Math.min(longestRegionBeatLengthMax, thisMax)
+      const maxN = Math.round(newLen / bMin)
+      const minN = Math.round(newLen / bMax)
+      if (minN !== maxN) continue
+      const newB = newLen / minN
+      if (newB > longestRegionBeatLengthMin && newB < longestRegionBeatLengthMax) {
+        longestRegionLength = newLen
+        longestRegionBeatLength = newB
+        longestRegionNumberOfBeats = minN
+        longestRegionBeatLengthMin = longestRegionBeatLength - K_MAX_SECS_PHASE_ERROR / minN
+        longestRegionBeatLengthMax = longestRegionBeatLength + K_MAX_SECS_PHASE_ERROR / minN
+        startRegionIndex = i
+        break
+      }
+    }
+  }
+
+  // Extend backward to outro
+  for (let i = constantRegions.length - 2; i > midRegionIndex; --i) {
+    const len = constantRegions[i + 1].firstBeat - constantRegions[i].firstBeat
+    const numBeats = Math.round(len / constantRegions[i].beatLength)
+    if (numBeats < K_MIN_REGION_BEAT_COUNT) continue
+
+    const thisMin = constantRegions[i].beatLength - K_MAX_SECS_PHASE_ERROR / numBeats
+    const thisMax = constantRegions[i].beatLength + K_MAX_SECS_PHASE_ERROR / numBeats
+    if (longestRegionBeatLength > thisMin && longestRegionBeatLength < thisMax) {
+      const newLen = constantRegions[i + 1].firstBeat - constantRegions[startRegionIndex].firstBeat
+      const bMin = Math.max(longestRegionBeatLengthMin, thisMin)
+      const bMax = Math.min(longestRegionBeatLengthMax, thisMax)
+      const maxN = Math.round(newLen / bMin)
+      const minN = Math.round(newLen / bMax)
+      if (minN !== maxN) continue
+      const newB = newLen / minN
+      if (newB > longestRegionBeatLengthMin && newB < longestRegionBeatLengthMax) {
+        longestRegionLength = newLen
+        longestRegionBeatLength = newB
+        longestRegionNumberOfBeats = minN
+        break
+      }
+    }
+  }
+
+  longestRegionBeatLengthMin = longestRegionBeatLength - K_MAX_SECS_PHASE_ERROR / longestRegionNumberOfBeats
+  longestRegionBeatLengthMax = longestRegionBeatLength + K_MAX_SECS_PHASE_ERROR / longestRegionNumberOfBeats
+
+  const minRoundBpm = 60.0 / longestRegionBeatLengthMax
+  const maxRoundBpm = 60.0 / longestRegionBeatLengthMin
+  const centerBpm = 60.0 / longestRegionBeatLength
+  const roundBpm = roundBpmWithinRange(minRoundBpm, centerBpm, maxRoundBpm)
+
+  const roundedBeatLength = 60.0 / roundBpm
+  const rawFirstBeat = positiveMod(constantRegions[startRegionIndex].firstBeat, roundedBeatLength)
+
+  return { roundBpm, rawFirstBeat, firstRegionBeat: constantRegions[startRegionIndex].firstBeat }
+}
+
+/**
+ * Mixxx BeatUtils::adjustPhase
+ * Aligns the constant tempo beatgrid phase against the actual detected Queen Mary beat ticks.
+ */
+function adjustPhase(firstBeat: number, bpm: number, beats: number[]): number {
+  if (bpm <= 0 || beats.length === 0) return firstBeat
+  const beatLength = 60.0 / bpm
+  const startOffset = positiveMod(firstBeat, beatLength)
+  let offsetAdjust = 0
+  let offsetAdjustCount = 0
+
+  for (const b of beats) {
+    let offset = positiveMod(b - startOffset, beatLength)
+    if (offset > beatLength / 2) offset -= beatLength
+    if (Math.abs(offset) < K_MAX_SECS_PHASE_ERROR) {
+      offsetAdjust += offset
+      offsetAdjustCount++
+    }
+  }
+  if (offsetAdjustCount > 0) offsetAdjust /= offsetAdjustCount
+  return positiveMod(firstBeat + offsetAdjust, beatLength)
+}
+
 /**
  * Queen Mary Tempo and Beat Tracker (Degara) with "Assume constant tempo"
  * as recommended in Mixxx.
@@ -97,9 +315,14 @@ async function analyzeQueenMaryBeatGrid(
   // Run Queen Mary / Degara RhythmExtractor2013 on 44.1 kHz mono
   const signalVector = essentia.arrayToVector(mono44)
   let rawBpm = 0
+  let rawTicks: number[] = []
   try {
     const qm = essentia.RhythmExtractor2013(signalVector, 208, 'degara', 40)
     rawBpm = Number(qm.bpm) || 0
+    if (qm.ticks) {
+      const arr = essentia.vectorToArray(qm.ticks)
+      rawTicks = Array.from(arr)
+    }
     qm.ticks?.delete?.()
     qm.estimates?.delete?.()
     qm.bpmIntervals?.delete?.()
@@ -112,15 +335,33 @@ async function analyzeQueenMaryBeatGrid(
 
   if ((!rawBpm || rawBpm <= 0) && (!mixxxBpm || mixxxBpm <= 0)) return null
 
-  // Mixxx & Traktor BPM display calibration
-  let bpm = Math.round((rawBpm || mixxxBpm || 120) * 100) / 100
-  if (Math.abs(rawBpm - 125.987) < 0.02) {
-    bpm = 125.98
+  // Process Queen Mary beats through Mixxx's exact BeatUtils (Assume constant tempo)
+  let bpm = rawBpm || mixxxBpm || 120
+  let phaseSec = 0
+
+  if (rawTicks.length >= 2) {
+    const constantRegions = retrieveConstRegions(rawTicks)
+    const constRes = makeConstBpm(constantRegions)
+    if (constRes && constRes.roundBpm > 0) {
+      bpm = constRes.roundBpm
+      phaseSec = adjustPhase(constRes.rawFirstBeat, bpm, rawTicks)
+    } else {
+      const avgInterval = (rawTicks[rawTicks.length - 1] - rawTicks[0]) / (rawTicks.length - 1)
+      if (avgInterval > 0) {
+        const estBpm = 60 / avgInterval
+        bpm = roundBpmWithinRange(estBpm - 0.5, estBpm, estBpm + 0.5)
+        phaseSec = adjustPhase(positiveMod(rawTicks[0], 60 / bpm), bpm, rawTicks)
+      }
+    }
   }
 
+  // Check against Mixxx kick detector for octave ambiguities or syncopation (e.g. Catscan / gabber)
   if (mixxxBpm && mixxxBpm > 0) {
-    // If Essentia Degara wandered away from Mixxx kick detector (e.g. Catscan / gabber syncopation)
-    if (Math.abs(bpm - mixxxBpm) > 0.5) {
+    if (Math.abs(bpm * 2 - mixxxBpm) < 1) {
+      bpm = Math.round(mixxxBpm)
+    } else if (Math.abs(bpm / 2 - mixxxBpm) < 1) {
+      bpm = Math.round(mixxxBpm)
+    } else if (Math.abs(bpm - mixxxBpm) > 1.0) {
       const roundedMixxx = Math.round(mixxxBpm)
       if (Math.abs(mixxxBpm - roundedMixxx) <= 0.25) {
         bpm = roundedMixxx
@@ -129,119 +370,91 @@ async function analyzeQueenMaryBeatGrid(
       }
     }
   }
+
   const beatSec = 60 / bpm
 
-  // Mixxx Constant-Tempo BeatGrid Phase Alignment via Multi-Band Kick Flux
-  const decim = buffer.sampleRate >= 32000 ? 2 : 1
-  const sr = buffer.sampleRate / decim
-  const scanSeconds = Math.min(buffer.duration, 90)
-  const monoLen = Math.floor(scanSeconds * sr)
-  const monoResampled = new Float32Array(monoLen)
-  for (let i = 0; i < monoLen; i++) {
-    const idx = decim === 2 ? 2 * i : i
-    monoResampled[i] = idx < mono.length ? mono[idx] : 0
-  }
+  // Fallback kick flux phase alignment if rawTicks were sparse or missing
+  if (phaseSec <= 0) {
+    const decim = buffer.sampleRate >= 32000 ? 2 : 1
+    const sr = buffer.sampleRate / decim
+    const scanSeconds = Math.min(buffer.duration, 90)
+    const monoLen = Math.floor(scanSeconds * sr)
+    const monoResampled = new Float32Array(monoLen)
+    for (let i = 0; i < monoLen; i++) {
+      const idx = decim === 2 ? 2 * i : i
+      monoResampled[i] = idx < mono.length ? mono[idx] : 0
+    }
 
-  const frames = Math.floor((monoLen - WIN) / HOP)
-  if (frames < 256) return null
-  const envRate = sr / HOP
-  const fft = makeFft(WIN)
-  const hann = new Float32Array(WIN)
-  for (let i = 0; i < WIN; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / WIN)
-  const re = new Float32Array(WIN)
-  const im = new Float32Array(WIN)
-  const binHz = sr / WIN
-  const lowBinStart = Math.max(1, Math.floor(35 / binHz))
-  const lowBinEnd = Math.floor(180 / binHz)
-  const midBinEnd = Math.floor(1500 / binHz)
-  const highBinEnd = Math.min(WIN / 2 - 1, Math.floor(8000 / binHz))
+    const frames = Math.floor((monoLen - WIN) / HOP)
+    if (frames >= 256) {
+      const envRate = sr / HOP
+      const fft = makeFft(WIN)
+      const hann = new Float32Array(WIN)
+      for (let i = 0; i < WIN; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / WIN)
+      const re = new Float32Array(WIN)
+      const im = new Float32Array(WIN)
+      const binHz = sr / WIN
+      const lowBinStart = Math.max(1, Math.floor(35 / binHz))
+      const lowBinEnd = Math.floor(180 / binHz)
+      const midBinEnd = Math.floor(1500 / binHz)
+      const highBinEnd = Math.min(WIN / 2 - 1, Math.floor(8000 / binHz))
 
-  const kickFlux = new Float32Array(frames)
-  const totalFlux = new Float32Array(frames)
-  let prevLowMag = 0, prevMidMag = 0, prevHighMag = 0
+      const kickFlux = new Float32Array(frames)
+      const totalFlux = new Float32Array(frames)
+      let prevLowMag = 0, prevMidMag = 0, prevHighMag = 0
 
-  for (let f = 0; f < frames; f++) {
-    const base = f * HOP
-    for (let i = 0; i < WIN; i++) re[i] = monoResampled[base + i] * hann[i]
-    im.fill(0)
-    fft(re, im)
-    let lowMag = 0, midMag = 0, highMag = 0
-    for (let k = lowBinStart; k <= lowBinEnd; k++) lowMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    for (let k = lowBinEnd + 1; k <= midBinEnd; k++) midMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    for (let k = midBinEnd + 1; k <= highBinEnd; k++) highMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    const lowLog = Math.log1p(lowMag)
-    const midLog = Math.log1p(midMag)
-    const highLog = Math.log1p(highMag)
-    const dLow = Math.max(0, lowLog - prevLowMag)
-    const dMid = Math.max(0, midLog - prevMidMag)
-    const dHigh = Math.max(0, highLog - prevHighMag)
-    prevLowMag = lowLog; prevMidMag = midLog; prevHighMag = highLog
-    kickFlux[f] = dLow
-    totalFlux[f] = 2.5 * dLow + 1.0 * dMid + 0.6 * dHigh
-  }
-
-  const filterHalf = Math.max(2, Math.round(envRate * 0.06))
-  subtractMovingMean(kickFlux, filterHalf)
-  subtractMovingMean(totalFlux, filterHalf)
-
-  const beatFrames = beatSec * envRate
-  const numPhaseSteps = Math.round(beatFrames)
-  let bestPhaseFrame = 0
-  let maxPhaseScore = -1
-
-  for (let p = 0; p < numPhaseSteps; p++) {
-    let score = 0
-    let count = 0
-    for (let frame = p; frame < frames; frame += beatFrames) {
-      const idx = Math.round(frame)
-      if (idx < frames) {
-        score += 2.5 * kickFlux[idx] + totalFlux[idx]
-        count++
+      for (let f = 0; f < frames; f++) {
+        const base = f * HOP
+        for (let i = 0; i < WIN; i++) re[i] = monoResampled[base + i] * hann[i]
+        im.fill(0)
+        fft(re, im)
+        let lowMag = 0, midMag = 0, highMag = 0
+        for (let k = lowBinStart; k <= lowBinEnd; k++) lowMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
+        for (let k = lowBinEnd + 1; k <= midBinEnd; k++) midMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
+        for (let k = midBinEnd + 1; k <= highBinEnd; k++) highMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
+        const lowLog = Math.log1p(lowMag)
+        const midLog = Math.log1p(midMag)
+        const highLog = Math.log1p(highMag)
+        const dLow = Math.max(0, lowLog - prevLowMag)
+        const dMid = Math.max(0, midLog - prevMidMag)
+        const dHigh = Math.max(0, highLog - prevHighMag)
+        prevLowMag = lowLog; prevMidMag = midLog; prevHighMag = highLog
+        kickFlux[f] = dLow
+        totalFlux[f] = 2.5 * dLow + 1.0 * dMid + 0.6 * dHigh
       }
-    }
-    const avgScore = count > 0 ? score / count : 0
-    if (avgScore > maxPhaseScore) {
-      maxPhaseScore = avgScore
-      bestPhaseFrame = p
-    }
-  }
 
-  const phaseSec = (bestPhaseFrame * HOP + WIN / 2) / sr
-  const phase0 = positiveMod(phaseSec, beatSec)
+      const filterHalf = Math.max(2, Math.round(envRate * 0.06))
+      subtractMovingMean(kickFlux, filterHalf)
+      subtractMovingMean(totalFlux, filterHalf)
 
-  // Find first sound onset in track intro
-  const block10ms = Math.floor(buffer.sampleRate * 0.01)
-  const num10msBlocks = Math.floor(Math.min(mono.length, buffer.sampleRate * 30) / block10ms)
-  let audioStartSec = 0
-  for (let b = 0; b < num10msBlocks; b++) {
-    let s = 0
-    const base = b * block10ms
-    for (let i = 0; i < block10ms; i += 2) {
-      const v = mono[base + i]
-      s += v * v
-    }
-    const rms = Math.sqrt(s / (block10ms / 2))
-    if (rms > 0.005) {
-      audioStartSec = (b * block10ms) / buffer.sampleRate
-      break
-    }
-  }
+      const beatFrames = beatSec * envRate
+      const numPhaseSteps = Math.round(beatFrames)
+      let bestPhaseFrame = 0
+      let maxPhaseScore = -1
 
-  const maxBeats = Math.floor(30 / beatSec)
-  let firstMusicBeatIdx = 0
-  if (phase0 - beatSec >= audioStartSec - 0.06 && phase0 - beatSec >= -0.02) {
-    firstMusicBeatIdx = -1
-  } else {
-    for (let k = 0; k < maxBeats; k++) {
-      const t = phase0 + k * beatSec
-      if (t >= audioStartSec - 0.06) {
-        firstMusicBeatIdx = k
-        break
+      for (let p = 0; p < numPhaseSteps; p++) {
+        let score = 0
+        let count = 0
+        for (let frame = p; frame < frames; frame += beatFrames) {
+          const idx = Math.round(frame)
+          if (idx < frames) {
+            score += 2.5 * kickFlux[idx] + totalFlux[idx]
+            count++
+          }
+        }
+        const avgScore = count > 0 ? score / count : 0
+        if (avgScore > maxPhaseScore) {
+          maxPhaseScore = avgScore
+          bestPhaseFrame = p
+        }
       }
+
+      phaseSec = (bestPhaseFrame * HOP + WIN / 2) / sr
     }
   }
 
-  const firstBarTime = Math.max(0, phase0 + firstMusicBeatIdx * beatSec)
+  // Locate the actual first kick downbeat from the audio intro (Bar 1 downbeat anchor)
+  const firstBarTime = findMixxxFirstBeatAtIntro(buffer, bpm, phaseSec)
   return {
     bpm,
     firstBar: firstBarTime,

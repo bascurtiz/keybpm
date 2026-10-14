@@ -464,8 +464,9 @@ export class DeckEngine {
     this.track = track
     this._playing = false
     this._scratching = false
-    this.posSeconds = 0
-    this.cuePoint = 0
+    const startPos = track.grid?.firstBar && track.grid.firstBar > 0.03 ? track.grid.firstBar : 0
+    this.posSeconds = startPos
+    this.cuePoint = startPos
     this.loop = null
     this.hotCues = Array(HOT_CUE_COUNT).fill(null)
 
@@ -476,7 +477,7 @@ export class DeckEngine {
       buf.copyFromChannel(data, c)
       channels.push(data.buffer)
     }
-    this.post({ t: 'load', channels, length: buf.length, rate: buf.sampleRate }, channels)
+    this.post({ t: 'load', channels, length: buf.length, rate: buf.sampleRate, initialSec: startPos }, channels)
     this.autoGain.gain.setTargetAtTime(track.gain || 1, this.ctx.currentTime, 0.01)
     this.updateFxTiming()
     this.emit()
