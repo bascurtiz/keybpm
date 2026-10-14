@@ -212,7 +212,7 @@ export function KeyTagger({ onSelectKey, onSelectBpm, onClose, className = '' }:
         </div>
 
         <p className="mb-3 text-xs text-text-muted">
-          Powered by a fine-tuned MusicalKeyCNN & Essentia WASM
+          Powered by MusicalKeyCNN & Queen Mary (Mixxx) + Essentia WASM
         </p>
 
         {/* Upload Zone */}

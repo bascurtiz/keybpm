@@ -38,7 +38,11 @@ export function MixIt() {
     const pending = consumePendingDeckTrackA()
     if (pending) {
       if (pending.file) {
-        void handleFileSelected('A', pending.file)
+        void handleFileSelected('A', pending.file, {
+          bpm: pending.bpm,
+          key: pending.keyInfo,
+          metadata: pending.metadata,
+        })
       } else if (pending.buffer) {
         const track = {
           id: `transferred-${Date.now()}`,
@@ -69,20 +73,30 @@ export function MixIt() {
     }
   }, [deckA])
 
-  const handleFileSelected = async (targetDeckId: 'A' | 'B', file: File) => {
+  const handleFileSelected = async (
+    targetDeckId: 'A' | 'B',
+    file: File,
+    precomputed?: import('@/lib/dj/track-analyzer').PrecomputedTrackData
+  ) => {
     setAnalyzingDeck(targetDeckId)
     setErrorMsg(null)
     setAnalysisProgress({
       stage: 'decoding',
       progress: 0.05,
-      message: `Analyzing track for Deck ${targetDeckId}…`,
+      message: precomputed?.key && precomputed?.bpm
+        ? `Loading track for Deck ${targetDeckId}…`
+        : `Analyzing track for Deck ${targetDeckId}…`,
     })
 
     try {
       await engine.resume()
-      const analyzedTrack = await analyzeTrackFile(file, p => {
-        setAnalysisProgress(p)
-      })
+      const analyzedTrack = await analyzeTrackFile(
+        file,
+        p => {
+          setAnalysisProgress(p)
+        },
+        precomputed
+      )
 
       if (targetDeckId === 'A') {
         deckA.loadTrack(analyzedTrack)

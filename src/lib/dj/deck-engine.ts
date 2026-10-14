@@ -431,6 +431,27 @@ export class DeckEngine {
     this.emit()
   }
 
+  /**
+   * Shift the bar phase (white downbeat stripe) by an integer number of beats (e.g. +1 or -1 beat).
+   * Shifts which beat is considered Beat 1 without altering grid tempo or beat tick alignment.
+   */
+  shiftBarPhase(deltaBeats: number) {
+    if (!this.track) return
+    const bpm = this.track.grid?.bpm || this.track.bpm || 120
+    const beatLen = 60 / bpm
+    if (!this.track.grid) {
+      this.track.grid = {
+        bpm,
+        firstBeat: 0,
+        firstBar: 0,
+        beatsPerBar: 4,
+      }
+    }
+    this.track.grid.firstBar = Math.max(0, this.track.grid.firstBar + deltaBeats * beatLen)
+    this.track.grid.firstBeat = positiveMod(this.track.grid.firstBar, beatLen)
+    this.emit()
+  }
+
   setBeat1AtPosition(pos?: number) {
     if (!this.track) return
     const targetPos = Math.max(0, pos ?? this.position)

@@ -50,22 +50,44 @@ export async function decodeAudioBuffer(fileOrBlob: Blob): Promise<AudioBuffer> 
   return buffer
 }
 
+export interface PrecomputedTrackData {
+  bpm?: number
+  key?: {
+    name: string
+    camelot: string
+    confidence?: number
+  } | null
+  metadata?: {
+    title?: string
+    artist?: string
+    genre?: string
+    label?: string
+    coverUrl?: string
+  }
+}
+
 /**
  * Full track analysis pipeline:
  *  1. Metadata extraction (ID3 tags, title, artist, cover art)
  *  2. Audio PCM decoding
- *  3. Key detection via fine-tuned MusicalKeyCNN
- *  4. Beat-grid analysis & BPM detection
+ *  3. Key detection via fine-tuned MusicalKeyCNN (skipped if precomputed)
+ *  4. Beat-grid analysis & BPM detection (uses hint if precomputed)
  *  5. Perceived loudness (AutoGain) & Waveform peaks calculation
  */
 export async function analyzeTrackFile(
   file: File,
-  onProgress?: (p: AnalyzeProgress) => void
+  onProgress?: (p: AnalyzeProgress) => void,
+  precomputed?: PrecomputedTrackData
 ): Promise<Track> {
+  const hasPrecomputedKey = Boolean(precomputed?.key)
+  const hasPrecomputedBpm = Boolean(precomputed?.bpm)
+
   onProgress?.({
     stage: 'decoding',
     progress: 0.1,
-    message: 'Extracting metadata & decoding audio…',
+    message: hasPrecomputedKey && hasPrecomputedBpm
+      ? 'Using detected Key & BPM • Decoding audio…'
+      : 'Extracting metadata & decoding audio…',
   })
 
   const [meta, buffer] = await Promise.all([
@@ -76,16 +98,20 @@ export async function analyzeTrackFile(
   onProgress?.({
     stage: 'analyzing',
     progress: 0.45,
-    message: 'Analyzing musical key & BPM…',
+    message: hasPrecomputedKey && hasPrecomputedBpm
+      ? 'Aligning beatgrid…'
+      : 'Analyzing musical key & BPM…',
   })
 
-  // Run key detection & beat grid in parallel
+  // Run key detection & beat grid. Skip key detection if already precomputed (e.g. from Auto-detect modal)
   const [keyResult, gridResult] = await Promise.all([
-    detectAudioKey(file).catch(err => {
-      console.warn('Key detection error in track analyzer:', err)
-      return null
-    }),
-    analyzeBeatGrid(buffer).catch(err => {
+    hasPrecomputedKey
+      ? Promise.resolve(null)
+      : detectAudioKey(file).catch(err => {
+          console.warn('Key detection error in track analyzer:', err)
+          return null
+        }),
+    analyzeBeatGrid(buffer, precomputed?.bpm).catch(err => {
       console.warn('Beatgrid error in track analyzer:', err)
       return null
     }),
@@ -100,22 +126,24 @@ export async function analyzeTrackFile(
   const peaks = computePeaks(buffer)
   const gain = computeAutoGain(buffer)
 
-  // Mixxx BeatGrid analyzer provides the definitive, synchronized BPM & BeatGrid
-  let bpm = gridResult?.bpm ?? keyResult?.bpm ?? null
+  // Use precomputed or detected BPM & Key
+  let bpm = precomputed?.bpm ?? gridResult?.bpm ?? keyResult?.bpm ?? null
   if (bpm) {
     bpm = Math.round(bpm * 100) / 100
   }
 
-  const key = keyResult
+  const key = precomputed?.key ?? (keyResult
     ? {
         name: keyResult.key,
         camelot: keyResult.camelot,
         confidence: keyResult.confidence,
       }
-    : null
+    : null)
 
-  const title = meta.title || file.name.replace(/\.[a-zA-Z0-9]+$/, '')
-  const artist = meta.artist || 'Unknown Artist'
+  const title = precomputed?.metadata?.title || meta.title || file.name.replace(/\.[a-zA-Z0-9]+$/, '')
+  const artist = precomputed?.metadata?.artist || meta.artist || 'Unknown Artist'
+  const label = precomputed?.metadata?.label || meta.album
+  const coverUrl = precomputed?.metadata?.coverUrl || meta.coverUrl
 
   onProgress?.({
     stage: 'ready',
@@ -127,14 +155,14 @@ export async function analyzeTrackFile(
     id: `track-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     title,
     artist,
-    label: meta.album,
+    label,
     duration: buffer.duration,
     bpm,
     grid: gridResult,
     key,
     gain,
     buffer,
-    coverUrl: meta.coverUrl,
+    coverUrl,
     peaks,
   }
 }

@@ -431,7 +431,6 @@ export function StackedWaveforms({
 
           <div className="h-4 w-[1px] bg-[#2a2a2a]" />
 
-          {/* Set Beat 1 at Needle */}
           <button
             type="button"
             onClick={() => activeGridDeck.setBeat1AtPosition()}
@@ -441,6 +440,29 @@ export function StackedWaveforms({
           >
             SET BEAT 1
           </button>
+
+          {/* Shift Bar by ±1 Beat */}
+          <div className="flex items-center gap-0.5">
+            <span className="text-[9px] uppercase tracking-wider text-[#666666] mr-0.5 font-bold">Bar</span>
+            <button
+              type="button"
+              onClick={() => activeGridDeck.shiftBarPhase(-1)}
+              disabled={!activeGridDeck.track}
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              title="Shift Bar (downbeat white stripes) 1 beat earlier"
+            >
+              &lt;
+            </button>
+            <button
+              type="button"
+              onClick={() => activeGridDeck.shiftBarPhase(1)}
+              disabled={!activeGridDeck.track}
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              title="Shift Bar (downbeat white stripes) 1 beat later"
+            >
+              &gt;
+            </button>
+          </div>
 
           <div className="h-4 w-[1px] bg-[#2a2a2a]" />
 

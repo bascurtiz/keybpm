@@ -801,19 +801,67 @@ function findMixxxFirstBeatAtIntro(
     beatEnergies.push(e)
   }
 
-  // Find the first beat index at or immediately after audio starts
-  let firstMusicBeatIdx = 0
+  // 1. Determine downbeat rotation among the 4 bar phases (0, 1, 2, 3)
+  // Scores each candidate rotation against low-frequency kick drum energy across all bars.
+  // In 4/4 electronic, dance and popular music, Beat 1 has the primary downbeat kick & crash.
+  const rotationScores = [0, 0, 0, 0]
+  const rotationCounts = [0, 0, 0, 0]
+  for (let k = 0; k < beatEnergies.length; k++) {
+    const r = k % 4
+    rotationScores[r] += beatEnergies[k]
+    rotationCounts[r]++
+  }
+
+  let bestRotation = 0
+  let bestRotScore = -1
+  for (let r = 0; r < 4; r++) {
+    const avg = rotationCounts[r] > 0 ? rotationScores[r] / rotationCounts[r] : 0
+    if (avg > bestRotScore) {
+      bestRotScore = avg
+      bestRotation = r
+    }
+  }
+
+  // 2. Locate the first authentic downbeat where the music / rhythm drops
+  let maxKick = 0
+  for (const e of beatEnergies) {
+    if (e > maxKick) maxKick = e
+  }
+
+  // Find the first downbeat candidate (k % 4 === bestRotation) that coincides with the kick drop
+  let firstBarBeatIdx = -1
+  const kickDropThreshold = maxKick * 0.20
+
   for (let k = 0; k < maxBeats; k++) {
+    if (k % 4 !== bestRotation) continue
     const t = phase0 + k * beatSec
-    if (t >= audioStartSec - 0.06) {
-      firstMusicBeatIdx = k
+    if (t < audioStartSec - 0.06) continue
+
+    // If this candidate downbeat has substantial kick energy, it's the rhythm drop!
+    if (beatEnergies[k] >= kickDropThreshold) {
+      firstBarBeatIdx = k
       break
     }
   }
 
-  // Anchor Bar 1 / first beat directly to the very first beat of the music (firstMusicBeatIdx),
-  // exactly matching Mixxx and Pioneer CDJs / Traktor where CUE is placed at the intro drop.
-  const firstBarTime = Math.max(0, phase0 + firstMusicBeatIdx * beatSec)
+  // Fallback: if intro is very soft/drumless, pick the first downbeat candidate after audio starts
+  if (firstBarBeatIdx === -1) {
+    for (let k = 0; k < maxBeats; k++) {
+      if (k % 4 !== bestRotation) continue
+      const t = phase0 + k * beatSec
+      if (t >= audioStartSec - 0.06) {
+        firstBarBeatIdx = k
+        break
+      }
+    }
+  }
+
+  if (firstBarBeatIdx === -1) {
+    firstBarBeatIdx = bestRotation
+  }
+
+  // Anchor Bar 1 (white downbeat stripe) to the authentic downbeat of the track
+  const firstBarTime = Math.max(0, phase0 + firstBarBeatIdx * beatSec)
   return firstBarTime
 }
 

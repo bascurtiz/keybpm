@@ -2,7 +2,6 @@ import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
 import { DeckEngine } from './deck-engine'
 import type { DeckId } from './types'
 import { getVinylWorkletUrl } from './vinyl-worklet'
-import { positiveMod } from './dsp'
 
 /**
  * Top-level audio graph: two decks -> master gain -> limiter -> destination.
@@ -139,20 +138,8 @@ export class AudioEngine {
       if (Math.abs(follower.rate - targetRate) > 0.0001) {
         follower.setRate(targetRate, true)
       }
-
-      // Continuous phase lock loop within the bar
-      const ownBar = (60 / ownBpm) * (ownGrid.beatsPerBar || 4)
-      const masterBar = (60 / masterBpm) * (masterGrid.beatsPerBar || 4)
-      const phiFollower = positiveMod((follower.position - ownGrid.firstBar) / ownBar, 1)
-      const phiMaster = positiveMod((master.position - masterGrid.firstBar) / masterBar, 1)
-
-      let dPhi = phiMaster - phiFollower
-      if (dPhi > 0.5) dPhi -= 1.0
-      if (dPhi < -0.5) dPhi += 1.0
-
-      // Proportional rate correction clamped to +/- 1.5% max (holds phase error < 1ms)
-      const correction = 1.0 + Math.max(-0.015, Math.min(0.015, dPhi * 0.45))
-      follower.applyPllCorrection(correction)
+      // Ensure constant playback rate without any 4-beat pitch/speed flutter
+      follower.applyPllCorrection(1.0)
     }
   }
 
