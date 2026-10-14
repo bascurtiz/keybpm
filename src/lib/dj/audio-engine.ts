@@ -174,11 +174,12 @@ export class AudioEngine {
     const validBpm = Math.max(20, Math.min(300, Math.round(bpm * 10) / 10))
     this.masterBpm = validBpm
     if (syncDecks) {
+      // fromSync=true so locked SYNC is not silently disengaged by a master BPM edit.
       if (this.decks.A.track?.bpm) {
-        this.decks.A.setRate(validBpm / this.decks.A.track.bpm)
+        this.decks.A.setRate(validBpm / this.decks.A.track.bpm, true)
       }
       if (this.decks.B.track?.bpm) {
-        this.decks.B.setRate(validBpm / this.decks.B.track.bpm)
+        this.decks.B.setRate(validBpm / this.decks.B.track.bpm, true)
       }
     }
     this.emit()

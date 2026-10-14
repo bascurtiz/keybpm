@@ -45,8 +45,8 @@ const CAMELOT_KEYS = [
 export function TraktorMiddleStrip({
   engine,
   onLoadTrackClick,
-  onToggleFx: _onToggleFx,
-  activeFxDeck: _activeFxDeck,
+  onToggleFx,
+  activeFxDeck,
 }: TraktorMiddleStripProps) {
   const deckA = engine.decks.A
   const deckB = engine.decks.B
@@ -118,6 +118,8 @@ export function TraktorMiddleStrip({
           accentColor="#34d399"
           timeRef={timeAEl}
           onLoadClick={() => onLoadTrackClick?.('A')}
+          onToggleFx={() => onToggleFx?.('A')}
+          fxActive={activeFxDeck === 'A'}
           side="left"
           keyMode={keyMode}
         />
@@ -233,6 +235,8 @@ export function TraktorMiddleStrip({
           accentColor="#a855f7"
           timeRef={timeBEl}
           onLoadClick={() => onLoadTrackClick?.('B')}
+          onToggleFx={() => onToggleFx?.('B')}
+          fxActive={activeFxDeck === 'B'}
           side="right"
           keyMode={keyMode}
         />
@@ -247,6 +251,8 @@ function DeckHeader({
   accentColor,
   timeRef,
   onLoadClick,
+  onToggleFx,
+  fxActive,
   side,
   keyMode,
 }: {
@@ -255,6 +261,8 @@ function DeckHeader({
   accentColor: string
   timeRef: React.RefObject<HTMLSpanElement>
   onLoadClick: () => void
+  onToggleFx?: () => void
+  fxActive?: boolean
   side: 'left' | 'right'
   keyMode: WheelMode
 }) {
@@ -326,6 +334,18 @@ function DeckHeader({
                 SLIP
               </span>
             )}
+            <button
+              type="button"
+              onClick={onToggleFx}
+              className={`h-[14px] px-1 rounded-[2px] border text-[8px] font-bold uppercase tracking-wider transition-all shrink-0 ${
+                fxActive
+                  ? 'bg-[#141414] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.35)]'
+                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title={`Deck ${deckId} FX drawer`}
+            >
+              FX
+            </button>
           </div>
           <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0 leading-none">
             0:00 / 0:00
@@ -344,7 +364,8 @@ function DeckHeader({
                 type="number"
                 step="0.01"
                 autoFocus
-                defaultValue={deck.effectiveBpm ? deck.effectiveBpm.toFixed(2) : ''}
+                // Edit base BPM (grid), not effective BPM — avoids double-applying pitch rate.
+                defaultValue={deck.track?.bpm ? deck.track.bpm.toFixed(2) : ''}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     const val = parseFloat((e.target as HTMLInputElement).value)
@@ -369,7 +390,11 @@ function DeckHeader({
                 className={`font-semibold text-white ${
                   deck.track ? 'hover:underline hover:text-accent cursor-pointer' : ''
                 }`}
-                title={deck.track ? 'Click to overrule BPM' : undefined}
+                title={
+                  deck.track
+                    ? `Click to overrule base BPM (grid). Showing effective ${displayBpm?.toFixed(2) ?? '---'} BPM`
+                    : undefined
+                }
               >
                 {displayBpm ? displayBpm.toFixed(2) : '---'}
               </span>

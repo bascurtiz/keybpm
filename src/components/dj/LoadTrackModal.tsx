@@ -14,6 +14,8 @@ interface LoadTrackModalProps {
   otherDeckCamelot?: string | null
   onClose: () => void
   onLoadLocalFile: (deckId: 'A' | 'B', file: File) => void
+  /** Called after a YouTube video is successfully queued so the parent can eject local audio. */
+  onLoadYouTube?: (deckId: 'A' | 'B') => void
 }
 
 type TabType = 'youtube' | 'catalog' | 'file'
@@ -25,6 +27,7 @@ export function LoadTrackModal({
   otherDeckCamelot,
   onClose,
   onLoadLocalFile,
+  onLoadYouTube,
 }: LoadTrackModalProps) {
   useCatalog()
   const [activeTab, setActiveTab] = useState<TabType>('file')
@@ -68,12 +71,13 @@ export function LoadTrackModal({
   const handleLoadYouTube = async () => {
     if (!detectedVideoId) return
     const bpmNum = parseFloat(customBpm) || 128
-    await youtubeBridge.loadVideo(deckId, detectedVideoId, {
+    const ok = await youtubeBridge.loadVideo(deckId, detectedVideoId, {
       title: customTitle.trim() || `YouTube Track (${detectedVideoId})`,
       bpm: bpmNum,
       camelot: customCamelot,
       key: CAMELOT_TO_KEY[customCamelot] || undefined,
     })
+    if (ok) onLoadYouTube?.(deckId)
     onClose()
   }
 
@@ -81,7 +85,7 @@ export function LoadTrackModal({
     if (track.youtube) {
       const vid = youtubeId(track.youtube)
       if (vid) {
-        await youtubeBridge.loadVideo(deckId, vid, {
+        const ok = await youtubeBridge.loadVideo(deckId, vid, {
           title: `${track.artist} - ${track.title}`,
           artist: track.artist,
           bpm: track.bpm || 128,
@@ -89,6 +93,7 @@ export function LoadTrackModal({
           key: track.key || undefined,
           duration: track.duration || 0,
         })
+        if (ok) onLoadYouTube?.(deckId)
         onClose()
         return
       }
@@ -140,6 +145,28 @@ export function LoadTrackModal({
             }`}
           >
             <span>📁</span> Local Audio File
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('youtube')}
+            className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'youtube'
+                ? 'border-red-500 text-white font-bold'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <span>▶</span> YouTube
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('catalog')}
+            className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'catalog'
+                ? 'border-accent text-white font-bold'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Catalog
           </button>
         </div>
 

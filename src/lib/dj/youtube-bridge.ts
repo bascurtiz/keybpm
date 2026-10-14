@@ -21,6 +21,7 @@ export interface YouTubeDeckState {
   key: string | null
   duration: number
   currentTime: number
+  cuePoint: number
   playing: boolean
   buffering: boolean
   volume: number // 0-100
@@ -61,6 +62,7 @@ export class YouTubeBridge {
       key: null,
       duration: 0,
       currentTime: 0,
+      cuePoint: 0,
       playing: false,
       buffering: false,
       volume: 100,
@@ -79,6 +81,7 @@ export class YouTubeBridge {
       key: null,
       duration: 0,
       currentTime: 0,
+      cuePoint: 0,
       playing: false,
       buffering: false,
       volume: 100,
@@ -330,6 +333,7 @@ export class YouTubeBridge {
     deck.key = metadata?.key || null
     deck.duration = metadata?.duration || 0
     deck.currentTime = 0
+    deck.cuePoint = 0
     deck.playing = false
     deck.buffering = false
     deck.hasVideo = true
@@ -348,10 +352,25 @@ export class YouTubeBridge {
       }
     } else if (this.hostElements[deckId]) {
       await this.mountPlayer(deckId, this.hostElements[deckId]!)
+    } else {
+      // Host may mount on next paint (overlay just rendered) — retry briefly.
+      await new Promise(r => requestAnimationFrame(() => r(undefined)))
+      if (this.hostElements[deckId]) {
+        await this.mountPlayer(deckId, this.hostElements[deckId]!)
+      } else {
+        console.warn(
+          `[YouTubeBridge] No host element for Deck ${deckId}; video metadata set but player not mounted`
+        )
+      }
     }
 
     this.emit()
     return true
+  }
+
+  public setCuePoint(deckId: 'A' | 'B', seconds: number) {
+    this.state[deckId].cuePoint = Math.max(0, seconds)
+    this.emit()
   }
 
   public play(deckId: 'A' | 'B') {
@@ -459,6 +478,7 @@ export class YouTubeBridge {
     deck.artist = ''
     deck.duration = 0
     deck.currentTime = 0
+    deck.cuePoint = 0
     deck.playing = false
     deck.buffering = false
     deck.hasVideo = false

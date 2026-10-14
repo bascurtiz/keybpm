@@ -288,13 +288,16 @@ function DeckTransport({
     }
   }
 
-  const hasYt = youtubeBridge.state[deckId].hasVideo
-  const isPlayingActive = isPlaying || youtubeBridge.state[deckId].playing
+  const ytState = youtubeBridge.state[deckId]
+  const hasYt = ytState.hasVideo && !deck.track
+  const isPlayingActive = isPlaying || (hasYt && ytState.playing)
   const isDeckReady = Boolean(deck.track || hasYt)
 
   const handleTogglePlay = () => {
+    // Prefer local Web Audio when present; never drive both sources at once.
     if (deck.track) {
       void deck.togglePlay()
+      return
     }
     if (hasYt) {
       youtubeBridge.togglePlay(deckId)
@@ -311,9 +314,10 @@ function DeckTransport({
     }
     if (deck.track) {
       void deck.cueDown()
+      return
     }
     if (hasYt) {
-      youtubeBridge.seekTo(deckId, 0)
+      youtubeBridge.seekTo(deckId, ytState.cuePoint)
       youtubeBridge.play(deckId)
     }
   }
@@ -330,9 +334,10 @@ function DeckTransport({
     }
     if (deck.track) {
       deck.cueUp()
+      return
     }
     if (hasYt) {
-      youtubeBridge.seekTo(deckId, 0)
+      youtubeBridge.seekTo(deckId, ytState.cuePoint)
       youtubeBridge.pause(deckId)
     }
   }
@@ -340,9 +345,12 @@ function DeckTransport({
   const handleCueKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === ' ' || e.key === 'Enter') {
       if (!e.repeat) {
-        if (deck.track) void deck.cueDown()
+        if (deck.track) {
+          void deck.cueDown()
+          return
+        }
         if (hasYt) {
-          youtubeBridge.seekTo(deckId, 0)
+          youtubeBridge.seekTo(deckId, ytState.cuePoint)
           youtubeBridge.play(deckId)
         }
       }
@@ -351,9 +359,12 @@ function DeckTransport({
 
   const handleCueKeyUp = (e: React.KeyboardEvent) => {
     if (e.key === ' ' || e.key === 'Enter') {
-      if (deck.track) deck.cueUp()
+      if (deck.track) {
+        deck.cueUp()
+        return
+      }
       if (hasYt) {
-        youtubeBridge.seekTo(deckId, 0)
+        youtubeBridge.seekTo(deckId, ytState.cuePoint)
         youtubeBridge.pause(deckId)
       }
     }

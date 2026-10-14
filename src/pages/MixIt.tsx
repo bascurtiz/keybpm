@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { getAudioEngine } from '@/lib/dj/audio-engine'
 import { analyzeTrackFile, type AnalyzeProgress } from '@/lib/dj/track-analyzer'
 import { consumePendingDeckTrackA } from '@/lib/dj/trackTransfer'
+import { computePeaks } from '@/lib/dj/peaks'
+import { computeAutoGain } from '@/lib/dj/autogain'
 import { StackedWaveforms } from '@/components/dj/StackedWaveforms'
 import { TraktorMiddleStrip } from '@/components/dj/TraktorMiddleStrip'
 import { TraktorDeck } from '@/components/dj/TraktorDeck'
@@ -9,6 +11,7 @@ import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
+import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 export function MixIt() {
@@ -22,70 +25,37 @@ export function MixIt() {
   const [dragOverDeck, setDragOverDeck] = useState<'A' | 'B' | null>(null)
   const [activeFxDeck, setActiveFxDeck] = useState<'A' | 'B' | null>(null)
   const [loadModalDeck, setLoadModalDeck] = useState<'A' | 'B' | null>(null)
+  const [, setEngineVer] = useState(0)
 
-  const fileInputARef = useRef<HTMLInputElement>(null)
-  const fileInputBRef = useRef<HTMLInputElement>(null)
+  // Per-deck load generation so a finishing older analysis can't clear a newer one.
+  const loadGenRef = useRef({ A: 0, B: 0 })
 
   useEffect(() => {
     document.title = 'Mix it! — KeyBPM DJ Player'
     if (typeof window !== 'undefined') {
       ;(window as any).__KEYBPM_ENGINE__ = engine
     }
-  }, [engine])
-
-  // Auto-load track passed from KeyTagger / Auto-detect
-  useEffect(() => {
-    const pending = consumePendingDeckTrackA()
-    if (pending) {
-      if (pending.file) {
-        void handleFileSelected('A', pending.file, {
-          bpm: pending.bpm,
-          key: pending.keyInfo,
-          metadata: pending.metadata,
-        })
-      } else if (pending.buffer) {
-        const track = {
-          id: `transferred-${Date.now()}`,
-          title: pending.metadata?.title || 'Loaded Track',
-          artist: pending.metadata?.artist || 'Unknown Artist',
-          genre: pending.metadata?.genre,
-          label: pending.metadata?.label,
-          duration: pending.buffer.duration,
-          bpm: pending.bpm || pending.metadata?.bpm || 128,
-          grid: {
-            bpm: pending.bpm || pending.metadata?.bpm || 128,
-            firstBeat: 0,
-            firstBar: 0,
-            beatsPerBar: 4,
-          },
-          key:
-            pending.keyInfo ||
-            (pending.metadata?.camelot
-              ? { name: pending.metadata.key || '', camelot: pending.metadata.camelot }
-              : null),
-          gain: 1,
-          buffer: pending.buffer,
-          coverUrl: pending.metadata?.coverUrl,
-          peaks: new Float32Array(2400),
-        }
-        deckA.loadTrack(track)
-      }
+    const unsub = engine.subscribe(() => setEngineVer(v => v + 1))
+    return () => {
+      unsub()
     }
-  }, [deckA])
+  }, [engine])
 
   const handleFileSelected = async (
     targetDeckId: 'A' | 'B',
     file: File,
     precomputed?: import('@/lib/dj/track-analyzer').PrecomputedTrackData
   ) => {
+    const gen = ++loadGenRef.current[targetDeckId]
     setAnalyzingDeck(targetDeckId)
     setErrorMsg(null)
     setAnalysisProgress({
       stage: 'decoding',
       progress: 0.05,
-      message: precomputed?.key && precomputed?.bpm
-        ? `Loading track for Deck ${targetDeckId}…`
-        : `Analyzing track for Deck ${targetDeckId}…`,
+      message:
+        precomputed?.key && precomputed?.bpm
+          ? `Loading track for Deck ${targetDeckId}…`
+          : `Analyzing track for Deck ${targetDeckId}…`,
     })
 
     try {
@@ -93,10 +63,17 @@ export function MixIt() {
       const analyzedTrack = await analyzeTrackFile(
         file,
         p => {
+          if (loadGenRef.current[targetDeckId] !== gen) return
+          setAnalyzingDeck(targetDeckId)
           setAnalysisProgress(p)
         },
         precomputed
       )
+
+      if (loadGenRef.current[targetDeckId] !== gen) return
+
+      // Local audio replaces any YouTube source on this deck.
+      youtubeBridge.eject(targetDeckId)
 
       if (targetDeckId === 'A') {
         deckA.loadTrack(analyzedTrack)
@@ -104,14 +81,63 @@ export function MixIt() {
         deckB.loadTrack(analyzedTrack)
       }
     } catch (err: unknown) {
+      if (loadGenRef.current[targetDeckId] !== gen) return
       console.error('Error analyzing DJ track:', err)
       const msg = err instanceof Error ? err.message : String(err)
       setErrorMsg(`Failed to analyze track: ${msg}`)
     } finally {
-      setAnalyzingDeck(null)
-      setAnalysisProgress(null)
+      if (loadGenRef.current[targetDeckId] === gen) {
+        setAnalyzingDeck(null)
+        setAnalysisProgress(null)
+      }
     }
   }
+
+  // Auto-load track passed from KeyTagger / Auto-detect
+  useEffect(() => {
+    const pending = consumePendingDeckTrackA()
+    if (!pending) return
+
+    if (pending.file) {
+      void handleFileSelected('A', pending.file, {
+        bpm: pending.bpm,
+        key: pending.keyInfo,
+        metadata: pending.metadata,
+      })
+      return
+    }
+
+    if (pending.buffer) {
+      const bpm = pending.bpm || pending.metadata?.bpm || 128
+      const buffer = pending.buffer
+      youtubeBridge.eject('A')
+      deckA.loadTrack({
+        id: `transferred-${Date.now()}`,
+        title: pending.metadata?.title || 'Loaded Track',
+        artist: pending.metadata?.artist || 'Unknown Artist',
+        genre: pending.metadata?.genre,
+        label: pending.metadata?.label,
+        duration: buffer.duration,
+        bpm,
+        grid: {
+          bpm,
+          firstBeat: 0,
+          firstBar: 0,
+          beatsPerBar: 4,
+        },
+        key:
+          pending.keyInfo ||
+          (pending.metadata?.camelot
+            ? { name: pending.metadata.key || '', camelot: pending.metadata.camelot }
+            : null),
+        gain: computeAutoGain(buffer),
+        buffer,
+        coverUrl: pending.metadata?.coverUrl,
+        peaks: computePeaks(buffer),
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot transfer on mount
+  }, [deckA])
 
   const onDrop = (targetDeckId: 'A' | 'B', e: React.DragEvent) => {
     e.preventDefault()
@@ -131,32 +157,10 @@ export function MixIt() {
     setDragOverDeck(null)
   }
 
+  const spinnerColor = analyzingDeck === 'A' ? '#34d399' : '#a855f7'
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-var(--header-h,64px))] bg-bg select-none text-text">
-      {/* Hidden File Inputs */}
-      <input
-        ref={fileInputARef}
-        type="file"
-        accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff"
-        onChange={e => {
-          if (e.target.files && e.target.files[0]) {
-            void handleFileSelected('A', e.target.files[0])
-          }
-        }}
-        className="hidden"
-      />
-      <input
-        ref={fileInputBRef}
-        type="file"
-        accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff"
-        onChange={e => {
-          if (e.target.files && e.target.files[0]) {
-            void handleFileSelected('B', e.target.files[0])
-          }
-        }}
-        className="hidden"
-      />
-
       {/* Main DJ Console Workspace - Compact hardware layout matching real DJ controllers */}
       <main className="flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-6">
         {/* Page Title Row */}
@@ -189,6 +193,15 @@ export function MixIt() {
         {/* Single Seamless Traktor DJ Hardware Chassis */}
         <div className="mt-4 w-full overflow-x-auto pb-2 flex justify-center">
           <div className="w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0">
+            {/* YouTube VJ hosts (mount players even when minimized / no video yet) */}
+            <YouTubeVideoOverlay
+              crossfade={engine.crossfade}
+              onEjectDeck={deckId => {
+                youtubeBridge.eject(deckId)
+              }}
+              onOpenLoadModal={deckId => setLoadModalDeck(deckId)}
+            />
+
             {/* 1. TOP STRIP: METADATA, COLOR-CODED KEY & BPM, MINI WAVEFORMS, BEAT COUNTER */}
             <TraktorMiddleStrip
               engine={engine}
@@ -279,7 +292,7 @@ export function MixIt() {
             <div className="flex items-center justify-center gap-2 text-sm font-bold text-white">
               <div
                 className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
-                style={{ borderColor: analyzingDeck === 'A' ? '#34d399' : '#a855f7' }}
+                style={{ borderColor: spinnerColor, borderTopColor: 'transparent' }}
               />
               <span>Loading Deck {analyzingDeck}</span>
             </div>
@@ -289,7 +302,7 @@ export function MixIt() {
                 className="h-full transition-all duration-300"
                 style={{
                   width: `${Math.round(analysisProgress.progress * 100)}%`,
-                  backgroundColor: analyzingDeck === 'A' ? '#34d399' : '#a855f7',
+                  backgroundColor: spinnerColor,
                 }}
               />
             </div>
@@ -303,16 +316,21 @@ export function MixIt() {
         deckId={loadModalDeck || 'A'}
         otherDeckBpm={
           loadModalDeck === 'A'
-            ? deckB.track?.bpm ?? youtubeBridge.state.B.bpm
-            : deckA.track?.bpm ?? youtubeBridge.state.A.bpm
+            ? (deckB.track?.bpm ?? youtubeBridge.state.B.bpm)
+            : (deckA.track?.bpm ?? youtubeBridge.state.A.bpm)
         }
         otherDeckCamelot={
           loadModalDeck === 'A'
-            ? deckB.track?.key?.camelot ?? youtubeBridge.state.B.camelot
-            : deckA.track?.key?.camelot ?? youtubeBridge.state.A.camelot
+            ? (deckB.track?.key?.camelot ?? youtubeBridge.state.B.camelot)
+            : (deckA.track?.key?.camelot ?? youtubeBridge.state.A.camelot)
         }
         onClose={() => setLoadModalDeck(null)}
         onLoadLocalFile={handleFileSelected}
+        onLoadYouTube={deckId => {
+          // YouTube replaces any local Web Audio track on this deck.
+          if (deckId === 'A') deckA.ejectTrack()
+          else deckB.ejectTrack()
+        }}
       />
     </div>
   )

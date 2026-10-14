@@ -82,23 +82,6 @@ export function StackedWaveforms({
     }
   }
 
-  const startDecayLoop = () => {
-    const step = () => {
-      const s = dragRef.current
-      if (!s) return
-      const now = performance.now()
-      if (now - s.lastTime > 40 && s.velocity !== 0) {
-        s.velocity *= 0.55
-        if (Math.abs(s.velocity) < 0.02) s.velocity = 0
-        s.deck.scratchMove(s.velocity)
-      }
-      s.raf = requestAnimationFrame(step)
-    }
-    if (dragRef.current) {
-      dragRef.current.raf = requestAnimationFrame(step)
-    }
-  }
-
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -120,8 +103,8 @@ export function StackedWaveforms({
     }
 
     canvas.style.cursor = 'grabbing'
-    void activeDeck.scratchBegin()
 
+    // Seek-only scrub (do not also scratch — dual seek+scratch fights position each frame).
     dragRef.current = {
       deck: activeDeck,
       startX: e.clientX,
@@ -131,7 +114,6 @@ export function StackedWaveforms({
       velocity: 0,
       raf: 0,
     }
-    startDecayLoop()
   }
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -152,17 +134,8 @@ export function StackedWaveforms({
     if (w <= 0) return
     const secPerPx = windowSeconds / w
 
-    const now = performance.now()
-    const dt = Math.max(now - s.lastTime, 1)
-    const dx = e.clientX - s.lastX
     s.lastX = e.clientX
-    s.lastTime = now
-
-    // Rate calculation: swiping left (dx < 0) corresponds to forward in time (positive rate)
-    const instantRate = -(dx / dt) * secPerPx * 1000
-    s.velocity = s.velocity * 0.4 + instantRate * 0.6
-    const clampedRate = Math.max(-4, Math.min(4, s.velocity))
-    s.deck.scratchMove(clampedRate)
+    s.lastTime = performance.now()
 
     // Swiping left moves forward in time: targetPos = startPos - (e.clientX - startX) * secPerPx
     const targetPos = s.startPos - (e.clientX - s.startX) * secPerPx
@@ -185,7 +158,6 @@ export function StackedWaveforms({
     if (!s) return
 
     if (s.raf) cancelAnimationFrame(s.raf)
-    s.deck.scratchEnd()
     dragRef.current = null
 
     try {
@@ -216,7 +188,6 @@ export function StackedWaveforms({
     return () => {
       if (dragRef.current) {
         if (dragRef.current.raf) cancelAnimationFrame(dragRef.current.raf)
-        dragRef.current.deck.scratchEnd()
         dragRef.current = null
       }
     }

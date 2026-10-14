@@ -491,6 +491,11 @@ export class DeckEngine {
     this.track = track
     this._playing = false
     this._scratching = false
+    this._cuePreviewing = false
+    // Clear sync lock and key shift so a new track doesn't inherit the previous one's mix state.
+    // Pitch rate is intentionally kept (Traktor-like fader persistence).
+    this.setSyncLock(false)
+    this._keyShift = 0
     const startPos = track.grid?.firstBar && track.grid.firstBar > 0.03 ? track.grid.firstBar : 0
     this.posSeconds = startPos
     this.cuePoint = startPos
@@ -506,6 +511,7 @@ export class DeckEngine {
     }
     this.post({ t: 'load', channels, length: buf.length, rate: buf.sampleRate, initialSec: startPos }, channels)
     this.autoGain.gain.setTargetAtTime(track.gain || 1, this.ctx.currentTime, 0.01)
+    this.updateKeyLockRouting()
     this.updateFxTiming()
     this.emit()
   }
@@ -523,6 +529,9 @@ export class DeckEngine {
     this.cuePoint = 0
     this.loop = null
     this.hotCues = Array(HOT_CUE_COUNT).fill(null)
+    this.setSyncLock(false)
+    this._keyShift = 0
+    this.updateKeyLockRouting()
     this.emit()
   }
 
@@ -543,6 +552,10 @@ export class DeckEngine {
     }
     this.post({ t: 'play', rate: this._rate })
     this._playing = true
+    // If SYNC was engaged while paused, align bar phase now that both can play.
+    if (this._syncLocked && this._syncTargetDeck?.playing && !this._scratching) {
+      this.alignPhaseTo(this._syncTargetDeck)
+    }
     this.updateKeyLockRouting()
     this.emit()
   }
@@ -729,6 +742,29 @@ export class DeckEngine {
   }
 
   /**
+   * Align this deck's bar phase to another deck (used by SYNC and deferred sync-on-play).
+   */
+  alignPhaseTo(other: DeckEngine): boolean {
+    const ownGrid = this.track?.grid ?? null
+    const otherGrid = other.track?.grid ?? null
+    const ownBpm = ownGrid?.bpm ?? this.track?.bpm
+    const otherBpm = otherGrid?.bpm ?? other.track?.bpm
+    if (!ownGrid || !otherGrid || !ownBpm || !otherBpm || this._scratching) return false
+
+    const ownBar = (60 / ownBpm) * (ownGrid.beatsPerBar || 4)
+    const otherBar = (60 / otherBpm) * (otherGrid.beatsPerBar || 4)
+    const phiSelf = positiveMod((this.position - ownGrid.firstBar) / ownBar, 1)
+    const phiOther = positiveMod((other.position - otherGrid.firstBar) / otherBar, 1)
+    let dPhi = phiOther - phiSelf
+    if (dPhi > 0.5) dPhi -= 1.0
+    if (dPhi < -0.5) dPhi += 1.0
+    const shift = dPhi * ownBar
+    this.post({ t: 'shift', s: shift })
+    this.posSeconds = Math.min(Math.max(this.posSeconds + shift, 0), this.duration)
+    return true
+  }
+
+  /**
    * Sync to another deck: toggles sync lock, matches tempo, and aligns beat phase within the bar.
    */
   syncTo(other: DeckEngine): { pitch: number; barAligned: boolean } | null {
@@ -749,18 +785,8 @@ export class DeckEngine {
     this.setRate(rate, true)
 
     let barAligned = false
-    if (ownGrid && otherGrid && this._playing && other.playing && !this._scratching) {
-      const ownBar = (60 / ownBpm) * (ownGrid.beatsPerBar || 4)
-      const otherBar = (60 / otherBpm) * (otherGrid.beatsPerBar || 4)
-      const phiSelf = positiveMod((this.position - ownGrid.firstBar) / ownBar, 1)
-      const phiOther = positiveMod((other.position - otherGrid.firstBar) / otherBar, 1)
-      let dPhi = phiOther - phiSelf
-      if (dPhi > 0.5) dPhi -= 1.0
-      if (dPhi < -0.5) dPhi += 1.0
-      const shift = dPhi * ownBar
-      this.post({ t: 'shift', s: shift })
-      this.posSeconds = Math.min(Math.max(this.posSeconds + shift, 0), this.duration)
-      barAligned = true
+    if (this._playing && other.playing && !this._scratching) {
+      barAligned = this.alignPhaseTo(other)
     }
 
     this.setSyncLock(true, other)

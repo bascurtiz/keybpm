@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import type { FxType } from '@/lib/dj/types'
 import { Knob } from './Knob'
@@ -23,6 +24,14 @@ export function TraktorFxDrawer({
   accentColor,
   onClose,
 }: TraktorFxDrawerProps) {
+  const [, setVer] = useState(0)
+  useEffect(() => {
+    const unsub = deck.subscribe(() => setVer(v => v + 1))
+    return () => {
+      unsub()
+    }
+  }, [deck])
+
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-2 bg-[#161616] border-b border-[#282828] animate-in fade-in slide-in-from-top-1 duration-150">
       <div className="flex items-center gap-3">
