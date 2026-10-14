@@ -313,8 +313,8 @@ export function TraktorDeck({
             onClick={() => deck.toggleFluxMode()}
             className={`h-[16px] w-full rounded-[3px] border text-[7.5px] font-mono font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
               deck.fluxMode
-                ? 'bg-emerald-950/80 border-emerald-400 text-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.35)]'
-                : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={`FLUX MODE (${deck.fluxMode ? 'ON' : 'OFF'})\nTimeline continues in background during cues, loops and FX, snapping back on release.`}
           >
