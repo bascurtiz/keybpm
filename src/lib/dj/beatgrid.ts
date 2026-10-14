@@ -453,8 +453,8 @@ async function analyzeQueenMaryBeatGrid(
     }
   }
 
-  // Locate the actual first kick downbeat from the audio intro (Bar 1 downbeat anchor)
-  const firstBarTime = findMixxxFirstBeatAtIntro(buffer, bpm, phaseSec)
+  // Locate the actual first beat / downbeat from the audio intro (Bar 1 downbeat anchor)
+  const firstBarTime = findMixxxFirstBeatAtIntro(buffer, bpm, phaseSec, rawTicks)
   return {
     bpm,
     firstBar: firstBarTime,
@@ -693,176 +693,181 @@ function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
 
 /**
  * Mixxx-style First Beat Locator:
- * Evaluates candidate grid beats starting from the audio file intro (first 30s)
- * along the established grid phase, measuring kick drum transient strength.
- * Anchors Beat 1 (Bar 1) to the first prominent kick drum drop.
+ * Finds the exact first beat onset where the music begins.
+ * - Uses STFT low-frequency (35-180 Hz) spectral flux with local background suppression
+ *   to isolate kick drum transient attacks from ambient pads, synth swells, and silence.
+ * - For tracks with drum intros starting at 0:00 (like J9_lime): anchors directly to the first beat of the intro.
+ * - For tracks with ambient/synth swells before a drop (like Lip_rona): detects the exact first beat
+ *   where the kick drops (at the red line), avoiding late 1-beat offsets or arbitrary rotation filtering.
  */
 function findMixxxFirstBeatAtIntro(
   buffer: AudioBuffer,
   bpm: number,
-  establishedPhaseSec: number
+  establishedPhaseSec: number,
+  _rawTicks?: number[]
 ): number {
   const beatSec = 60 / bpm
-  const sr = buffer.sampleRate
-  const scanSeconds = Math.min(buffer.duration, 30)
-  const scanSamples = Math.floor(scanSeconds * sr)
-  if (scanSamples <= 0) return positiveMod(establishedPhaseSec, beatSec)
+  const srOrig = buffer.sampleRate
+  const scanSeconds = Math.min(buffer.duration, 35)
+  if (scanSeconds <= 0) return positiveMod(establishedPhaseSec, beatSec)
 
-  // Downmix intro section to mono
-  const intro = new Float32Array(scanSamples)
-  const tmp = new Float32Array(scanSamples)
-  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-    buffer.copyFromChannel(tmp, ch, 0)
-    for (let i = 0; i < scanSamples; i++) {
-      intro[i] += tmp[i] / buffer.numberOfChannels
+  const decim = srOrig >= 32000 ? 2 : 1
+  const sr = srOrig / decim
+  const monoLen = Math.floor(scanSeconds * sr)
+  if (monoLen < WIN + HOP) return positiveMod(establishedPhaseSec, beatSec)
+
+  // Downmix intro section to mono Float32Array (decimated to ~22.05 kHz)
+  const mono = new Float32Array(monoLen)
+  {
+    const tmp = new Float32Array(monoLen * decim)
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      buffer.copyFromChannel(tmp, ch, 0)
+      if (decim === 2) {
+        for (let i = 0; i < monoLen; i++) {
+          mono[i] += (tmp[2 * i] + tmp[2 * i + 1]) / (2 * buffer.numberOfChannels)
+        }
+      } else {
+        for (let i = 0; i < monoLen; i++) {
+          mono[i] += tmp[i] / buffer.numberOfChannels
+        }
+      }
     }
   }
 
-  // 2nd-order lowpass filter (Butterworth, fc = 160 Hz) to isolate kick drum fundamental
-  // This filters out vocal intros, synth melodies, vinyl noise, and hi-hats
-  const fc = 160
-  const w0 = (2 * Math.PI * fc) / sr
-  const alpha = Math.sin(w0) / (2 * 0.707)
-  const cosw0 = Math.cos(w0)
-  const b0 = (1 - cosw0) / 2
-  const b1 = 1 - cosw0
-  const b2 = (1 - cosw0) / 2
-  const a0 = 1 + alpha
-  const a1 = -2 * cosw0
-  const a2 = 1 - alpha
-
-  const invA0 = 1 / a0
-  const cB0 = b0 * invA0
-  const cB1 = b1 * invA0
-  const cB2 = b2 * invA0
-  const cA1 = a1 * invA0
-  const cA2 = a2 * invA0
-
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0
-  const filtered = new Float32Array(scanSamples)
-  for (let i = 0; i < scanSamples; i++) {
-    const x0 = intro[i]
-    const y0 = cB0 * x0 + cB1 * x1 + cB2 * x2 - cA1 * y1 - cA2 * y2
-    x2 = x1
-    x1 = x0
-    y2 = y1
-    y1 = y0
-    filtered[i] = y0
-  }
-
-  // 1. Detect first audio onset above silence (RMS > 0.005)
+  // 1. Detect audio onset above silence (RMS > 0.002 in 10ms blocks)
   const block10ms = Math.floor(sr * 0.01)
-  const num10msBlocks = Math.floor(scanSamples / block10ms)
+  const num10msBlocks = Math.floor(monoLen / block10ms)
   let audioStartSec = 0
   for (let b = 0; b < num10msBlocks; b++) {
     let s = 0
     const base = b * block10ms
     for (let i = 0; i < block10ms; i += 2) {
-      const v = intro[base + i]
+      const v = mono[base + i]
       s += v * v
     }
     const rms = Math.sqrt(s / (block10ms / 2))
-    if (rms > 0.005) {
+    if (rms > 0.002) {
       audioStartSec = (b * block10ms) / sr
       break
     }
   }
 
-  // 2. Short 20ms windowed kick energy
-  const blockSize = Math.floor(sr * 0.02)
-  const numBlocks = Math.floor(scanSamples / blockSize)
-  const kickEnergy = new Float32Array(numBlocks)
+  // 2. STFT Spectral Flux across intro (Low band: 35-180 Hz for kick drum transients)
+  const frames = Math.floor((monoLen - WIN) / HOP)
+  if (frames < 32) return positiveMod(establishedPhaseSec, beatSec)
+  const envRate = sr / HOP
 
-  for (let b = 0; b < numBlocks; b++) {
-    let s = 0
-    const base = b * blockSize
-    for (let i = 0; i < blockSize; i += 2) {
-      const v = filtered[base + i]
-      s += v * v
-    }
-    kickEnergy[b] = s
+  const fft = makeFft(WIN)
+  const hann = new Float32Array(WIN)
+  for (let i = 0; i < WIN; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / WIN)
+  const re = new Float32Array(WIN)
+  const im = new Float32Array(WIN)
+
+  const binHz = sr / WIN
+  const lowBinStart = Math.max(1, Math.floor(35 / binHz))
+  const lowBinEnd = Math.floor(180 / binHz)
+  const midBinEnd = Math.floor(1500 / binHz)
+  const highBinEnd = Math.min(WIN / 2 - 1, Math.floor(8000 / binHz))
+
+  const kickFlux = new Float32Array(frames)
+  const totalFlux = new Float32Array(frames)
+  let prevLowMag = 0, prevMidMag = 0, prevHighMag = 0
+
+  for (let f = 0; f < frames; f++) {
+    const base = f * HOP
+    for (let i = 0; i < WIN; i++) re[i] = mono[base + i] * hann[i]
+    im.fill(0)
+    fft(re, im)
+
+    let lowMag = 0, midMag = 0, highMag = 0
+    for (let k = lowBinStart; k <= lowBinEnd; k++) lowMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
+    for (let k = lowBinEnd + 1; k <= midBinEnd; k++) midMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
+    for (let k = midBinEnd + 1; k <= highBinEnd; k++) highMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
+
+    const lowLog = Math.log1p(lowMag)
+    const midLog = Math.log1p(midMag)
+    const highLog = Math.log1p(highMag)
+
+    const dLow = Math.max(0, lowLog - prevLowMag)
+    const dMid = Math.max(0, midLog - prevMidMag)
+    const dHigh = Math.max(0, highLog - prevHighMag)
+
+    prevLowMag = lowLog; prevMidMag = midLog; prevHighMag = highLog
+    kickFlux[f] = dLow
+    totalFlux[f] = 2.5 * dLow + 1.0 * dMid + 0.6 * dHigh
   }
 
-  // Find candidate grid beats starting at time positiveMod(establishedPhaseSec, beatSec)
+  // Adaptive background suppression (~120ms moving mean subtraction)
+  // Ambient swells, pads, and sustained drones are suppressed to 0, leaving only sharp beat attacks.
+  const filterHalf = Math.max(2, Math.round(envRate * 0.06))
+  subtractMovingMean(kickFlux, filterHalf)
+  subtractMovingMean(totalFlux, filterHalf)
+
+  // 3. Grid candidate beats: t_k = phase0 + k * beatSec
   const phase0 = positiveMod(establishedPhaseSec, beatSec)
   const maxBeats = Math.floor(scanSeconds / beatSec)
-  const beatEnergies: number[] = []
+
+  const kickPeaks: number[] = []
+  const totalPeaks: number[] = []
+  const windowFrames = Math.max(1, Math.round(envRate * 0.035)) // ±35ms window
+
+  let maxKickFlux = 0
+  let maxTotalFlux = 0
 
   for (let k = 0; k < maxBeats; k++) {
     const t = phase0 + k * beatSec
-    const centerBlock = Math.round((t * sr) / blockSize)
-    let e = 0
-    for (let w = -2; w <= 2; w++) {
-      const idx = centerBlock + w
-      if (idx >= 0 && idx < numBlocks) {
-        e = Math.max(e, kickEnergy[idx])
+    const centerFrame = Math.round(t * envRate)
+    let kPeak = 0
+    let tPeak = 0
+    for (let w = -windowFrames; w <= windowFrames; w++) {
+      const idx = centerFrame + w
+      if (idx >= 0 && idx < frames) {
+        if (kickFlux[idx] > kPeak) kPeak = kickFlux[idx]
+        if (totalFlux[idx] > tPeak) tPeak = totalFlux[idx]
       }
     }
-    beatEnergies.push(e)
+    kickPeaks.push(kPeak)
+    totalPeaks.push(tPeak)
+    if (kPeak > maxKickFlux) maxKickFlux = kPeak
+    if (tPeak > maxTotalFlux) maxTotalFlux = tPeak
   }
 
-  // 1. Determine downbeat rotation among the 4 bar phases (0, 1, 2, 3)
-  // Scores each candidate rotation against low-frequency kick drum energy across all bars.
-  // In 4/4 electronic, dance and popular music, Beat 1 has the primary downbeat kick & crash.
-  const rotationScores = [0, 0, 0, 0]
-  const rotationCounts = [0, 0, 0, 0]
-  for (let k = 0; k < beatEnergies.length; k++) {
-    const r = k % 4
-    rotationScores[r] += beatEnergies[k]
-    rotationCounts[r]++
-  }
-
-  let bestRotation = 0
-  let bestRotScore = -1
-  for (let r = 0; r < 4; r++) {
-    const avg = rotationCounts[r] > 0 ? rotationScores[r] / rotationCounts[r] : 0
-    if (avg > bestRotScore) {
-      bestRotScore = avg
-      bestRotation = r
-    }
-  }
-
-  // 2. Locate the first authentic downbeat where the music / rhythm drops
-  let maxKick = 0
-  for (const e of beatEnergies) {
-    if (e > maxKick) maxKick = e
-  }
-
-  // Find the first downbeat candidate (k % 4 === bestRotation) that coincides with the kick drop
-  let firstBarBeatIdx = -1
-  const kickDropThreshold = maxKick * 0.20
-
+  // Find the earliest grid beat at or after audio starts
+  let firstAudibleBeatIdx = 0
   for (let k = 0; k < maxBeats; k++) {
-    if (k % 4 !== bestRotation) continue
     const t = phase0 + k * beatSec
-    if (t < audioStartSec - 0.06) continue
-
-    // If this candidate downbeat has substantial kick energy, it's the rhythm drop!
-    if (beatEnergies[k] >= kickDropThreshold) {
-      firstBarBeatIdx = k
+    if (t >= audioStartSec - 0.05) {
+      firstAudibleBeatIdx = k
       break
     }
   }
 
-  // Fallback: if intro is very soft/drumless, pick the first downbeat candidate after audio starts
-  if (firstBarBeatIdx === -1) {
-    for (let k = 0; k < maxBeats; k++) {
-      if (k % 4 !== bestRotation) continue
-      const t = phase0 + k * beatSec
-      if (t >= audioStartSec - 0.06) {
-        firstBarBeatIdx = k
-        break
-      }
+  // 4. Determine if the intro begins immediately with drums (e.g. J9_lime at 0:00)
+  // If the first audible beat already has a drum transient, anchor directly to it!
+  const kickThresh = maxKickFlux > 0 ? maxKickFlux * 0.15 : 0
+  const totalThresh = maxTotalFlux > 0 ? maxTotalFlux * 0.15 : 0
+
+  const hasDrumAtFirstBeat =
+    (kickPeaks[firstAudibleBeatIdx] >= kickThresh && kickThresh > 0) ||
+    (totalPeaks[firstAudibleBeatIdx] >= totalThresh && totalThresh > 0)
+
+  if (hasDrumAtFirstBeat) {
+    return Math.max(0, phase0 + firstAudibleBeatIdx * beatSec)
+  }
+
+  // 5. If the intro starts with ambient/synth pad/silence before a drop (e.g. Lip_rona):
+  // Scan forward beat by beat to find the FIRST beat where the kick drum / rhythm drops.
+  // The first beat that hits the kick transient threshold is the authentic drop downbeat!
+  for (let k = firstAudibleBeatIdx; k < maxBeats; k++) {
+    const isKickDrop = kickPeaks[k] >= kickThresh && kickThresh > 0
+    const isRhythmDrop = totalPeaks[k] >= totalThresh && totalThresh > 0
+    if (isKickDrop || isRhythmDrop) {
+      return Math.max(0, phase0 + k * beatSec)
     }
   }
 
-  if (firstBarBeatIdx === -1) {
-    firstBarBeatIdx = bestRotation
-  }
-
-  // Anchor Bar 1 (white downbeat stripe) to the authentic downbeat of the track
-  const firstBarTime = Math.max(0, phase0 + firstBarBeatIdx * beatSec)
-  return firstBarTime
+  // Fallback: first audible beat
+  return Math.max(0, phase0 + firstAudibleBeatIdx * beatSec)
 }
 
 /**

@@ -635,7 +635,7 @@ function renderDeckLane({
   const grid = track.grid
   if (grid) {
     const beatLen = 60 / grid.bpm
-    const minGridT = Math.max(0, (grid.firstBar ?? 0) - 0.02)
+    const minGridT = 0
     const firstVisibleBeat = Math.ceil((tStart - grid.firstBeat) / beatLen)
     for (let k = firstVisibleBeat; ; k++) {
       const t = grid.firstBeat + k * beatLen
