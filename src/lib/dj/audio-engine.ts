@@ -2,6 +2,7 @@ import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
 import { DeckEngine } from './deck-engine'
 import type { DeckId } from './types'
 import { getVinylWorkletUrl } from './vinyl-worklet'
+import { positiveMod } from './dsp'
 
 /**
  * Top-level audio graph: two decks -> master gain -> limiter -> destination.
@@ -84,20 +85,75 @@ export class AudioEngine {
     this.limiter.connect(glowFilter)
     glowFilter.connect(this.glowAnalyser)
 
-    // Register audio worklets: vinyl player & SoundTouch (Key Lock)
+    // Register audio worklets: vinyl player, Rubberband R3 & SoundTouch fallback
     const vinylWorkletReady = this.ctx.audioWorklet.addModule(getVinylWorkletUrl())
+
+    const rubberbandUrl = `${import.meta.env.BASE_URL}rubberband-processor.js`
+    const rubberbandReady = this.ctx.audioWorklet.addModule(rubberbandUrl).catch(err => {
+      console.warn('RubberBand worklet registration failed, will fallback to SoundTouch:', err)
+    })
 
     const soundTouchUrl = `${import.meta.env.BASE_URL}soundtouch-processor.js`
     const soundTouchReady = SoundTouchNode.register(this.ctx, soundTouchUrl).catch(err => {
-      console.warn('SoundTouch registration failed, fallback to direct audio:', err)
+      console.warn('SoundTouch registration failed:', err)
     })
 
     this.decks = {
-      A: new DeckEngine(this.ctx, this.master, vinylWorkletReady, soundTouchReady),
-      B: new DeckEngine(this.ctx, this.master, vinylWorkletReady, soundTouchReady),
+      A: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady, soundTouchReady),
+      B: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady, soundTouchReady),
     }
 
     this.setCrossfade(0)
+    this.startPllLoop()
+  }
+
+  private pllTimer: number | null = null
+
+  private startPllLoop() {
+    if (typeof window === 'undefined') return
+    if (this.pllTimer !== null) return
+
+    this.pllTimer = window.setInterval(() => {
+      this.updatePllSync()
+    }, 20)
+  }
+
+  private updatePllSync() {
+    for (const id of ['A', 'B'] as const) {
+      const follower = this.decks[id]
+      if (!follower.syncLocked) continue
+      const master = follower.syncTargetDeck
+      if (!master || !follower.playing || !master.playing || follower.scratching || master.scratching) {
+        continue
+      }
+
+      const ownGrid = follower.track?.grid
+      const masterGrid = master.track?.grid
+      if (!ownGrid || !masterGrid) continue
+
+      const ownBpm = ownGrid.bpm
+      const masterBpm = masterGrid.bpm
+      const targetRate = (masterBpm * master.rate) / ownBpm
+
+      // Keep follower tempo locked to master pitch changes
+      if (Math.abs(follower.rate - targetRate) > 0.0001) {
+        follower.setRate(targetRate, true)
+      }
+
+      // Continuous phase lock loop within the bar
+      const ownBar = (60 / ownBpm) * (ownGrid.beatsPerBar || 4)
+      const masterBar = (60 / masterBpm) * (masterGrid.beatsPerBar || 4)
+      const phiFollower = positiveMod((follower.position - ownGrid.firstBar) / ownBar, 1)
+      const phiMaster = positiveMod((master.position - masterGrid.firstBar) / masterBar, 1)
+
+      let dPhi = phiMaster - phiFollower
+      if (dPhi > 0.5) dPhi -= 1.0
+      if (dPhi < -0.5) dPhi += 1.0
+
+      // Proportional rate correction clamped to +/- 1.5% max (holds phase error < 1ms)
+      const correction = 1.0 + Math.max(-0.015, Math.min(0.015, dPhi * 0.45))
+      follower.applyPllCorrection(correction)
+    }
   }
 
   async resume() {

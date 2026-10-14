@@ -40,17 +40,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const [filterB, setFilterB] = useState(0)
   const [volumeB, setVolumeB] = useState(1)
 
-  // Sync states
-  const isSyncedA = Boolean(
-    deckB.track &&
-      deckA.track &&
-      Math.abs((deckA.effectiveBpm ?? 0) - (deckB.effectiveBpm ?? 0)) < 0.05
-  )
-  const isSyncedB = Boolean(
-    deckA.track &&
-      deckB.track &&
-      Math.abs((deckB.effectiveBpm ?? 0) - (deckA.effectiveBpm ?? 0)) < 0.05
-  )
+  // Sync states (continuous sync lock)
+  const isSyncedA = deckA.syncLocked
+  const isSyncedB = deckB.syncLocked
 
   // Key sync states
   const baseCamelotA = deckA.track?.key?.camelot

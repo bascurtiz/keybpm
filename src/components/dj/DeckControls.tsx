@@ -92,7 +92,7 @@ export function DeckControls({
   const isPlaying = deck.playing
   const currentLoopBars = LOOP_OPTIONS[selectedLoopIdx]
   const maxPitch = PITCH_RANGES[pitchRangeIdx]
-  const isSynced = Boolean(otherDeck?.track && deck.track && Math.abs((deck.effectiveBpm ?? 0) - (otherDeck.effectiveBpm ?? 0)) < 0.05)
+  const isSynced = deck.syncLocked
   const isCueActive = !isPlaying && Boolean(deck.track)
 
   // Key Sync logic: harmonizes current deck with other deck's effective key

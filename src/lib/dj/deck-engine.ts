@@ -1,4 +1,5 @@
 import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
+import { createRubberBandNode, type RubberBandNode } from './rubberband-node'
 import { HOT_CUE_COUNT, type FxType, type LoopRegion, type Track } from './types'
 import { positiveMod } from './dsp'
 
@@ -10,13 +11,14 @@ interface WorkletMessage {
 
 /**
  * Deck audio graph:
- * vinyl worklet -> [KeyLock Stage (SoundTouchNode vs Bypass)] -> autoGain -> trim ->
+ * vinyl worklet -> [KeyLock Stage (RubberBandNode R3 / SoundTouch vs Bypass)] -> autoGain -> trim ->
  * 3-band EQ -> filter -> channel fader -> crossfader gain -> master.
  *
  * KEYLOCK:
  * Keylock (Master Tempo) preserves original pitch when tempo/playbackRate changes.
- * Enabled by default as requested. When active, SoundTouchNode compensates the pitch
- * proportionally. When scratching, bypassing or rate == 1.0, clean direct path is used.
+ * Powered by Breakfast Quay's Rubberband R3 SW (Mixxx's pitch-bending & keylock engine).
+ * When active, Rubberband compensates pitch proportionally while tempo = 1.0 (zero drift).
+ * When scratching, bypassing or rate == 1.0, clean direct path is used.
  */
 export class DeckEngine {
   readonly ctx: AudioContext
@@ -33,9 +35,15 @@ export class DeckEngine {
 
   // KeyLock / Master Tempo nodes
   private _keyLock = true
+  private rbNode: RubberBandNode | null = null
   private stNode: SoundTouchNode | null = null
   private readonly keyLockDryGain: GainNode
   private readonly keyLockWetGain: GainNode
+
+  // Continuous Zero-Drift Sync Lock (PLL)
+  private _syncLocked = false
+  private _syncTargetDeck: DeckEngine | null = null
+  private _pllCorrection = 1.0
 
   // FX sends (post-filter, pre-fader)
   private readonly echoSend: GainNode
@@ -115,6 +123,7 @@ export class DeckEngine {
     ctx: AudioContext,
     destination: AudioNode,
     vinylWorkletReady: Promise<unknown>,
+    rubberbandReady?: Promise<unknown>,
     soundTouchReady?: Promise<unknown>
   ) {
     this.ctx = ctx
@@ -231,10 +240,27 @@ export class DeckEngine {
         }
         this.pendingMessages = []
 
-        // If SoundTouch is ready, hook it up as well
+        // Hook up Rubberband R3 (Mixxx Keylock & Pitch-Bending Engine)
+        if (rubberbandReady) {
+          rubberbandReady
+            .then(() => {
+              try {
+                this.rbNode = createRubberBandNode(this.ctx)
+                node.connect(this.rbNode)
+                this.rbNode.connect(this.keyLockWetGain)
+                this.updateKeyLockRouting()
+              } catch (err) {
+                console.warn('RubberBandNode instantiation failed, will fallback to SoundTouch:', err)
+              }
+            })
+            .catch(err => console.warn('RubberBand worklet not ready:', err))
+        }
+
+        // If SoundTouch is available as backup
         if (soundTouchReady) {
           soundTouchReady
             .then(() => {
+              if (this.rbNode) return // Already using Rubberband
               try {
                 this.stNode = new SoundTouchNode({
                   context: this.ctx,
@@ -329,15 +355,25 @@ export class DeckEngine {
 
   private updateKeyLockRouting() {
     const t = this.ctx.currentTime
-    const effectiveRate = this._rate * this._nudgeFactor
+    const effectiveRate = this._rate * this._nudgeFactor * this._pllCorrection
     const isOffPitch = Math.abs(effectiveRate - 1) > 0.001
     const useKeyLock = (this._keyLock && isOffPitch) || this._keyShift !== 0
-    const active = useKeyLock && !this._scratching && !!this.stNode
+    const active = useKeyLock && !this._scratching && (!!this.rbNode || !!this.stNode)
 
-    if (active && this.stNode) {
+    if (active) {
       const pitchRatio = Math.pow(2, this._keyShift / 12)
-      this.stNode.playbackRate.setTargetAtTime(effectiveRate, t, 0.01)
-      this.stNode.pitch.setTargetAtTime(this._keyLock ? pitchRatio : effectiveRate * pitchRatio, t, 0.01)
+      if (this.rbNode) {
+        // Rubberband R3 (Mixxx): vinylNode plays at effectiveRate.
+        // Pitch is compensated by 1 / effectiveRate * pitchRatio to lock key.
+        // Tempo is kept at 1.0 (zero drift, no double time-stretch).
+        const targetPitch = this._keyLock ? (1 / effectiveRate) * pitchRatio : pitchRatio
+        this.rbNode.setPitch(targetPitch)
+        this.rbNode.setTempo(1.0)
+        this.rbNode.setHighQuality(true)
+      } else if (this.stNode) {
+        this.stNode.playbackRate.setTargetAtTime(1.0, t, 0.01)
+        this.stNode.pitch.setTargetAtTime(this._keyLock ? (1 / effectiveRate) * pitchRatio : pitchRatio, t, 0.01)
+      }
       this.keyLockWetGain.gain.setTargetAtTime(1, t, 0.015)
       this.keyLockDryGain.gain.setTargetAtTime(0, t, 0.015)
     } else {
@@ -550,13 +586,52 @@ export class DeckEngine {
     this.seek(this.position + bars * barLen)
   }
 
-  // ----- pitch -----
+  // ----- pitch & continuous sync lock -----
 
-  setRate(rate: number) {
-    this._rate = Math.max(0.2, Math.min(2.0, rate))
-    this.post({ t: 'rate', rate: this._rate * this._nudgeFactor })
-    this.updateFxTiming()
+  get syncLocked(): boolean {
+    return this._syncLocked
+  }
+
+  get syncTargetDeck(): DeckEngine | null {
+    return this._syncTargetDeck
+  }
+
+  get pllCorrection(): number {
+    return this._pllCorrection
+  }
+
+  setSyncLock(on: boolean, target?: DeckEngine | null) {
+    this._syncLocked = on
+    this._syncTargetDeck = on ? (target ?? null) : null
+    if (!on) {
+      this._pllCorrection = 1.0
+      this.applyRateUpdate()
+    }
+    this.emit()
+  }
+
+  applyPllCorrection(factor: number) {
+    if (Math.abs(this._pllCorrection - factor) < 0.00005) return
+    this._pllCorrection = factor
+    this.applyRateUpdate()
+  }
+
+  private applyRateUpdate() {
+    const finalRate = this._rate * this._nudgeFactor * this._pllCorrection
+    this.post({ t: 'rate', rate: finalRate })
     this.updateKeyLockRouting()
+  }
+
+  setRate(rate: number, fromSync = false) {
+    if (!fromSync && this._syncLocked) {
+      // Manual pitch slider adjustment disengages sync lock
+      this._syncLocked = false
+      this._syncTargetDeck = null
+      this._pllCorrection = 1.0
+    }
+    this._rate = Math.max(0.2, Math.min(2.0, rate))
+    this.applyRateUpdate()
+    this.updateFxTiming()
     this.emit()
   }
 
@@ -577,15 +652,19 @@ export class DeckEngine {
       this.seek(this.position + direction * 0.03)
     }
 
-    this.post({ t: 'rate', rate: this._rate * this._nudgeFactor })
-    this.updateKeyLockRouting()
+    this.applyRateUpdate()
     this.emit()
   }
 
   /**
-   * Sync to another deck: matches tempo and aligns beat phase within the bar.
+   * Sync to another deck: toggles sync lock, matches tempo, and aligns beat phase within the bar.
    */
   syncTo(other: DeckEngine): { pitch: number; barAligned: boolean } | null {
+    if (this._syncLocked) {
+      this.setSyncLock(false)
+      return null
+    }
+
     const ownGrid = this.track?.grid ?? null
     const otherGrid = other.track?.grid ?? null
     const ownBpm = ownGrid?.bpm ?? this.track?.bpm
@@ -595,24 +674,24 @@ export class DeckEngine {
     let rate = (otherBpm * other.rate) / ownBpm
     while (rate > 1.5) rate /= 2
     while (rate < 0.66) rate *= 2
-    this.setRate(rate)
+    this.setRate(rate, true)
 
     let barAligned = false
     if (ownGrid && otherGrid && this._playing && other.playing && !this._scratching) {
-      const frame = Math.max(this.posFrame, other.lastPosFrame)
-      const tSelf = this.positionAtFrame(frame)
-      const tOther = other.positionAtFrame(frame)
-      const ownBar = (60 / ownGrid.bpm) * ownGrid.beatsPerBar
-      const otherBar = (60 / otherGrid.bpm) * otherGrid.beatsPerBar
-      const phiSelf = positiveMod((tSelf - ownGrid.firstBar) / ownBar, 1)
-      const phiOther = positiveMod((tOther - otherGrid.firstBar) / otherBar, 1)
+      const ownBar = (60 / ownBpm) * (ownGrid.beatsPerBar || 4)
+      const otherBar = (60 / otherBpm) * (otherGrid.beatsPerBar || 4)
+      const phiSelf = positiveMod((this.position - ownGrid.firstBar) / ownBar, 1)
+      const phiOther = positiveMod((other.position - otherGrid.firstBar) / otherBar, 1)
       let dPhi = phiOther - phiSelf
-      dPhi -= Math.round(dPhi)
+      if (dPhi > 0.5) dPhi -= 1.0
+      if (dPhi < -0.5) dPhi += 1.0
       const shift = dPhi * ownBar
       this.post({ t: 'shift', s: shift })
       this.posSeconds = Math.min(Math.max(this.posSeconds + shift, 0), this.duration)
       barAligned = true
     }
+
+    this.setSyncLock(true, other)
     this.emit()
     return { pitch: (rate - 1) * 100, barAligned }
   }
