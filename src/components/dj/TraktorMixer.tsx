@@ -86,74 +86,136 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     else deckB.setKeyShift(optShiftB)
   }
 
-  // FX helpers
+  // FX assign state: Deck A, Deck B, or Master
+  const [fxAssign, setFxAssign] = useState<'A' | 'B' | 'MST'>('MST')
+
+  // FX helpers with channel assignment (Deck A, Deck B, or Master)
   const toggleEcho = () => {
-    if (isEchoActive) {
-      deckA.setFxWet(0)
-      deckB.setFxWet(0)
+    if (fxAssign === 'A') {
+      if (deckA.fxType === 'echo' && deckA.fxWet > 0) {
+        deckA.setFxWet(0)
+      } else {
+        deckA.setFx('echo')
+        deckA.setFxWet(0.55)
+      }
+    } else if (fxAssign === 'B') {
+      if (deckB.fxType === 'echo' && deckB.fxWet > 0) {
+        deckB.setFxWet(0)
+      } else {
+        deckB.setFx('echo')
+        deckB.setFxWet(0.55)
+      }
     } else {
-      const target = deckA.playing ? deckA : deckB.playing ? deckB : (deckA.track ? deckA : deckB)
-      target.setFx('echo')
-      target.setFxWet(0.55)
+      const anyEcho = (deckA.fxType === 'echo' && deckA.fxWet > 0) || (deckB.fxType === 'echo' && deckB.fxWet > 0)
+      if (anyEcho) {
+        deckA.setFxWet(0)
+        deckB.setFxWet(0)
+      } else {
+        deckA.setFx('echo')
+        deckA.setFxWet(0.55)
+        deckB.setFx('echo')
+        deckB.setFxWet(0.55)
+      }
     }
   }
 
   const toggleReverb = () => {
-    if (isReverbActive) {
-      deckA.setFxWet(0)
-      deckB.setFxWet(0)
+    if (fxAssign === 'A') {
+      if (deckA.fxType === 'reverb' && deckA.fxWet > 0) {
+        deckA.setFxWet(0)
+      } else {
+        deckA.setFx('reverb')
+        deckA.setFxWet(0.5)
+      }
+    } else if (fxAssign === 'B') {
+      if (deckB.fxType === 'reverb' && deckB.fxWet > 0) {
+        deckB.setFxWet(0)
+      } else {
+        deckB.setFx('reverb')
+        deckB.setFxWet(0.5)
+      }
     } else {
-      const target = deckA.playing ? deckA : deckB.playing ? deckB : (deckA.track ? deckA : deckB)
-      target.setFx('reverb')
-      target.setFxWet(0.5)
+      const anyReverb = (deckA.fxType === 'reverb' && deckA.fxWet > 0) || (deckB.fxType === 'reverb' && deckB.fxWet > 0)
+      if (anyReverb) {
+        deckA.setFxWet(0)
+        deckB.setFxWet(0)
+      } else {
+        deckA.setFx('reverb')
+        deckA.setFxWet(0.5)
+        deckB.setFx('reverb')
+        deckB.setFxWet(0.5)
+      }
     }
   }
 
   const triggerBrake = async () => {
-    const target = deckA.playing ? deckA : deckB.playing ? deckB : null
-    if (!target) return
-    await target.scratchBegin()
-    const start = performance.now()
-    const duration = 650
-    const step = () => {
-      const elapsed = performance.now() - start
-      const p = Math.min(1, elapsed / duration)
-      const rate = Math.pow(1 - p, 2)
-      target.scratchMove(rate)
-      if (p < 1) {
-        requestAnimationFrame(step)
-      } else {
-        target.scratchEnd()
-        target.pause()
+    const targets = fxAssign === 'A'
+      ? [deckA]
+      : fxAssign === 'B'
+      ? [deckB]
+      : [deckA, deckB].filter(d => d.playing)
+
+    const activeTargets = targets.length > 0 ? targets : [deckA]
+    for (const target of activeTargets) {
+      if (!target.track) continue
+      await target.scratchBegin()
+      const start = performance.now()
+      const duration = 650
+      const step = () => {
+        const elapsed = performance.now() - start
+        const p = Math.min(1, elapsed / duration)
+        const rate = Math.pow(1 - p, 2)
+        target.scratchMove(rate)
+        if (p < 1) {
+          requestAnimationFrame(step)
+        } else {
+          target.scratchEnd()
+          target.pause()
+        }
       }
+      requestAnimationFrame(step)
     }
-    requestAnimationFrame(step)
   }
 
   const triggerBackspin = async () => {
-    const target = deckA.playing ? deckA : deckB.playing ? deckB : deckA
-    if (!target.track) return
-    await target.scratchBegin()
-    const start = performance.now()
-    const duration = 500
-    const step = () => {
-      const elapsed = performance.now() - start
-      const p = Math.min(1, elapsed / duration)
-      const rate = -3.5 * Math.pow(1 - p, 2)
-      target.scratchMove(rate)
-      if (p < 1) {
-        requestAnimationFrame(step)
-      } else {
-        target.scratchEnd()
+    const targets = fxAssign === 'A'
+      ? [deckA]
+      : fxAssign === 'B'
+      ? [deckB]
+      : [deckA, deckB].filter(d => d.playing)
+
+    const activeTargets = targets.length > 0 ? targets : [deckA]
+    for (const target of activeTargets) {
+      if (!target.track) continue
+      await target.scratchBegin()
+      const start = performance.now()
+      const duration = 500
+      const step = () => {
+        const elapsed = performance.now() - start
+        const p = Math.min(1, elapsed / duration)
+        const rate = -3.5 * Math.pow(1 - p, 2)
+        target.scratchMove(rate)
+        if (p < 1) {
+          requestAnimationFrame(step)
+        } else {
+          target.scratchEnd()
+        }
       }
+      requestAnimationFrame(step)
     }
-    requestAnimationFrame(step)
   }
 
-  const isEchoActive =
-    (deckA.fxType === 'echo' && deckA.fxWet > 0) || (deckB.fxType === 'echo' && deckB.fxWet > 0)
-  const isReverbActive =
-    (deckA.fxType === 'reverb' && deckA.fxWet > 0) || (deckB.fxType === 'reverb' && deckB.fxWet > 0)
+  const isEchoActive = fxAssign === 'A'
+    ? deckA.fxType === 'echo' && deckA.fxWet > 0
+    : fxAssign === 'B'
+    ? deckB.fxType === 'echo' && deckB.fxWet > 0
+    : (deckA.fxType === 'echo' && deckA.fxWet > 0) || (deckB.fxType === 'echo' && deckB.fxWet > 0)
+
+  const isReverbActive = fxAssign === 'A'
+    ? deckA.fxType === 'reverb' && deckA.fxWet > 0
+    : fxAssign === 'B'
+    ? deckB.fxType === 'reverb' && deckB.fxWet > 0
+    : (deckA.fxType === 'reverb' && deckA.fxWet > 0) || (deckB.fxType === 'reverb' && deckB.fxWet > 0)
 
   return (
     <div
@@ -286,6 +348,46 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               accentColor="#a855f7"
             />
           </div>
+        </div>
+
+        {/* FX Target Assignment Buttons: Deck A, Deck B, Master */}
+        <div className="grid grid-cols-3 gap-1 w-full max-w-[104px] mt-1 mb-0.5">
+          <button
+            type="button"
+            onClick={() => setFxAssign('A')}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              fxAssign === 'A'
+                ? 'bg-[#1e1e1e] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+            }`}
+            title="Assign FX to Deck A"
+          >
+            A
+          </button>
+          <button
+            type="button"
+            onClick={() => setFxAssign('B')}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              fxAssign === 'B'
+                ? 'bg-[#1e1e1e] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+            }`}
+            title="Assign FX to Deck B"
+          >
+            B
+          </button>
+          <button
+            type="button"
+            onClick={() => setFxAssign('MST')}
+            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              fxAssign === 'MST'
+                ? 'bg-[#1e1e1e] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+            }`}
+            title="Assign FX to Master (Both Decks)"
+          >
+            MST
+          </button>
         </div>
 
         {/* Middle: 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SPIN] */}
