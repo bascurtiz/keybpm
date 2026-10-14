@@ -94,9 +94,10 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
       // 4-beat bar counter based on track beat grid
       const gridA = deckA.track?.grid
       if (gridA && deckA.track) {
-        const bpmA = deckA.effectiveBpm || gridA.bpm
+        const bpmA = gridA.bpm || deckA.track.bpm || 120
         const beatLenA = 60 / bpmA
-        const beatNumA = Math.floor((deckA.position - (gridA.firstBar ?? gridA.firstBeat ?? 0)) / beatLenA)
+        const firstBarA = gridA.firstBar ?? gridA.firstBeat ?? 0
+        const beatNumA = Math.floor((deckA.position - firstBarA + 0.04) / beatLenA)
         const activeIdxA = positiveMod(beatNumA, gridA.beatsPerBar || 4)
 
         for (let i = 0; i < 4; i++) {
@@ -121,9 +122,10 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
 
       const gridB = deckB.track?.grid
       if (gridB && deckB.track) {
-        const bpmB = deckB.effectiveBpm || gridB.bpm
+        const bpmB = gridB.bpm || deckB.track.bpm || 120
         const beatLenB = 60 / bpmB
-        const beatNumB = Math.floor((deckB.position - (gridB.firstBar ?? gridB.firstBeat ?? 0)) / beatLenB)
+        const firstBarB = gridB.firstBar ?? gridB.firstBeat ?? 0
+        const beatNumB = Math.floor((deckB.position - firstBarB + 0.04) / beatLenB)
         const activeIdxB = positiveMod(beatNumB, gridB.beatsPerBar || 4)
 
         for (let i = 0; i < 4; i++) {

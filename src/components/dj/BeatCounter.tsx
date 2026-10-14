@@ -16,11 +16,12 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
     let raf = 0
     const tick = () => {
       // Deck A 4-beat bar indicator
-      const bpmA = deckA.effectiveBpm || deckA.track?.grid?.bpm || deckA.track?.bpm || 120
+      const gridA = deckA.track?.grid
+      const bpmA = gridA?.bpm || deckA.track?.bpm || 120
       const beatLenA = 60 / bpmA
-      const firstBarA = deckA.track?.grid?.firstBar ?? deckA.track?.grid?.firstBeat ?? 0
-      const beatNumA = Math.floor((deckA.position - firstBarA) / beatLenA)
-      const beatsPerBarA = deckA.track?.grid?.beatsPerBar || 4
+      const firstBarA = gridA?.firstBar ?? gridA?.firstBeat ?? 0
+      const beatNumA = Math.floor((deckA.position - firstBarA + 0.04) / beatLenA)
+      const beatsPerBarA = gridA?.beatsPerBar || 4
       const activeIdxA = positiveMod(beatNumA, beatsPerBarA)
 
       for (let i = 0; i < 4; i++) {
@@ -35,11 +36,12 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
       }
 
       // Deck B 4-beat bar indicator
-      const bpmB = deckB.effectiveBpm || deckB.track?.grid?.bpm || deckB.track?.bpm || 120
+      const gridB = deckB.track?.grid
+      const bpmB = gridB?.bpm || deckB.track?.bpm || 120
       const beatLenB = 60 / bpmB
-      const firstBarB = deckB.track?.grid?.firstBar ?? deckB.track?.grid?.firstBeat ?? 0
-      const beatNumB = Math.floor((deckB.position - firstBarB) / beatLenB)
-      const beatsPerBarB = deckB.track?.grid?.beatsPerBar || 4
+      const firstBarB = gridB?.firstBar ?? gridB?.firstBeat ?? 0
+      const beatNumB = Math.floor((deckB.position - firstBarB + 0.04) / beatLenB)
+      const beatsPerBarB = gridB?.beatsPerBar || 4
       const activeIdxB = positiveMod(beatNumB, beatsPerBarB)
 
       for (let i = 0; i < 4; i++) {
