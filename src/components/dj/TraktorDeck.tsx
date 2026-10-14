@@ -273,7 +273,7 @@ export function TraktorDeck({
               type="button"
               onClick={() => deck.resetKeyShift()}
               className="h-[9px] w-6 font-sans text-[7.5px] font-bold leading-none select-none flex items-center justify-center rounded-[2px] transition-colors"
-              title="Reset Key Shift"
+              title="Reset Key Shift to 0"
             >
               <span
                 className={
@@ -286,7 +286,7 @@ export function TraktorDeck({
                   ? deck.keyShift > 0
                     ? `+${deck.keyShift}`
                     : `${deck.keyShift}`
-                  : 'RESET'}
+                  : '0'}
               </span>
             </button>
 
