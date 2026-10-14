@@ -8,6 +8,8 @@ import { CAMELOT_TO_KEY } from '@/types/track'
 import { shortKey } from '@/lib/format'
 import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
 import { Knob } from './Knob'
+import { youtubeBridge } from '@/lib/dj/youtube-bridge'
+import { youtubeThumbUrl } from '@/lib/youtube'
 
 interface TraktorMiddleStripProps {
   engine: AudioEngine
@@ -64,10 +66,12 @@ export function TraktorMiddleStrip({
     const unE = engine.subscribe(() => setVer(v => v + 1))
     const unA = deckA.subscribe(() => setVer(v => v + 1))
     const unB = deckB.subscribe(() => setVer(v => v + 1))
+    const unY = youtubeBridge.subscribe(() => setVer(v => v + 1))
     return () => {
       unE()
       unA()
       unB()
+      unY()
     }
   }, [engine, deckA, deckB])
 
@@ -75,16 +79,24 @@ export function TraktorMiddleStrip({
   useEffect(() => {
     let raf = 0
     const tick = () => {
-      if (timeAEl.current && deckA.track) {
-        timeAEl.current.textContent = `${formatTime(deckA.position)} / ${formatTime(deckA.duration)}`
-      } else if (timeAEl.current) {
-        timeAEl.current.textContent = '0:00 / 0:00'
+      if (timeAEl.current) {
+        if (deckA.track) {
+          timeAEl.current.textContent = `${formatTime(deckA.position)} / ${formatTime(deckA.duration)}`
+        } else if (youtubeBridge.state.A.hasVideo) {
+          timeAEl.current.textContent = `${formatTime(youtubeBridge.state.A.currentTime)} / ${formatTime(youtubeBridge.state.A.duration)}`
+        } else {
+          timeAEl.current.textContent = '0:00 / 0:00'
+        }
       }
 
-      if (timeBEl.current && deckB.track) {
-        timeBEl.current.textContent = `${formatTime(deckB.position)} / ${formatTime(deckB.duration)}`
-      } else if (timeBEl.current) {
-        timeBEl.current.textContent = '0:00 / 0:00'
+      if (timeBEl.current) {
+        if (deckB.track) {
+          timeBEl.current.textContent = `${formatTime(deckB.position)} / ${formatTime(deckB.duration)}`
+        } else if (youtubeBridge.state.B.hasVideo) {
+          timeBEl.current.textContent = `${formatTime(youtubeBridge.state.B.currentTime)} / ${formatTime(youtubeBridge.state.B.duration)}`
+        } else {
+          timeBEl.current.textContent = '0:00 / 0:00'
+        }
       }
 
       raf = requestAnimationFrame(tick)
@@ -121,9 +133,9 @@ export function TraktorMiddleStrip({
               {isEditingMasterBpm ? (
                 <input
                   type="number"
-                  step="0.1"
+                  step="0.01"
                   autoFocus
-                  defaultValue={masterBpm.toFixed(1)}
+                  defaultValue={masterBpm.toFixed(2)}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       const val = parseFloat((e.target as HTMLInputElement).value)
@@ -138,7 +150,7 @@ export function TraktorMiddleStrip({
                     if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
                     setIsEditingMasterBpm(false)
                   }}
-                  className="w-12 bg-black border border-white text-white font-mono text-xs font-bold text-center rounded px-0.5 outline-none"
+                  className="w-14 bg-black border border-white text-white font-mono text-xs font-bold text-center rounded px-0.5 outline-none"
                 />
               ) : (
                 <span
@@ -146,7 +158,7 @@ export function TraktorMiddleStrip({
                   className="text-xs font-mono font-bold text-[#d4d4d4] hover:text-white hover:underline cursor-pointer tabular-nums"
                   title="Click to overrule Master BPM"
                 >
-                  {masterBpm.toFixed(1)}
+                  {masterBpm.toFixed(2)}
                 </span>
               )}
             </div>
@@ -249,10 +261,20 @@ function DeckHeader({
   const [isEditingBpm, setIsEditingBpm] = useState(false)
   const [isEditingKey, setIsEditingKey] = useState(false)
 
-  const rawCamelot = deck.track?.key?.camelot
+  const ytState = youtubeBridge.state[deckId]
+  const hasYt = ytState.hasVideo
+  const rawCamelot = deck.track?.key?.camelot || (hasYt ? ytState.camelot : null)
   const effectiveCamelot = rawCamelot
     ? (deck.keyShift !== 0 ? shiftCamelot(rawCamelot, deck.keyShift) : rawCamelot)
     : null
+
+  const displayTitle = deck.track ? deck.track.title : (hasYt ? ytState.title : `Deck ${deckId}: No track loaded`)
+  const displayArtist = deck.track
+    ? `${deck.track.artist}${deck.track.genre ? ` • ${deck.track.genre}` : ''}`
+    : (hasYt ? (ytState.artist || 'YouTube Video') : 'Drop audio file or click artwork')
+  const displayCover = deck.track?.coverUrl || (hasYt && ytState.videoId ? youtubeThumbUrl(ytState.videoId) : null)
+  const displayBpm = deck.effectiveBpm ? deck.effectiveBpm : (hasYt ? ytState.bpm * ytState.playbackRate : null)
+  const isLoaded = Boolean(deck.track || hasYt)
 
   return (
     <div
@@ -266,9 +288,9 @@ function DeckHeader({
         className="relative h-10 w-10 shrink-0 rounded-[3px] overflow-hidden bg-[#161616] border border-[#282828] cursor-pointer group shadow-sm"
         title={`Deck ${deckId} Artwork (Click to load track)`}
       >
-        {deck.track?.coverUrl ? (
+        {displayCover ? (
           <img
-            src={deck.track.coverUrl}
+            src={displayCover}
             alt=""
             className="h-full w-full object-cover group-hover:opacity-75 transition-opacity"
           />
@@ -291,9 +313,9 @@ function DeckHeader({
           <h2
             onClick={onLoadClick}
             className="text-[12px] font-bold text-white truncate cursor-pointer hover:text-zinc-300"
-            title={deck.track ? `${deck.track.title} - ${deck.track.artist}` : 'Click to load track'}
+            title={isLoaded ? `${displayTitle} - ${displayArtist}` : 'Click to load track'}
           >
-            {deck.track ? deck.track.title : `Deck ${deckId}: No track loaded`}
+            {displayTitle}
           </h2>
           <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0">
             0:00 / 0:00
@@ -302,9 +324,7 @@ function DeckHeader({
 
         <div className={`flex items-baseline justify-between gap-1 text-[10px] text-zinc-400 mt-0.5 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
           <p className="truncate text-zinc-400">
-            {deck.track
-              ? `${deck.track.artist}${deck.track.genre ? ` • ${deck.track.genre}` : ''}`
-              : 'Drop audio file or click artwork'}
+            {displayArtist}
           </p>
 
           {/* BPM & Color-coded Key Display */}
@@ -312,9 +332,9 @@ function DeckHeader({
             {isEditingBpm ? (
               <input
                 type="number"
-                step="0.1"
+                step="0.01"
                 autoFocus
-                defaultValue={deck.effectiveBpm ? deck.effectiveBpm.toFixed(1) : ''}
+                defaultValue={deck.effectiveBpm ? deck.effectiveBpm.toFixed(2) : ''}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     const val = parseFloat((e.target as HTMLInputElement).value)
@@ -329,7 +349,7 @@ function DeckHeader({
                   if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
                   setIsEditingBpm(false)
                 }}
-                className="w-12 bg-black border border-white text-white font-mono text-[10px] font-bold text-center rounded px-0.5 outline-none"
+                className="w-14 bg-black border border-white text-white font-mono text-[10px] font-bold text-center rounded px-0.5 outline-none"
               />
             ) : (
               <span
@@ -341,13 +361,13 @@ function DeckHeader({
                 }`}
                 title={deck.track ? 'Click to overrule BPM' : undefined}
               >
-                {deck.effectiveBpm ? deck.effectiveBpm.toFixed(1) : '---'}
+                {displayBpm ? displayBpm.toFixed(2) : '---'}
               </span>
             )}
-            {deck.track ? (
+            {isLoaded ? (
               <>
                 <span className="text-zinc-500"> / </span>
-                {isEditingKey ? (
+                {isEditingKey && deck.track ? (
                   <select
                     autoFocus
                     value={effectiveCamelot || '8A'}

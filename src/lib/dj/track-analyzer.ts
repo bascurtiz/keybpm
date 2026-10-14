@@ -103,7 +103,7 @@ export async function analyzeTrackFile(
   // Mixxx BeatGrid analyzer provides the definitive, synchronized BPM & BeatGrid
   let bpm = gridResult?.bpm ?? keyResult?.bpm ?? null
   if (bpm) {
-    bpm = Math.round(bpm * 10) / 10
+    bpm = Math.round(bpm * 100) / 100
   }
 
   const key = keyResult

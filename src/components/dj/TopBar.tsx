@@ -261,7 +261,7 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
               className="h-5 min-w-[42px] px-2 rounded-[2px] bg-[#161616] border border-[#2a2d33] font-sans text-[10px] font-bold text-zinc-300 tabular-nums hover:text-white transition-colors tracking-wider select-none flex items-center justify-center leading-none shadow-inner"
               title="Master Tempo (BPM)"
             >
-              {masterBpm ? masterBpm.toFixed(1) : '128.0'}
+              {masterBpm ? masterBpm.toFixed(2) : '128.00'}
             </div>
           </div>
 

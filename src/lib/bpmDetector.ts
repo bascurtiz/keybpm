@@ -166,7 +166,7 @@ export async function detectAudioBpm(
     confidence = 3.8
   }
 
-  const roundedBpm = Math.round(finalBpm * 10) / 10
+  const roundedBpm = Math.round(finalBpm * 100) / 100
 
   return {
     bpm: roundedBpm,

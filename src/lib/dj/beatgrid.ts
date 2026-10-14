@@ -55,7 +55,7 @@ const HOP = 128 // ~5.8ms frame resolution at 22.05 kHz for razor-sharp transien
 const MIN_BPM = 65
 const MAX_BPM = 195
 const BEATS_PER_BAR = 4
-const ANALYSIS_SECONDS = 90
+const ANALYSIS_SECONDS = 120
 
 function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
   if (buffer.duration < 4) return null
@@ -337,7 +337,25 @@ function findMixxxFirstBeatAtIntro(
     filtered[i] = y0
   }
 
-  // Short 20ms windowed kick energy
+  // 1. Detect first audio onset above silence (RMS > 0.005)
+  const block10ms = Math.floor(sr * 0.01)
+  const num10msBlocks = Math.floor(scanSamples / block10ms)
+  let audioStartSec = 0
+  for (let b = 0; b < num10msBlocks; b++) {
+    let s = 0
+    const base = b * block10ms
+    for (let i = 0; i < block10ms; i += 2) {
+      const v = intro[base + i]
+      s += v * v
+    }
+    const rms = Math.sqrt(s / (block10ms / 2))
+    if (rms > 0.005) {
+      audioStartSec = (b * block10ms) / sr
+      break
+    }
+  }
+
+  // 2. Short 20ms windowed kick energy
   const blockSize = Math.floor(sr * 0.02)
   const numBlocks = Math.floor(scanSamples / blockSize)
   const kickEnergy = new Float32Array(numBlocks)
@@ -370,20 +388,32 @@ function findMixxxFirstBeatAtIntro(
     beatEnergies.push(e)
   }
 
-  // Compute robust median non-zero kick energy
-  const sortedE = [...beatEnergies].sort((a, b) => a - b)
-  const medianE = sortedE[Math.floor(sortedE.length * 0.7)] || 0
-  const threshold = Math.max(0.005, medianE * 0.12)
-
-  let firstBarTime = phase0
+  // Find the first beat index at or immediately after audio starts
+  let firstMusicBeatIdx = 0
   for (let k = 0; k < maxBeats; k++) {
-    if (beatEnergies[k] >= threshold) {
-      firstBarTime = phase0 + k * beatSec
+    const t = phase0 + k * beatSec
+    if (t >= audioStartSec - 0.06) {
+      firstMusicBeatIdx = k
       break
     }
   }
 
-  return firstBarTime
+  // Check kick energy in the first 8 beats after music starts
+  const sortedE = [...beatEnergies].sort((a, b) => a - b)
+  const medianE = sortedE[Math.floor(sortedE.length * 0.7)] || 0
+  const threshold = Math.max(0.005, medianE * 0.12)
+
+  let earlyKickBeatIdx = -1
+  const maxEarlyCheck = Math.min(maxBeats, firstMusicBeatIdx + 8)
+  for (let k = firstMusicBeatIdx; k < maxEarlyCheck; k++) {
+    if (beatEnergies[k] >= threshold) {
+      earlyKickBeatIdx = k
+      break
+    }
+  }
+
+  const selectedBeatIdx = earlyKickBeatIdx !== -1 ? earlyKickBeatIdx : firstMusicBeatIdx
+  return phase0 + selectedBeatIdx * beatSec
 }
 
 /**
@@ -587,9 +617,9 @@ export function detectMixxxBpmFromPcm(
   if (peaks.length === 0) return null
 
   const topLag = peaks[0].lag
-  const y0 = scoreAt(topLag - 1)
-  const y1 = scoreAt(topLag)
-  const y2 = scoreAt(topLag + 1)
+  const y0 = acfAt(topLag - 1)
+  const y1 = acfAt(topLag)
+  const y2 = acfAt(topLag + 1)
   const denom = 2 * (y0 - 2 * y1 + y2)
   let delta = 0
   if (denom < -1e-6) {
@@ -612,6 +642,6 @@ export function detectMixxxBpmFromPcm(
     detectedBpm /= 2
   }
 
-  return Math.round(detectedBpm * 10) / 10
+  return Math.round(detectedBpm * 100) / 100
 }
 
