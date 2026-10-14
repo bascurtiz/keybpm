@@ -12,3 +12,6 @@ workers/api/.dev.vars
 
 # Local dumps/backups of production data — never commit.
 .backup/
+
+# Local research and reverse-engineered reference files — never upload or commit.
+research/

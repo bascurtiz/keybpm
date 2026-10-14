@@ -4,6 +4,7 @@ import { JogWheel } from './JogWheel'
 import { Knob } from './Knob'
 import { Fader } from './Fader'
 import { shiftCamelot, findKeySyncShift } from '@/lib/camelot'
+import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 interface TraktorDeckProps {
   deck: DeckEngine
@@ -22,7 +23,7 @@ export function TraktorDeck({
   deckId,
   side,
   accentColor,
-  onLoadClick,
+  onLoadClick: _onLoadClick,
 }: TraktorDeckProps) {
   const [, setVer] = useState(0)
   const [pitchRangeIdx, setPitchRangeIdx] = useState(1) // Default ±10%
@@ -76,10 +77,13 @@ export function TraktorDeck({
 
   // Incremental BPM tempo adjustment
   const stepPitchBpm = (deltaBpm: number) => {
-    const baseBpm = deck.track?.bpm || 120
-    const currentBpm = deck.effectiveBpm || baseBpm
+    const ytDeck = youtubeBridge.state[deckId]
+    const baseBpm = deck.track?.bpm || (ytDeck.hasVideo ? ytDeck.bpm : 120)
+    const currentBpm = deck.effectiveBpm || (ytDeck.hasVideo ? ytDeck.bpm * ytDeck.playbackRate : baseBpm)
     const targetBpm = Math.max(20, Math.min(300, Math.round((currentBpm + deltaBpm) * 10) / 10))
-    deck.setRate(targetBpm / baseBpm)
+    const newRate = targetBpm / baseBpm
+    deck.setRate(newRate)
+    youtubeBridge.setPlaybackRate(deckId, newRate)
   }
 
   // Key Sync logic
@@ -129,7 +133,10 @@ export function TraktorDeck({
         {/* Pitch Rate Readout & Reset to 0% */}
         <button
           type="button"
-          onClick={() => deck.setRate(1)}
+          onClick={() => {
+            deck.setRate(1)
+            youtubeBridge.setPlaybackRate(deckId, 1)
+          }}
           className="text-[9.5px] font-mono font-bold text-[#d4d4d4] hover:text-white tabular-nums tracking-tight transition-colors"
           title="Click to reset pitch to 0.0%"
         >
@@ -149,7 +156,10 @@ export function TraktorDeck({
             snapCenter
             invert
             ticks={9}
-            onValueChange={r => deck.setRate(r)}
+            onValueChange={r => {
+              deck.setRate(r)
+              youtubeBridge.setPlaybackRate(deckId, r)
+            }}
             accentColor={accentColor}
             className="w-7 h-[140px]"
           />
@@ -188,15 +198,10 @@ export function TraktorDeck({
       </div>
 
       {/* ================= 2. CENTER: JOG WHEEL & NUDGE BUTTONS ================= */}
-      <div
-        className="relative flex items-center justify-center shrink-0"
-        onClick={() => {
-          if (!deck.track) onLoadClick?.()
-        }}
-        title={deck.track ? `Deck ${deckId} Jog Wheel` : `Click to load track to Deck ${deckId}`}
-      >
+      <div className="relative flex items-center justify-center shrink-0">
         <JogWheel
           deck={deck}
+          deckId={deckId}
           size={195}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"

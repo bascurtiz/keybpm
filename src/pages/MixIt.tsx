@@ -8,6 +8,9 @@ import { TraktorDeck } from '@/components/dj/TraktorDeck'
 import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
+import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
+import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
+import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 export function MixIt() {
   const engine = getAudioEngine()
@@ -19,6 +22,7 @@ export function MixIt() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [dragOverDeck, setDragOverDeck] = useState<'A' | 'B' | null>(null)
   const [activeFxDeck, setActiveFxDeck] = useState<'A' | 'B' | null>(null)
+  const [loadModalDeck, setLoadModalDeck] = useState<'A' | 'B' | null>(null)
 
   const fileInputARef = useRef<HTMLInputElement>(null)
   const fileInputBRef = useRef<HTMLInputElement>(null)
@@ -175,14 +179,18 @@ export function MixIt() {
             {/* 1. TOP STRIP: METADATA, COLOR-CODED KEY & BPM, MINI WAVEFORMS, BEAT COUNTER */}
             <TraktorMiddleStrip
               engine={engine}
-              onLoadTrackClick={deckId => {
-                if (deckId === 'A') fileInputARef.current?.click()
-                else fileInputBRef.current?.click()
-              }}
+              onLoadTrackClick={deckId => setLoadModalDeck(deckId)}
               onToggleFx={deckId => {
                 setActiveFxDeck(current => (current === deckId ? null : deckId))
               }}
               activeFxDeck={activeFxDeck}
+            />
+
+            {/* YOUTUBE DUAL-DECK VJ VIDEO OVERLAY */}
+            <YouTubeVideoOverlay
+              crossfade={engine.crossfade}
+              onEjectDeck={id => youtubeBridge.eject(id)}
+              onOpenLoadModal={deckId => setLoadModalDeck(deckId)}
             />
 
             {/* 2. OPTIONAL FX DRAWER */}
@@ -201,10 +209,7 @@ export function MixIt() {
                 deckA={deckA}
                 deckB={deckB}
                 onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
-                onLoadClick={deckId => {
-                  if (deckId === 'A') fileInputARef.current?.click()
-                  else fileInputBRef.current?.click()
-                }}
+                onLoadClick={deckId => setLoadModalDeck(deckId)}
                 className="h-full w-full rounded-none border-none"
               />
             </div>
@@ -226,7 +231,7 @@ export function MixIt() {
                   deckId="A"
                   side="left"
                   accentColor="#34d399"
-                  onLoadClick={() => fileInputARef.current?.click()}
+                  onLoadClick={() => setLoadModalDeck('A')}
                 />
               </div>
 
@@ -250,7 +255,7 @@ export function MixIt() {
                   deckId="B"
                   side="right"
                   accentColor="#a855f7"
-                  onLoadClick={() => fileInputBRef.current?.click()}
+                  onLoadClick={() => setLoadModalDeck('B')}
                 />
               </div>
             </div>
@@ -285,6 +290,24 @@ export function MixIt() {
           </div>
         </div>
       )}
+
+      {/* Load Track / YouTube Video Modal */}
+      <LoadTrackModal
+        isOpen={loadModalDeck !== null}
+        deckId={loadModalDeck || 'A'}
+        otherDeckBpm={
+          loadModalDeck === 'A'
+            ? deckB.track?.bpm ?? youtubeBridge.state.B.bpm
+            : deckA.track?.bpm ?? youtubeBridge.state.A.bpm
+        }
+        otherDeckCamelot={
+          loadModalDeck === 'A'
+            ? deckB.track?.key?.camelot ?? youtubeBridge.state.B.camelot
+            : deckA.track?.key?.camelot ?? youtubeBridge.state.A.camelot
+        }
+        onClose={() => setLoadModalDeck(null)}
+        onLoadLocalFile={handleFileSelected}
+      />
     </div>
   )
 }

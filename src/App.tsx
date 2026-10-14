@@ -74,6 +74,7 @@ export default function App() {
             <Route path="/mix/:camelot/:bpm" element={<MixFinder />} />
             <Route path="/tool" element={<KeyTool />} />
             <Route path="/mix-it" element={<MixIt />} />
+            <Route path="/mixit" element={<MixIt />} />
             <Route path="/about" element={<About />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
@@ -87,7 +88,7 @@ export default function App() {
 /** Hide footer on Key Tool and Mix it so 1080p can show the full console without scrolling. */
 function AppFooter() {
   const { pathname } = useLocation()
-  if (pathname === '/tool' || pathname === '/mix-it') return null
+  if (pathname === '/tool' || pathname === '/mix-it' || pathname === '/mixit') return null
   return (
     <footer className="mt-12 border-t border-line">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-xs text-text-dim lg:px-8">

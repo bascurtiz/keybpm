@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { AudioEngine } from '@/lib/dj/audio-engine'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { Fader } from './Fader'
+import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 interface TraktorTransportBarProps {
   engine: AudioEngine
@@ -14,13 +15,18 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
   const [, setVer] = useState(0)
   useEffect(() => {
-    const unE = engine.subscribe(() => setVer(v => v + 1))
+    const unE = engine.subscribe(() => {
+      setVer(v => v + 1)
+      youtubeBridge.syncCrossfade(engine.crossfade, engine.masterVolume)
+    })
     const unA = deckA.subscribe(() => setVer(v => v + 1))
     const unB = deckB.subscribe(() => setVer(v => v + 1))
+    const unYt = youtubeBridge.subscribe(() => setVer(v => v + 1))
     return () => {
       unE()
       unA()
       unB()
+      unYt()
     }
   }, [engine, deckA, deckB])
 
@@ -282,15 +288,38 @@ function DeckTransport({
     }
   }
 
+  const hasYt = youtubeBridge.state[deckId].hasVideo
+  const isPlayingActive = isPlaying || youtubeBridge.state[deckId].playing
+  const isDeckReady = Boolean(deck.track || hasYt)
+
+  const handleTogglePlay = () => {
+    if (deck.track) {
+      void deck.togglePlay()
+    }
+    if (hasYt) {
+      youtubeBridge.togglePlay(deckId)
+    }
+  }
+
+  const handleCue = () => {
+    if (deck.track) {
+      void deck.cue()
+    }
+    if (hasYt) {
+      youtubeBridge.seekTo(deckId, 0)
+      youtubeBridge.pause(deckId)
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       {/* Play / Pause button matching Traktor */}
       <button
         type="button"
-        onClick={() => void deck.togglePlay()}
-        disabled={!deck.track}
+        onClick={handleTogglePlay}
+        disabled={!isDeckReady}
         className={`h-11 w-14 rounded-md border flex items-center justify-center transition-all shadow-sm select-none ${
-          isPlaying
+          isPlayingActive
             ? 'bg-[#141414] border-white text-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
             : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-40'
         }`}
@@ -302,8 +331,8 @@ function DeckTransport({
       {/* CUE button matching Traktor */}
       <button
         type="button"
-        onClick={() => void deck.cue()}
-        disabled={!deck.track}
+        onClick={handleCue}
+        disabled={!isDeckReady}
         className="h-11 px-4 rounded-md border text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all shadow-sm select-none bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white disabled:opacity-40"
         title={`Deck ${deckId} Cue (Return to cue point or set new cue)`}
       >

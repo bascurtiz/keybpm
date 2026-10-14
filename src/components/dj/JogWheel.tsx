@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
+import { youtubeBridge } from '@/lib/dj/youtube-bridge'
+import { youtubeThumbUrl } from '@/lib/youtube'
 
 interface JogWheelProps {
   deck: DeckEngine
+  deckId?: 'A' | 'B'
   size?: number | string
   className?: string
   accentColor?: string
@@ -13,6 +16,7 @@ const DEG_PER_MS_AT_1X = 360 / (SECONDS_PER_REV * 1000)
 
 export function JogWheel({
   deck,
+  deckId,
   size = 170,
   className = '',
   accentColor = '#10b981',
@@ -24,21 +28,35 @@ export function JogWheel({
     lastTime: number
     velocity: number
     raf: number
+    wasPlayingBeforeTouch: boolean
   } | null>(null)
 
-  // Rotate platter with playhead
+  const ytDeck = deckId ? youtubeBridge.state[deckId] : null
+  const hasYt = Boolean(ytDeck && ytDeck.hasVideo)
+  const track = deck.track
+
+  // Rotate platter with playhead or manual scratch
   useEffect(() => {
     let raf = 0
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const el = discRef.current
       if (!el) return
-      const rotation = (deck.position / SECONDS_PER_REV) * 360
+
+      // If user is scratching/dragging, rotation is updated in pointer move
+      if (scratch.current) return
+
+      const pos = track
+        ? deck.position
+        : hasYt && ytDeck
+        ? ytDeck.currentTime
+        : 0
+      const rotation = (pos / SECONDS_PER_REV) * 360
       el.style.transform = `rotate(${rotation}deg)`
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [deck])
+  }, [deck, track, hasYt, ytDeck])
 
   const startDecayLoop = () => {
     const step = () => {
@@ -47,7 +65,9 @@ export function JogWheel({
       if (performance.now() - s.lastTime > 50 && s.velocity !== 0) {
         s.velocity *= 0.55
         if (Math.abs(s.velocity) < 0.02) s.velocity = 0
-        deck.scratchMove(s.velocity)
+        if (track) {
+          deck.scratchMove(s.velocity)
+        }
       }
       s.raf = requestAnimationFrame(step)
     }
@@ -62,25 +82,38 @@ export function JogWheel({
   }
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!deck.track) return
+    e.preventDefault()
+    e.stopPropagation()
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
-    } catch {
-      // ignore
+    } catch {}
+
+    const wasPlaying = Boolean(track ? deck.playing : hasYt && ytDeck?.playing)
+
+    if (track) {
+      void deck.scratchBegin()
+    } else if (hasYt && deckId) {
+      if (ytDeck?.playing) {
+        youtubeBridge.pause(deckId)
+      }
     }
-    void deck.scratchBegin()
+
     scratch.current = {
       lastAngle: angleFromEvent(e),
       lastTime: performance.now(),
       velocity: 0,
       raf: 0,
+      wasPlayingBeforeTouch: wasPlaying,
     }
     startDecayLoop()
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
     const s = scratch.current
-    if (!s || !deck.track) return
+    if (!s) return
+    e.preventDefault()
+    e.stopPropagation()
+
     const angle = angleFromEvent(e)
     let delta = angle - s.lastAngle
     if (delta > 180) delta -= 360
@@ -90,33 +123,53 @@ export function JogWheel({
     s.lastAngle = angle
     s.lastTime = now
 
+    // Update disc visual rotation directly during touch
+    if (discRef.current) {
+      const currentTransform = discRef.current.style.transform
+      const match = currentTransform.match(/rotate\(([-0-9.]+)deg\)/)
+      const prevAngle = match ? parseFloat(match[1]) : 0
+      discRef.current.style.transform = `rotate(${prevAngle + delta}deg)`
+    }
+
     const instant = delta / dt / DEG_PER_MS_AT_1X
     s.velocity = s.velocity * 0.5 + instant * 0.5
-    deck.scratchMove(s.velocity)
+
+    if (track) {
+      deck.scratchMove(s.velocity)
+    } else if (hasYt && deckId && ytDeck) {
+      const deltaSec = (delta / 360) * SECONDS_PER_REV
+      const newTime = Math.max(0, ytDeck.currentTime + deltaSec)
+      youtubeBridge.seekTo(deckId, newTime)
+    }
   }
 
   const endScratch = (e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     const s = scratch.current
     if (s) {
       cancelAnimationFrame(s.raf)
+      const shouldResume = s.wasPlayingBeforeTouch
       scratch.current = null
-      deck.scratchEnd()
+
+      if (track) {
+        deck.scratchEnd()
+      } else if (hasYt && deckId && shouldResume) {
+        youtubeBridge.play(deckId)
+      }
     }
     try {
       e.currentTarget.releasePointerCapture(e.pointerId)
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 
-  const track = deck.track
+  // Cover image: either local track cover or YouTube thumbnail
+  const coverUrl = track?.coverUrl || (hasYt && ytDeck?.videoId ? youtubeThumbUrl(ytDeck.videoId) : null)
 
   return (
     <div
       ref={rootRef}
-      className={`relative shrink-0 touch-none select-none rounded-full border-2 border-[#282828] bg-[#161616] shadow-inner transition-all ${
-        track ? 'cursor-grab active:cursor-grabbing hover:border-zinc-500' : 'opacity-70 cursor-default'
-      } ${className}`}
+      className={`relative shrink-0 touch-none select-none rounded-full border-2 border-[#282828] bg-[#161616] shadow-inner transition-all cursor-grab active:cursor-grabbing hover:border-zinc-500 ${className}`}
       style={{
         width: typeof size === 'number' ? `${size}px` : size,
         height: typeof size === 'number' ? `${size}px` : size,
@@ -126,12 +179,12 @@ export function JogWheel({
       onPointerUp={endScratch}
       onPointerCancel={endScratch}
       aria-label="Jog wheel platter"
-      title={track ? 'Jog wheel (drag to scratch / pitch bend)' : 'Load a track to use jog wheel'}
+      title="Jog wheel platter (drag to spin / scratch)"
     >
       {/* Rotating Platter Assembly (Rotates with track position) */}
       <div
         ref={discRef}
-        className="absolute inset-0 rounded-full will-change-transform"
+        className="absolute inset-0 rounded-full will-change-transform pointer-events-none"
       >
         {/* Outer Ring Vinyl Grooves */}
         <div className="absolute inset-1 rounded-full border border-white/5 pointer-events-none" />
@@ -147,14 +200,14 @@ export function JogWheel({
           }}
         />
 
-        {/* Inner Disc / Center Area (where track cover art is loaded) */}
+        {/* Inner Disc / Center Area (where track cover art or video thumb is loaded) */}
         <div
           className="absolute inset-[18%] rounded-full overflow-hidden shadow-lg flex items-center justify-center border border-[#282828] bg-[#1C1C1C]"
         >
-          {track?.coverUrl ? (
+          {coverUrl ? (
             <div className="relative w-full h-full">
               <img
-                src={track.coverUrl}
+                src={coverUrl}
                 alt=""
                 className="w-full h-full object-cover pointer-events-none select-none"
               />
