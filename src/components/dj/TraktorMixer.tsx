@@ -213,7 +213,31 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     <div
       className={`flex items-stretch justify-between gap-2 px-3 py-1.5 bg-[#1C1C1C] rounded-xl border border-[#282828] select-none h-full shadow-inner ${className}`}
     >
-      {/* ================= 1. DECK A EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
+      {/* ================= 1. DECK A CHANNEL FADER ================= */}
+      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
+        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">
+          A
+        </span>
+        <div className="h-[135px] flex items-center justify-center my-auto">
+          <Fader
+            orientation="vertical"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volumeA}
+            defaultValue={1}
+            onValueChange={v => {
+              setVolumeA(v)
+              deckA.setVolume(v)
+            }}
+            accentColor="#34d399"
+            analyser={deckA.analyser}
+            className="w-7 h-[135px]"
+          />
+        </div>
+      </div>
+
+      {/* ================= 2. DECK A EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
       <div className="flex flex-col justify-between items-center py-1 w-12 shrink-0">
         <EqKnobItem
           label="GAIN"
@@ -287,30 +311,6 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             />
           }
         />
-      </div>
-
-      {/* ================= 2. DECK A CHANNEL FADER ================= */}
-      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">
-          A
-        </span>
-        <div className="h-[135px] flex items-center justify-center my-auto">
-          <Fader
-            orientation="vertical"
-            min={0}
-            max={1}
-            step={0.01}
-            value={volumeA}
-            defaultValue={1}
-            onValueChange={v => {
-              setVolumeA(v)
-              deckA.setVolume(v)
-            }}
-            accentColor="#34d399"
-            analyser={deckA.analyser}
-            className="w-7 h-[135px]"
-          />
-        </div>
       </div>
 
       {/* ================= 3. CENTER PANEL (FILTERS + FX + SYNC/KEY) ================= */}
@@ -504,31 +504,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         </div>
       </div>
 
-      {/* ================= 4. DECK B CHANNEL FADER ================= */}
-      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-2">
-          B
-        </span>
-        <div className="h-[135px] flex items-center justify-center my-auto">
-          <Fader
-            orientation="vertical"
-            min={0}
-            max={1}
-            step={0.01}
-            value={volumeB}
-            defaultValue={1}
-            onValueChange={v => {
-              setVolumeB(v)
-              deckB.setVolume(v)
-            }}
-            accentColor="#a855f7"
-            analyser={deckB.analyser}
-            className="w-7 h-[135px]"
-          />
-        </div>
-      </div>
-
-      {/* ================= 5. DECK B EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
+      {/* ================= 4. DECK B EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
       <div className="flex flex-col justify-between items-center py-1 w-12 shrink-0">
         <EqKnobItem
           label="GAIN"
@@ -602,6 +578,30 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             />
           }
         />
+      </div>
+
+      {/* ================= 5. DECK B CHANNEL FADER ================= */}
+      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
+        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-2">
+          B
+        </span>
+        <div className="h-[135px] flex items-center justify-center my-auto">
+          <Fader
+            orientation="vertical"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volumeB}
+            defaultValue={1}
+            onValueChange={v => {
+              setVolumeB(v)
+              deckB.setVolume(v)
+            }}
+            accentColor="#a855f7"
+            analyser={deckB.analyser}
+            className="w-7 h-[135px]"
+          />
+        </div>
       </div>
     </div>
   )
