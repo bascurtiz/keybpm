@@ -309,30 +309,30 @@ function DeckHeader({
 
       {/* Track Info (Title, Artist, BPM, Camelot/Musical/Open Key) */}
       <div className="flex-1 min-w-0">
-        <div className={`flex items-baseline justify-between gap-1.5 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center justify-between gap-1.5 h-[18px] ${side === 'right' ? 'flex-row-reverse' : ''}`}>
           <div className={`flex items-center gap-1.5 min-w-0 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
             <h2
               onClick={onLoadClick}
-              className="text-[12px] font-bold text-white truncate cursor-pointer hover:text-zinc-300"
+              className="text-[12px] font-bold text-white truncate cursor-pointer hover:text-zinc-300 leading-none"
               title={isLoaded ? `${displayTitle} - ${displayArtist}` : 'Click to load track'}
             >
               {displayTitle}
             </h2>
             {deck.fluxMode && (
               <span
-                className="px-1 py-0.5 rounded-[2px] text-[7.5px] font-mono font-bold tracking-wider uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.4)] shrink-0"
+                className="px-1 py-0.5 rounded-[2px] text-[7.5px] font-mono font-bold tracking-wider uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.4)] shrink-0 leading-none"
                 title="FLUX Mode is active: phrasing is preserved during cues, loops and FX"
               >
                 FLUX
               </span>
             )}
           </div>
-          <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0">
+          <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0 leading-none">
             0:00 / 0:00
           </span>
         </div>
 
-        <div className={`flex items-baseline justify-between gap-1 text-[10px] text-zinc-400 mt-0.5 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center justify-between gap-1 text-[10px] text-zinc-400 mt-0.5 h-4 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
           <p className="truncate text-zinc-400">
             {displayArtist}
           </p>

@@ -27,7 +27,7 @@ export function LoadTrackModal({
   onLoadLocalFile,
 }: LoadTrackModalProps) {
   useCatalog()
-  const [activeTab, setActiveTab] = useState<TabType>('youtube')
+  const [activeTab, setActiveTab] = useState<TabType>('file')
   const [ytUrl, setYtUrl] = useState('')
   const [customTitle, setCustomTitle] = useState('')
   const [customBpm, setCustomBpm] = useState('128')
@@ -117,7 +117,7 @@ export function LoadTrackModal({
             >
               DECK {deckId}
             </span>
-            <h2 className="text-sm font-bold text-white tracking-wide">Load Track or Video</h2>
+            <h2 className="text-sm font-bold text-white tracking-wide">Load Audio Track</h2>
           </div>
           <button
             type="button"
@@ -130,28 +130,6 @@ export function LoadTrackModal({
 
         {/* Tab Navigation */}
         <div className="flex items-center px-5 pt-3 border-b border-[#252525] gap-2 bg-[#161616]">
-          <button
-            type="button"
-            onClick={() => setActiveTab('youtube')}
-            className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
-              activeTab === 'youtube'
-                ? 'border-red-500 text-white font-bold'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <span className="text-red-500 text-sm">▶</span> YouTube Video
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('catalog')}
-            className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
-              activeTab === 'catalog'
-                ? 'border-accent text-white font-bold'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <span>🎧</span> KeyDB Catalog
-          </button>
           <button
             type="button"
             onClick={() => setActiveTab('file')}

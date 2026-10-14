@@ -8,7 +8,6 @@ import { TraktorDeck } from '@/components/dj/TraktorDeck'
 import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
-import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
@@ -184,13 +183,6 @@ export function MixIt() {
                 setActiveFxDeck(current => (current === deckId ? null : deckId))
               }}
               activeFxDeck={activeFxDeck}
-            />
-
-            {/* YOUTUBE DUAL-DECK VJ VIDEO OVERLAY */}
-            <YouTubeVideoOverlay
-              crossfade={engine.crossfade}
-              onEjectDeck={id => youtubeBridge.eject(id)}
-              onOpenLoadModal={deckId => setLoadModalDeck(deckId)}
             />
 
             {/* 2. OPTIONAL FX DRAWER */}
