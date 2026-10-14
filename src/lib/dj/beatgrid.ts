@@ -77,8 +77,25 @@ async function analyzeQueenMaryBeatGrid(
   const mono = new Float32Array(ch0.length)
   for (let i = 0; i < ch0.length; i++) mono[i] = (ch0[i] + ch1[i]) * 0.5
 
-  // Run Queen Mary / Degara RhythmExtractor2013
-  const signalVector = essentia.arrayToVector(mono)
+  // Essentia WASM's Queen Mary RhythmExtractor2013 internally assumes 44.1 kHz.
+  // When running in a browser with a 48 kHz hardware context (Windows default),
+  // resample to 44.1 kHz to prevent the apparent tempo from being scaled down by 44.1/48 (e.g. 160 -> 146.85).
+  let mono44 = mono
+  if (buffer.sampleRate !== 44100) {
+    const targetLen = Math.floor((mono.length * 44100) / buffer.sampleRate)
+    mono44 = new Float32Array(targetLen)
+    const ratio = buffer.sampleRate / 44100
+    for (let i = 0; i < targetLen; i++) {
+      const src = i * ratio
+      const i0 = Math.floor(src)
+      const i1 = Math.min(i0 + 1, mono.length - 1)
+      const frac = src - i0
+      mono44[i] = mono[i0] + (mono[i1] - mono[i0]) * frac
+    }
+  }
+
+  // Run Queen Mary / Degara RhythmExtractor2013 on 44.1 kHz mono
+  const signalVector = essentia.arrayToVector(mono44)
   let rawBpm = 0
   try {
     const qm = essentia.RhythmExtractor2013(signalVector, 208, 'degara', 40)
@@ -90,12 +107,27 @@ async function analyzeQueenMaryBeatGrid(
     signalVector.delete?.()
   }
 
-  if (!rawBpm || rawBpm <= 0) return null
+  // Cross-validate with Mixxx multi-band kick autocorrelation detector (which runs at true buffer.sampleRate)
+  const mixxxBpm = detectMixxxBpmFromPcm(mono, buffer.sampleRate, _hintBpm)
+
+  if ((!rawBpm || rawBpm <= 0) && (!mixxxBpm || mixxxBpm <= 0)) return null
 
   // Mixxx & Traktor BPM display calibration
-  let bpm = Math.round(rawBpm * 100) / 100
+  let bpm = Math.round((rawBpm || mixxxBpm || 120) * 100) / 100
   if (Math.abs(rawBpm - 125.987) < 0.02) {
     bpm = 125.98
+  }
+
+  if (mixxxBpm && mixxxBpm > 0) {
+    // If Essentia Degara wandered away from Mixxx kick detector (e.g. Catscan / gabber syncopation)
+    if (Math.abs(bpm - mixxxBpm) > 0.5) {
+      const roundedMixxx = Math.round(mixxxBpm)
+      if (Math.abs(mixxxBpm - roundedMixxx) <= 0.25) {
+        bpm = roundedMixxx
+      } else {
+        bpm = Math.round(mixxxBpm * 100) / 100
+      }
+    }
   }
   const beatSec = 60 / bpm
 
@@ -197,15 +229,19 @@ async function analyzeQueenMaryBeatGrid(
 
   const maxBeats = Math.floor(30 / beatSec)
   let firstMusicBeatIdx = 0
-  for (let k = 0; k < maxBeats; k++) {
-    const t = phase0 + k * beatSec
-    if (t >= audioStartSec - 0.06) {
-      firstMusicBeatIdx = k
-      break
+  if (phase0 - beatSec >= audioStartSec - 0.06 && phase0 - beatSec >= -0.02) {
+    firstMusicBeatIdx = -1
+  } else {
+    for (let k = 0; k < maxBeats; k++) {
+      const t = phase0 + k * beatSec
+      if (t >= audioStartSec - 0.06) {
+        firstMusicBeatIdx = k
+        break
+      }
     }
   }
 
-  const firstBarTime = phase0 + firstMusicBeatIdx * beatSec
+  const firstBarTime = Math.max(0, phase0 + firstMusicBeatIdx * beatSec)
   return {
     bpm,
     firstBar: firstBarTime,

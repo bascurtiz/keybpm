@@ -52,13 +52,14 @@ export async function detectAudioBpm(
   monoAudio: Float32Array,
   maxSeconds = 180,
   onProgress?: (percentage: number) => void,
+  sampleRate = 44100
 ): Promise<BpmDetectionResult> {
   const startTime = performance.now()
   onProgress?.(15)
   await new Promise(resolve => setTimeout(resolve, 0))
 
   // 1. Run Mixxx-style onset autocorrelation engine (super-fast, <40ms)
-  const mixxxBpm = detectMixxxBpmFromPcm(monoAudio, 44100)
+  const mixxxBpm = detectMixxxBpmFromPcm(monoAudio, sampleRate)
 
   onProgress?.(35)
   await new Promise(resolve => setTimeout(resolve, 0))
@@ -73,8 +74,23 @@ export async function detectAudioBpm(
     onProgress?.(60)
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    const targetSamples = Math.min(monoAudio.length, Math.floor(maxSeconds * 44100))
-    const audioSlice = targetSamples === monoAudio.length ? monoAudio : monoAudio.subarray(0, targetSamples)
+    const targetSamples = Math.min(monoAudio.length, Math.floor(maxSeconds * sampleRate))
+    let audioSlice = targetSamples === monoAudio.length ? monoAudio : monoAudio.subarray(0, targetSamples)
+
+    // Resample to 44.1 kHz for Essentia WASM if needed
+    if (sampleRate !== 44100) {
+      const targetLen = Math.floor((audioSlice.length * 44100) / sampleRate)
+      const resampled = new Float32Array(targetLen)
+      const ratio = sampleRate / 44100
+      for (let i = 0; i < targetLen; i++) {
+        const src = i * ratio
+        const i0 = Math.floor(src)
+        const i1 = Math.min(i0 + 1, audioSlice.length - 1)
+        const frac = src - i0
+        resampled[i] = audioSlice[i0] + (audioSlice[i1] - audioSlice[i0]) * frac
+      }
+      audioSlice = resampled
+    }
 
     const vec = essentia.arrayToVector(audioSlice)
     try {
@@ -107,11 +123,21 @@ export async function detectAudioBpm(
 
   const inferenceTimeMs = Math.round(performance.now() - startTime)
 
-  // Primary decision logic: Mixxx Queen Mary algorithm
+  // Primary decision logic: Mixxx Queen Mary algorithm cross-validated with Mixxx kick detector
   let finalBpm = essentiaBpm || mixxxBpm || 120
   if (!essentiaBpm && mixxxBpm) {
     finalBpm = mixxxBpm
     confidence = 3.8
+  } else if (essentiaBpm && mixxxBpm) {
+    // If Essentia Degara wandered away from Mixxx kick detector (e.g. Catscan / gabber syncopation)
+    if (Math.abs(essentiaBpm - mixxxBpm) > 0.5) {
+      const roundedMixxx = Math.round(mixxxBpm)
+      if (Math.abs(mixxxBpm - roundedMixxx) <= 0.25) {
+        finalBpm = roundedMixxx
+      } else {
+        finalBpm = mixxxBpm
+      }
+    }
   }
 
   const roundedBpm = Math.round(finalBpm * 100) / 100
