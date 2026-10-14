@@ -350,44 +350,65 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           </div>
         </div>
 
-        {/* FX Target Assignment Buttons: Deck A, Deck B, Master */}
-        <div className="grid grid-cols-3 gap-1 w-full max-w-[104px] mt-1 mb-0.5">
-          <button
-            type="button"
-            onClick={() => setFxAssign('A')}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              fxAssign === 'A'
-                ? 'bg-[#1e1e1e] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-            }`}
-            title="Assign FX to Deck A"
+        {/* FX Target Assignment Header & Buttons */}
+        <div className="flex flex-col items-center w-full max-w-[104px] mt-1">
+          <span className="text-[7.5px] font-bold text-[#777777] uppercase tracking-wider mb-1">
+            FX
+          </span>
+          <div className="grid grid-cols-3 gap-1.5 w-full">
+            <button
+              type="button"
+              onClick={() => setFxAssign('A')}
+              className={`h-[19px] rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+                fxAssign === 'A'
+                  ? 'bg-[#181818] text-white border-2 border-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'
+                  : 'bg-[#121212] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Assign FX to Deck A"
+            >
+              A
+            </button>
+            <button
+              type="button"
+              onClick={() => setFxAssign('B')}
+              className={`h-[19px] rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+                fxAssign === 'B'
+                  ? 'bg-[#181818] text-white border-2 border-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'
+                  : 'bg-[#121212] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Assign FX to Deck B"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onClick={() => setFxAssign('MST')}
+              className={`h-[19px] rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+                fxAssign === 'MST'
+                  ? 'bg-[#181818] text-white border-2 border-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'
+                  : 'bg-[#121212] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Assign FX to Master (Both Decks)"
+            >
+              MST
+            </button>
+          </div>
+
+          {/* Circuit Routing Bracket connecting A/B/MST to FX block */}
+          <svg
+            className="w-full h-[9px] my-0.5 pointer-events-none"
+            viewBox="0 0 104 9"
+            fill="none"
           >
-            A
-          </button>
-          <button
-            type="button"
-            onClick={() => setFxAssign('B')}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              fxAssign === 'B'
-                ? 'bg-[#1e1e1e] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-            }`}
-            title="Assign FX to Deck B"
-          >
-            B
-          </button>
-          <button
-            type="button"
-            onClick={() => setFxAssign('MST')}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              fxAssign === 'MST'
-                ? 'bg-[#1e1e1e] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-            }`}
-            title="Assign FX to Master (Both Decks)"
-          >
-            MST
-          </button>
+            {/* Left tick down from A */}
+            <line x1="16.5" y1="0" x2="16.5" y2="4.5" stroke="#3e3e3e" strokeWidth="1.2" />
+            {/* Right tick down from MST */}
+            <line x1="87.5" y1="0" x2="87.5" y2="4.5" stroke="#3e3e3e" strokeWidth="1.2" />
+            {/* Horizontal connecting bar */}
+            <line x1="16.5" y1="4.5" x2="87.5" y2="4.5" stroke="#3e3e3e" strokeWidth="1.2" />
+            {/* Center stem down towards FX block */}
+            <line x1="52" y1="0" x2="52" y2="9" stroke="#3e3e3e" strokeWidth="1.2" />
+          </svg>
         </div>
 
         {/* Middle: 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SPIN] */}
