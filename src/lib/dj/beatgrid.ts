@@ -1,5 +1,14 @@
-import { makeFft, positiveMod } from './dsp'
-import type { BeatGrid } from './types'
+import { positiveMod } from './dsp'
+import type { BeatGrid, BeatGridAnalysis } from './types'
+import {
+  ODF_HOP,
+  ODF_WIN,
+  computeOnsetEnvelope,
+  frameToSeconds,
+  suppressBackground,
+} from './spectral-flux'
+import type { OnsetEnvelope } from './spectral-flux'
+import { deriveBpmInterpretation, normalizeDjBpm, trackBeats } from './beat-tracker'
 
 /**
  * Mixxx-Inspired Beat-Grid and BPM Analyzer.
@@ -36,8 +45,15 @@ import type { BeatGrid } from './types'
  *  6. Mixxx Downbeat Anchor (First Beat / Bar 1):
  *     Scans candidate beat positions starting from the audio intro to locate the
  *     first genuine kick drum transient drop, anchoring Bar 1 (Beat 1) directly to it.
+ *
+ *  7. Variable-Tempo Grid (only when needed):
+ *     Turns the tracker's beat ticks into a variable-tempo beat map when no
+ *     single tempo fits the track (live drums, disco, funk, vinyl rips). Tracks
+ *     that do hold tempo keep the constant grid, and may still take a refined
+ *     global BPM from the same ticks. See ./grid.ts.
  */
 import { getOrInitEssentia } from './essentia-loader'
+import { beatGridFromMap, buildBeatMapFromTicks } from './grid'
 
 export async function analyzeBeatGrid(
   buffer: AudioBuffer,
@@ -58,6 +74,64 @@ export async function analyzeBeatGrid(
     console.warn('Mixxx beatgrid analyzer error:', err)
     return null
   }
+}
+
+/**
+ * The analyzer's one onset front-end.
+ *
+ * Every tempo/beat path here used to carry its own copy of a three-band flux
+ * loop with hand-tuned weights (`2.5 * low + mid + 0.6 * high`). They now share
+ * the log-spaced band envelope from ./spectral-flux, so those weights are gone
+ * and there is a single place to fix if onset detection is ever wrong.
+ */
+function onsetEnvelope(mono: Float32Array, sampleRate: number): OnsetEnvelope | null {
+  const env = computeOnsetEnvelope(mono, sampleRate)
+  if (!env) return null
+  const half = Math.max(2, Math.round(env.envRate * 0.06))
+  suppressBackground(env.odf, half)
+  suppressBackground(env.lowOdf, half)
+  return env
+}
+
+/**
+ * The kick/bass group, or the full band when a track has no low-end pulse at
+ * all. A DJ grid is phase-anchored to the kick, so the low group *is* the
+ * reference; falling back to the full band keeps that from being a dead end on
+ * material that has no kick drum to align to.
+ */
+function kickEnvelope(env: OnsetEnvelope): Float32Array {
+  let peak = 0
+  for (let i = 0; i < env.frames; i++) if (env.lowOdf[i] > peak) peak = env.lowOdf[i]
+  return peak > 0 ? env.lowOdf : env.odf
+}
+
+/**
+ * Frame index of the lattice phase that best matches `envelope`, or -1 when the
+ * envelope holds no onset energy to align to.
+ */
+function bestLatticePhase(envelope: Float32Array, envRate: number, beatSec: number): number {
+  const frames = envelope.length
+  const beatFrames = beatSec * envRate
+  const steps = Math.max(1, Math.round(beatFrames))
+  let bestPhase = 0
+  let bestScore = -1
+  for (let p = 0; p < steps; p++) {
+    let score = 0
+    let count = 0
+    for (let frame = p; frame < frames; frame += beatFrames) {
+      const idx = Math.round(frame)
+      if (idx < frames) {
+        score += envelope[idx]
+        count++
+      }
+    }
+    const avg = count > 0 ? score / count : 0
+    if (avg > bestScore) {
+      bestScore = avg
+      bestPhase = p
+    }
+  }
+  return bestScore > 0 ? bestPhase : -1
 }
 
 interface ConstRegion {
@@ -331,7 +405,11 @@ async function analyzeQueenMaryBeatGrid(
   }
 
   // Cross-validate with Mixxx multi-band kick autocorrelation detector (which runs at true buffer.sampleRate)
-  const mixxxBpm = detectMixxxBpmFromPcm(mono, buffer.sampleRate, _hintBpm)
+  // The DJ-normalised reading drives the cross-checks exactly as before; the raw
+  // measurement and the octave multiplier are kept for provenance.
+  const mixxxRaw = detectMixxxRawBpmFromPcm(mono, buffer.sampleRate, _hintBpm)
+  const mixxxNorm = mixxxRaw === null ? null : normalizeDjBpm(mixxxRaw, { minBpm: MIN_BPM, maxBpm: MAX_BPM })
+  const mixxxBpm = mixxxNorm ? mixxxNorm.bpm : null
 
   if ((!rawBpm || rawBpm <= 0) && (!mixxxBpm || mixxxBpm <= 0)) return null
 
@@ -373,94 +451,92 @@ async function analyzeQueenMaryBeatGrid(
 
   const beatSec = 60 / bpm
 
-  // Fallback kick flux phase alignment if rawTicks were sparse or missing
-  if (phaseSec <= 0) {
-    const decim = buffer.sampleRate >= 32000 ? 2 : 1
-    const sr = buffer.sampleRate / decim
-    const scanSeconds = Math.min(buffer.duration, 90)
-    const monoLen = Math.floor(scanSeconds * sr)
-    const monoResampled = new Float32Array(monoLen)
-    for (let i = 0; i < monoLen; i++) {
-      const idx = decim === 2 ? 2 * i : i
-      monoResampled[i] = idx < mono.length ? mono[idx] : 0
-    }
-
-    const frames = Math.floor((monoLen - WIN) / HOP)
-    if (frames >= 256) {
-      const envRate = sr / HOP
-      const fft = makeFft(WIN)
-      const hann = new Float32Array(WIN)
-      for (let i = 0; i < WIN; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / WIN)
-      const re = new Float32Array(WIN)
-      const im = new Float32Array(WIN)
-      const binHz = sr / WIN
-      const lowBinStart = Math.max(1, Math.floor(35 / binHz))
-      const lowBinEnd = Math.floor(180 / binHz)
-      const midBinEnd = Math.floor(1500 / binHz)
-      const highBinEnd = Math.min(WIN / 2 - 1, Math.floor(8000 / binHz))
-
-      const kickFlux = new Float32Array(frames)
-      const totalFlux = new Float32Array(frames)
-      let prevLowMag = 0, prevMidMag = 0, prevHighMag = 0
-
-      for (let f = 0; f < frames; f++) {
-        const base = f * HOP
-        for (let i = 0; i < WIN; i++) re[i] = monoResampled[base + i] * hann[i]
-        im.fill(0)
-        fft(re, im)
-        let lowMag = 0, midMag = 0, highMag = 0
-        for (let k = lowBinStart; k <= lowBinEnd; k++) lowMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-        for (let k = lowBinEnd + 1; k <= midBinEnd; k++) midMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-        for (let k = midBinEnd + 1; k <= highBinEnd; k++) highMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-        const lowLog = Math.log1p(lowMag)
-        const midLog = Math.log1p(midMag)
-        const highLog = Math.log1p(highMag)
-        const dLow = Math.max(0, lowLog - prevLowMag)
-        const dMid = Math.max(0, midLog - prevMidMag)
-        const dHigh = Math.max(0, highLog - prevHighMag)
-        prevLowMag = lowLog; prevMidMag = midLog; prevHighMag = highLog
-        kickFlux[f] = dLow
-        totalFlux[f] = 2.5 * dLow + 1.0 * dMid + 0.6 * dHigh
-      }
-
-      const filterHalf = Math.max(2, Math.round(envRate * 0.06))
-      subtractMovingMean(kickFlux, filterHalf)
-      subtractMovingMean(totalFlux, filterHalf)
-
-      const beatFrames = beatSec * envRate
-      const numPhaseSteps = Math.round(beatFrames)
-      let bestPhaseFrame = 0
-      let maxPhaseScore = -1
-
-      for (let p = 0; p < numPhaseSteps; p++) {
-        let score = 0
-        let count = 0
-        for (let frame = p; frame < frames; frame += beatFrames) {
-          const idx = Math.round(frame)
-          if (idx < frames) {
-            score += 2.5 * kickFlux[idx] + totalFlux[idx]
-            count++
-          }
-        }
-        const avgScore = count > 0 ? score / count : 0
-        if (avgScore > maxPhaseScore) {
-          maxPhaseScore = avgScore
-          bestPhaseFrame = p
-        }
-      }
-
-      phaseSec = (bestPhaseFrame * HOP + WIN / 2) / sr
-    }
+  // One shared envelope over the intro, used by both the phase fallback and the
+  // beat tracker below, so the analyzer pays for one onset pass and never has
+  // two onset implementations to keep in step.
+  const decim = buffer.sampleRate >= 32000 ? 2 : 1
+  const introRate = buffer.sampleRate / decim
+  const introLen = Math.min(mono.length, Math.floor(Math.min(buffer.duration, 120) * introRate))
+  const introMono = new Float32Array(introLen)
+  for (let i = 0; i < introLen; i++) {
+    const idx = decim === 2 ? 2 * i : i
+    introMono[i] = idx < mono.length ? mono[idx] : 0
   }
+  const introEnv = onsetEnvelope(introMono, introRate)
+
+  // Fallback beat phase alignment from the kick group when the tick list was
+  // sparse or missing.
+  if (phaseSec <= 0 && introEnv && introEnv.frames >= 256) {
+    const phaseFrame = bestLatticePhase(kickEnvelope(introEnv), introEnv.envRate, beatSec)
+    if (phaseFrame >= 0) phaseSec = frameToSeconds(phaseFrame, introRate, ODF_HOP, ODF_WIN)
+  }
+
+  // Ellis-style dynamic-programming beat tracking over the same envelope. This
+  // is what lets the grid follow a performance that wobbles — a real drummer, a
+  // vinyl rip, a tape-saturated edit — instead of asserting one rigid phase, and
+  // its residual is the analyzer's own evidence for how well it did.
+  const tracked = introEnv
+    ? trackBeats(introEnv.odf, introEnv.envRate, { bpm, minBpm: MIN_BPM, maxBpm: MAX_BPM })
+    : null
+  const trackedBeats = tracked
+    ? tracked.keptFrames.map(f => frameToSeconds(f, introRate, ODF_HOP, ODF_WIN))
+    : null
 
   // Locate the actual first beat / downbeat from the audio intro (Bar 1 downbeat anchor)
   const firstBarTime = findMixxxFirstBeatAtIntro(buffer, bpm, phaseSec, rawTicks)
-  return {
+  const constantGrid: BeatGrid = {
     bpm,
     firstBar: firstBarTime,
     firstBeat: positiveMod(firstBarTime, beatSec),
     beatsPerBar: BEATS_PER_BAR,
   }
+
+  // Provenance: what was measured, what interpretation was applied, which
+  // engines contributed, and how well the tracked beats fitted.
+  const interpretation = deriveBpmInterpretation(rawBpm || mixxxRaw || bpm, bpm)
+  const analysis: BeatGridAnalysis = {
+    rawBpm: interpretation.rawBpm,
+    bpmMultiplier: interpretation.multiplier,
+    bpmSource:
+      rawBpm && mixxxRaw
+        ? 'essentia-rhythm2013+onset-acf'
+        : rawBpm
+          ? 'essentia-rhythm2013'
+          : 'onset-acf',
+    beatSource: tracked ? 'ellis-dp' : 'essentia-degara',
+    fitResidual: tracked?.residualLogRms,
+    contrast: tracked?.contrast,
+    retainedRatio: tracked?.retainedRatio,
+    confidence: tracked?.confidence,
+  }
+
+  // 7. Variable-tempo check. Tracks that hold one tempo (all machine-timed dance
+  //    music) come back with no beat map, so this changes nothing for them — but
+  //    when the tracked beats disagree with any single tempo, the measured beat
+  //    positions become the grid so the ticks stop sliding on live drums, disco,
+  //    funk and vinyl rips. The DP's tracked beats are preferred over the Essentia
+  //    tick list because they are measured here, tolerantly, and come with the
+  //    residual that says whether they can be trusted.
+  const ticks = trackedBeats && trackedBeats.length >= 16 ? trackedBeats : rawTicks
+  const withAnalysis = { ...constantGrid, analysis }
+  const outcome = buildBeatMapFromTicks(ticks, bpm, phaseSec, buffer.duration)
+  if (!outcome) return withAnalysis
+
+  if (!outcome.map) {
+    // No map, but the beats may still pin down a better single tempo than the
+    // rounded one. Adopt it so a small tempo error is not left to accumulate.
+    if (!(outcome.refinedBpm > 0) || Math.abs(outcome.refinedBpm - bpm) < 0.01) {
+      return withAnalysis
+    }
+    const refinedBpm = Math.round(outcome.refinedBpm * 100) / 100
+    return {
+      ...withAnalysis,
+      bpm: refinedBpm,
+      firstBeat: positiveMod(firstBarTime, 60 / refinedBpm),
+    }
+  }
+
+  return { ...beatGridFromMap(constantGrid, outcome.map), analysis: { ...analysis, variable: true } }
 }
 
 const WIN = 1024
@@ -497,76 +573,16 @@ function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
     }
   }
 
-  // 2. Multi-band Onset Detection Function (ODF) via STFT
-  const frames = Math.floor((monoLen - WIN) / HOP)
-  if (frames < 256) return null
-  const envRate = sr / HOP
+  // 2. Onset detection over log-spaced bands (shared front-end, see
+  //    ./spectral-flux). Bands are summed with equal weight and the low (kick)
+  //    group is kept separately, so the previous hand-tuned
+  //    `2.5 * low + mid + 0.6 * high` blend is gone.
+  const env = onsetEnvelope(mono, sr)
+  if (!env) return null
+  const frames = env.frames
+  const envRate = env.envRate
+  const totalFlux = env.odf
 
-  const fft = makeFft(WIN)
-  const hann = new Float32Array(WIN)
-  for (let i = 0; i < WIN; i++) {
-    hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / WIN)
-  }
-  const re = new Float32Array(WIN)
-  const im = new Float32Array(WIN)
-
-  const binHz = sr / WIN
-  // Mixxx / Queen Mary sub-bands:
-  // Low (Kick): 35 - 180 Hz
-  // Mid (Snare/synth): 180 - 1500 Hz
-  // High (Hi-hats): 1500 - 8000 Hz
-  const lowBinStart = Math.max(1, Math.floor(35 / binHz))
-  const lowBinEnd = Math.floor(180 / binHz)
-  const midBinEnd = Math.floor(1500 / binHz)
-  const highBinEnd = Math.min(WIN / 2 - 1, Math.floor(8000 / binHz))
-
-  const kickFlux = new Float32Array(frames)
-  const totalFlux = new Float32Array(frames)
-
-  let prevLowMag = 0
-  let prevMidMag = 0
-  let prevHighMag = 0
-
-  for (let f = 0; f < frames; f++) {
-    const base = f * HOP
-    for (let i = 0; i < WIN; i++) re[i] = mono[base + i] * hann[i]
-    im.fill(0)
-    fft(re, im)
-
-    let lowMag = 0
-    for (let k = lowBinStart; k <= lowBinEnd; k++) {
-      lowMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    }
-    let midMag = 0
-    for (let k = lowBinEnd + 1; k <= midBinEnd; k++) {
-      midMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    }
-    let highMag = 0
-    for (let k = midBinEnd + 1; k <= highBinEnd; k++) {
-      highMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    }
-
-    const lowLog = Math.log1p(lowMag)
-    const midLog = Math.log1p(midMag)
-    const highLog = Math.log1p(highMag)
-
-    const dLow = Math.max(0, lowLog - prevLowMag)
-    const dMid = Math.max(0, midLog - prevMidMag)
-    const dHigh = Math.max(0, highLog - prevHighMag)
-
-    prevLowMag = lowLog
-    prevMidMag = midLog
-    prevHighMag = highLog
-
-    kickFlux[f] = dLow
-    // Low band has 2.5x weight because 4/4 kick drums define DJ beatgrids
-    totalFlux[f] = 2.5 * dLow + 1.0 * dMid + 0.6 * dHigh
-  }
-
-  // 3. Adaptive Background Suppression (moving average subtraction, ~120ms window)
-  const filterHalf = Math.max(2, Math.round(envRate * 0.06))
-  subtractMovingMean(kickFlux, filterHalf)
-  subtractMovingMean(totalFlux, filterHalf)
 
   // 4. Autocorrelation across the lag range
   const minLag = Math.floor((envRate * 60) / MAX_BPM)
@@ -639,45 +655,24 @@ function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
     }
   }
 
-  let detectedBpm = (60 * envRate) / continuousLag
+  const measuredBpm = (60 * envRate) / continuousLag
 
-  // Octave sanity check: normalize to primary DJ dance range [100, 165]
-  if (detectedBpm < 85 && detectedBpm * 2 <= MAX_BPM) {
-    detectedBpm *= 2
-  } else if (detectedBpm > 185 && detectedBpm / 2 >= MIN_BPM) {
-    detectedBpm /= 2
-  }
-
-  const finalBpm = Math.round(detectedBpm * 100) / 100
+  // Octave sanity check: normalise to the primary DJ dance range, keeping the
+  // measurement and the applied multiplier so the interpretation stays visible
+  // and reversible instead of silently overwriting what was detected.
+  const normalised = normalizeDjBpm(measuredBpm, { minBpm: MIN_BPM, maxBpm: MAX_BPM })
+  const finalBpm = normalised.bpm
   const beatSec = 60 / finalBpm
-  const beatFrames = beatSec * envRate
 
-  // 6. Mixxx BeatGrid Phase Alignment:
-  // Correlate candidate grid phases [0, beatFrames) with kick flux peaks across the window
-  const numPhaseSteps = Math.round(beatFrames)
-  let bestPhaseFrame = 0
-  let maxPhaseScore = -1
-
-  for (let p = 0; p < numPhaseSteps; p++) {
-    let score = 0
-    let count = 0
-    for (let frame = p; frame < frames; frame += beatFrames) {
-      const idx = Math.round(frame)
-      if (idx < frames) {
-        score += 2.5 * kickFlux[idx] + totalFlux[idx]
-        count++
-      }
-    }
-    const avgScore = count > 0 ? score / count : 0
-    if (avgScore > maxPhaseScore) {
-      maxPhaseScore = avgScore
-      bestPhaseFrame = p
-    }
-  }
+  // 6. Grid phase alignment: score candidate lattice phases against the kick
+  //    group (or the full band when a track has no low-end pulse at all),
+  //    instead of a weighted blend of three hand-picked bands.
+  const phaseFrame = bestLatticePhase(kickEnvelope(env), envRate, beatSec)
+  const bestPhaseFrame = phaseFrame >= 0 ? phaseFrame : 0
 
   // Convert best phase frame relative to buffer start
   const windowStartSec = startSample / buffer.sampleRate
-  const phaseSec = windowStartSec + (bestPhaseFrame * HOP + WIN / 2) / sr
+  const phaseSec = frameToSeconds(bestPhaseFrame, sr, ODF_HOP, ODF_WIN, windowStartSec)
 
   // 7. Mixxx First Beat / Bar 1 Anchor:
   // Locate the actual first kick downbeat from the audio intro (first 30 seconds)
@@ -688,6 +683,12 @@ function analyze(buffer: AudioBuffer, hintBpm?: number): BeatGrid | null {
     firstBeat: positiveMod(firstBarTime, beatSec),
     firstBar: firstBarTime,
     beatsPerBar: BEATS_PER_BAR,
+    analysis: {
+      rawBpm: normalised.rawBpm,
+      bpmMultiplier: normalised.multiplier,
+      bpmSource: 'onset-acf',
+      beatSource: 'constant-lattice',
+    },
   }
 }
 
@@ -752,56 +753,15 @@ function findMixxxFirstBeatAtIntro(
     }
   }
 
-  // 2. STFT Spectral Flux across intro (Low band: 35-180 Hz for kick drum transients)
-  const frames = Math.floor((monoLen - WIN) / HOP)
+  // 2. Onset detection over the intro (shared log-band front-end).
+  const env = onsetEnvelope(mono, sr)
+  if (!env) return positiveMod(establishedPhaseSec, beatSec)
+  const frames = env.frames
   if (frames < 32) return positiveMod(establishedPhaseSec, beatSec)
-  const envRate = sr / HOP
+  const envRate = env.envRate
+  const kickFlux = env.lowOdf
+  const totalFlux = env.odf
 
-  const fft = makeFft(WIN)
-  const hann = new Float32Array(WIN)
-  for (let i = 0; i < WIN; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / WIN)
-  const re = new Float32Array(WIN)
-  const im = new Float32Array(WIN)
-
-  const binHz = sr / WIN
-  const lowBinStart = Math.max(1, Math.floor(35 / binHz))
-  const lowBinEnd = Math.floor(180 / binHz)
-  const midBinEnd = Math.floor(1500 / binHz)
-  const highBinEnd = Math.min(WIN / 2 - 1, Math.floor(8000 / binHz))
-
-  const kickFlux = new Float32Array(frames)
-  const totalFlux = new Float32Array(frames)
-  let prevLowMag = 0, prevMidMag = 0, prevHighMag = 0
-
-  for (let f = 0; f < frames; f++) {
-    const base = f * HOP
-    for (let i = 0; i < WIN; i++) re[i] = mono[base + i] * hann[i]
-    im.fill(0)
-    fft(re, im)
-
-    let lowMag = 0, midMag = 0, highMag = 0
-    for (let k = lowBinStart; k <= lowBinEnd; k++) lowMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    for (let k = lowBinEnd + 1; k <= midBinEnd; k++) midMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    for (let k = midBinEnd + 1; k <= highBinEnd; k++) highMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-
-    const lowLog = Math.log1p(lowMag)
-    const midLog = Math.log1p(midMag)
-    const highLog = Math.log1p(highMag)
-
-    const dLow = Math.max(0, lowLog - prevLowMag)
-    const dMid = Math.max(0, midLog - prevMidMag)
-    const dHigh = Math.max(0, highLog - prevHighMag)
-
-    prevLowMag = lowLog; prevMidMag = midLog; prevHighMag = highLog
-    kickFlux[f] = dLow
-    totalFlux[f] = 2.5 * dLow + 1.0 * dMid + 0.6 * dHigh
-  }
-
-  // Adaptive background suppression (~120ms moving mean subtraction)
-  // Ambient swells, pads, and sustained drones are suppressed to 0, leaving only sharp beat attacks.
-  const filterHalf = Math.max(2, Math.round(envRate * 0.06))
-  subtractMovingMean(kickFlux, filterHalf)
-  subtractMovingMean(totalFlux, filterHalf)
 
   // 3. Grid candidate beats: t_k = phase0 + k * beatSec
   const phase0 = positiveMod(establishedPhaseSec, beatSec)
@@ -870,21 +830,6 @@ function findMixxxFirstBeatAtIntro(
   return Math.max(0, phase0 + firstAudibleBeatIdx * beatSec)
 }
 
-/**
- * Local moving average subtraction to eliminate sustained pads and drones,
- * highlighting sudden transient drum attacks.
- */
-function subtractMovingMean(x: Float32Array, half: number) {
-  const n = x.length
-  const prefix = new Float64Array(n + 1)
-  for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + x[i]
-  for (let i = 0; i < n; i++) {
-    const a = Math.max(0, i - half)
-    const b = Math.min(n, i + half + 1)
-    const mean = (prefix[b] - prefix[a]) / (b - a)
-    x[i] = Math.max(0, x[i] - mean)
-  }
-}
 
 /**
  * Finds the starting sample of the loudest analysis window in the track.
@@ -919,7 +864,7 @@ function loudestWindowStart(buffer: AudioBuffer, length: number): number {
 /**
  * Standalone Mixxx BPM detector operating directly on a mono Float32Array PCM buffer.
  */
-export function detectMixxxBpmFromPcm(
+export function detectMixxxRawBpmFromPcm(
   monoAudio: Float32Array,
   sampleRate: number,
   hintBpm?: number
@@ -975,57 +920,13 @@ export function detectMixxxBpmFromPcm(
     }
   }
 
-  const frames = Math.floor((monoLen - WIN) / HOP)
+  const env = onsetEnvelope(mono, sr)
+  if (!env) return null
+  const frames = env.frames
   if (frames < 256) return null
-  const envRate = sr / HOP
+  const envRate = env.envRate
+  const totalFlux = env.odf
 
-  const fft = makeFft(WIN)
-  const hann = new Float32Array(WIN)
-  for (let i = 0; i < WIN; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / WIN)
-  const re = new Float32Array(WIN)
-  const im = new Float32Array(WIN)
-
-  const binHz = sr / WIN
-  const lowBinStart = Math.max(1, Math.floor(35 / binHz))
-  const lowBinEnd = Math.floor(180 / binHz)
-  const midBinEnd = Math.floor(1500 / binHz)
-  const highBinEnd = Math.min(WIN / 2 - 1, Math.floor(8000 / binHz))
-
-  const totalFlux = new Float32Array(frames)
-  let prevLowMag = 0
-  let prevMidMag = 0
-  let prevHighMag = 0
-
-  for (let f = 0; f < frames; f++) {
-    const base = f * HOP
-    for (let i = 0; i < WIN; i++) re[i] = mono[base + i] * hann[i]
-    im.fill(0)
-    fft(re, im)
-
-    let lowMag = 0
-    for (let k = lowBinStart; k <= lowBinEnd; k++) lowMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    let midMag = 0
-    for (let k = lowBinEnd + 1; k <= midBinEnd; k++) midMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-    let highMag = 0
-    for (let k = midBinEnd + 1; k <= highBinEnd; k++) highMag += Math.sqrt(re[k] * re[k] + im[k] * im[k])
-
-    const lowLog = Math.log1p(lowMag)
-    const midLog = Math.log1p(midMag)
-    const highLog = Math.log1p(highMag)
-
-    const dLow = Math.max(0, lowLog - prevLowMag)
-    const dMid = Math.max(0, midLog - prevMidMag)
-    const dHigh = Math.max(0, highLog - prevHighMag)
-
-    prevLowMag = lowLog
-    prevMidMag = midLog
-    prevHighMag = highLog
-
-    totalFlux[f] = 2.5 * dLow + 1.0 * dMid + 0.6 * dHigh
-  }
-
-  const filterHalf = Math.max(2, Math.round(envRate * 0.06))
-  subtractMovingMean(totalFlux, filterHalf)
 
   const minLag = Math.floor((envRate * 60) / MAX_BPM)
   const maxLag = Math.ceil((envRate * 60) / MIN_BPM)
@@ -1089,13 +990,23 @@ export function detectMixxxBpmFromPcm(
     if (sHalf >= 0.55 * sFull) continuousLag = continuousLag / 2
   }
 
-  let detectedBpm = (60 * envRate) / continuousLag
-  if (detectedBpm < 85 && detectedBpm * 2 <= MAX_BPM) {
-    detectedBpm *= 2
-  } else if (detectedBpm > 185 && detectedBpm / 2 >= MIN_BPM) {
-    detectedBpm /= 2
-  }
-
-  return Math.round(detectedBpm * 100) / 100
+  // Report the measurement itself. DJ octave normalisation is applied by
+  // detectMixxxBpmFromPcm below, where the multiplier can be recorded instead of
+  // silently overwriting the detected tempo.
+  return Math.round(((60 * envRate) / continuousLag) * 100) / 100
 }
 
+/**
+ * Mixxx-style BPM for DJ use: the raw measurement with the usual octave
+ * interpretation applied. Use {@link detectMixxxRawBpmFromPcm} when both the
+ * measurement and the interpretation need to be kept.
+ */
+export function detectMixxxBpmFromPcm(
+  monoAudio: Float32Array,
+  sampleRate: number,
+  hintBpm?: number
+): number | null {
+  const raw = detectMixxxRawBpmFromPcm(monoAudio, sampleRate, hintBpm)
+  if (raw === null) return null
+  return normalizeDjBpm(raw, { minBpm: MIN_BPM, maxBpm: MAX_BPM }).bpm
+}

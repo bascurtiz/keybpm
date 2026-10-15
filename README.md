@@ -25,7 +25,7 @@ npm run dev       # http://localhost:5173
 npm run build     # type-check + production build → dist/
 npm run preview   # serve the production build
 npm run typecheck # tsc --noEmit
-npm test          # data-layer unit tests
+npm test          # grid, beat-tracker, mix-render and data-layer unit tests
 npm run api:dev   # Cloudflare Worker API (wrangler) on :8787
 ```
 
@@ -93,6 +93,77 @@ score = keyScore (same 40 · adjacent 32 · relative 28)
 
 Every result shows its reasons as chips, so the ranking is auditable.
 
+## Beat & BPM analysis
+
+`src/lib/dj/beatgrid.ts` is the analyzer behind the DJ player's grids. Every tempo and beat
+path now shares one onset front-end (`src/lib/dj/spectral-flux.ts`):
+
+- **24 log-spaced bands, equally weighted.** The three hand-tuned bands
+  (`2.5 * low + mid + 0.6 * high`, previously duplicated in four places) are gone. Log
+  spacing puts a roughly constant number of bands per octave, and because the flux is
+  measured in log magnitude a quiet hi-hat band counts on the same footing as the kick. The
+  sub-180 Hz group is still kept separately — a DJ grid is phase-anchored to the kick — but
+  as the sum of the low bands rather than a magic multiplier.
+- **Ellis dynamic-programming beat tracking** (`src/lib/dj/beat-tracker.ts`), the algorithm
+  MixCN and librosa use: a Gaussian-smoothed local score (σ = period/32), a cumulative score
+  maximised with a `tightness = 100` squared-log transition penalty over a `[P/2, 2P]`
+  window, then backtracked from the last supported peak. A rigid lattice cannot follow
+  timing wobble, which is exactly what real drums, disco and vinyl rips have: on a synthetic
+  track drifting 128 → 124 BPM the DP holds every beat (worst error ~10 ms) where a lattice
+  at the mid-tempo drifts 355 ms by the outro.
+- **Measurable quality, not a vibe.** Each analyzed grid carries
+  `analysis: { rawBpm, bpmMultiplier, bpmSource, beatSource, fitResidual, contrast,
+  retainedRatio, confidence, variable }`. `fitResidual` is the RMS of `ln(interval/period)`
+  over the tracked beats (how periodic the performance is); `contrast` is the onset support
+  of the fitted grid relative to the track's average; `confidence` is a documented, bounded
+  combination of the two. It is a derived score and explicitly **not** calibrated against
+  annotated recordings.
+- **Half/double tempo is visible and reversible.** The analyzer used to double or halve a
+  reading inline, overwriting the measurement. Now `rawBpm` and `bpmMultiplier` sit next to
+  `bpm`, so `rawBpm = bpm / bpmMultiplier` always holds and the interpretation can be undone.
+- **Variable-tempo grids** (`src/lib/dj/grid.ts`) hold per-beat positions for tracks that do
+  not hold one tempo. The analyzer adopts one only when no single tempo fits the tracked
+  beats (`constantToleranceSeconds = 0.08`), so machine-timed 4/4 keeps the fast constant grid
+  and merely takes a refined BPM from the tracked beats.
+
+Measured in the browser on synthetic material: a steady 128 BPM track reports confidence
+**0.97** with a 0.005 residual; the same track with ±25 ms humanised jitter reports **0.61**
+and 0.031; jitter alone never flips a track to a variable grid; and a 128 → 124 BPM drift
+produces a variable grid (`variable: true`) whose beats hold the tempo.
+
+## Mixing and mix rendering
+
+The DJ player (`/mix-it`) runs two decks through a realtime keylock worklet. Recording a
+mix there does **not** capture audio. It captures what the decks *did* — per deck: where
+the audio read from, how fast (the pitch fader's value, with any seek recorded as a
+segment break), the channel gain, three-band EQ, filter and key shift — then rebuilds the
+performance offline in an `OfflineAudioContext`:
+
+- Keylocked sections are stretched again offline by a **selectable engine**: **Rubber Band
+  R3** by default, with the **SoundTouch core** as an automatic fallback (either can be
+  forced from the MIX RENDER control, which also reports which engine wrote the file).
+  Rubber Band is driven synchronously on the main thread by
+  `src/lib/dj/rubberband-offline.ts`, because `rubberband-web` only exposes an
+  `AudioWorkletNode` factory whose messages never reach a render thread — the same dead
+  channel that makes the SoundTouch worklet ignore its own window settings. Measured on
+  marker signals at 48 kHz, Rubber Band's alignment error is +0.1 ms at speed 1.0, +1.0 ms
+  at 1.25 and −2.4 ms at 0.8, its length is within 0.15 %, and it renders at about a third
+  of realtime. It handles key shift and tempo in one pass, so a shifted keylocked segment is
+  resynthesised once rather than twice.
+- The SoundTouch core remains for `stretchEngine: 'soundtouch'` and for hosts where the
+  Rubber Band engine cannot load; it runs on the main thread through `@soundtouchjs/core`,
+  where the WSOLA windows and the exhaustive seek search are actually applied. Rendered from
+  the same captured 5 s performance, both engines produce the same length (5.255 s, frames
+  within four samples) and level (RMS 0.069 against 0.070), so the choice is about sound, not
+  arrangement.
+- Keylock off is plain varispeed: segments are resampled by the source node itself.
+- Everything is therefore rendered at the track's own sample rate, then mixed at the
+  context rate, and written as 24-bit WAV — no Opus, no dropouts.
+
+The stretch/build/render logic is `src/lib/dj/mix-timeline.ts`, `offline-stretch.ts`,
+`mix-renderer.ts` and `wav.ts`, with `npm test` covering segment building, the stretcher
+(identity, timing, keylock pitch, pitch shift) and the WAV encoder.
+
 ## Stack
 
 React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · React Router 6 · ONNX Runtime Web · Essentia.js (WASM) · Web Audio API. Optional API: Cloudflare Workers + D1 ([`workers/api`](workers/api)).
@@ -130,6 +201,8 @@ React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · React Router 6 · ONNX Run
 │   ├── components/       # KeyTagger, Header, SearchBar, FilterBar, TrackTable, KeyWheel…
 │   ├── pages/            # Home, Browse, Track, KeyTool, MixFinder, Contribute, Review…
 │   ├── lib/              # keyDetector (ONNX), bpmDetector (Essentia), cqt, audioEngine, mix, search…
+│   │   └── dj/           # decks, log-band onset + Ellis DP beat tracker, beat grids,
+│   │                     # mix capture, offline mix renderer (Rubber Band / SoundTouch)
 │   └── types/            # Track model + key maps
 ├── AGENTS.md             # product spec
 └── README.md

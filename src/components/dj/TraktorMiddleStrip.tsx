@@ -9,6 +9,7 @@ import { shortKey } from '@/lib/format'
 import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
 import { Knob } from './Knob'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
+import { MixRenderButton } from './MixRenderButton'
 import { youtubeThumbUrl } from '@/lib/youtube'
 
 interface TraktorMiddleStripProps {
@@ -226,6 +227,9 @@ export function TraktorMiddleStrip({
               <option value="openkey" className="bg-[#141414] text-white">Open Key</option>
             </select>
           </div>
+
+          {/* Capture + offline render to WAV */}
+          <MixRenderButton engine={engine} />
         </div>
 
         {/* ================= RIGHT: DECK B INFO & OVERVIEW ================= */}

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { computePeaks } from '@/lib/dj/peaks'
+import { beatIndexAt, downbeatIndex, isVariableGrid, localTempoRange } from '@/lib/dj/grid'
 import type { Track } from '@/lib/dj/types'
 
 interface StackedWaveformsProps {
@@ -46,6 +47,16 @@ export function StackedWaveforms({
 
   const [activeGridDeckId, setActiveGridDeckId] = useState<'A' | 'B' | null>(null)
   const activeGridDeck = activeGridDeckId === 'A' ? deckA : deckB
+  const activeGrid = activeGridDeck.track?.grid ?? null
+
+  // Tempo spread of a drifting grid, so the VAR badge can show how far the track
+  // wanders instead of a single misleading average. Smoothed, because one measured
+  // interval is only as precise as the detector's tick resolution.
+  const driftLabel = useMemo(() => {
+    if (!activeGrid || !isVariableGrid(activeGrid)) return ''
+    const range = localTempoRange(activeGrid)
+    return range ? `${range.min.toFixed(1)}-${range.max.toFixed(1)} BPM` : 'measured beats'
+  }, [activeGrid])
 
   const zoomIn = () => setWindowSeconds(s => Math.max(3, s - 2))
   const zoomOut = () => setWindowSeconds(s => Math.min(18, s + 2))
@@ -402,6 +413,19 @@ export function StackedWaveforms({
 
           <div className="h-4 w-[1px] bg-[#2a2a2a]" />
 
+          {/* Variable-tempo marker: this grid follows measured beats, not one tempo */}
+          {driftLabel && (
+            <div
+              className="flex items-center gap-1 rounded bg-[#101010] px-2 py-0.5 border border-amber-500/40"
+              title="Variable-tempo grid: ticks are the analyser's measured beats, so they stay locked through tempo drift"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                VAR
+              </span>
+              <span className="text-[9px] font-mono text-[#cccccc]">{driftLabel}</span>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={() => activeGridDeck.setBeat1AtPosition()}
@@ -605,22 +629,38 @@ function renderDeckLane({
   // 1. Beatgrid Ticks
   const grid = track.grid
   if (grid) {
-    const beatLen = 60 / grid.bpm
-    const minGridT = 0
-    const firstVisibleBeat = Math.ceil((tStart - grid.firstBeat) / beatLen)
-    for (let k = firstVisibleBeat; ; k++) {
-      const t = grid.firstBeat + k * beatLen
-      if (t > tStart + windowSeconds) break
-      if (t < minGridT) continue
+    const bpb = grid.beatsPerBar || 4
+    const anchorBeat = downbeatIndex(grid)
+    const windowEnd = tStart + windowSeconds
+
+    const drawTick = (t: number, isDownbeat: boolean) => {
       const x = (t - tStart) / secPerPx
-
-      const beatsFromBar = Math.round((t - grid.firstBar) / beatLen)
-      const isDownbeat =
-        ((beatsFromBar % grid.beatsPerBar) + grid.beatsPerBar) % grid.beatsPerBar === 0
-
       ctx.fillStyle = isDownbeat ? downbeatColor : beatColor
       ctx.globalAlpha = isDownbeat ? 0.85 : 0.45
       ctx.fillRect(x - (isDownbeat ? 1 : 0.5), topY, isDownbeat ? 2 : 1, laneH)
+    }
+
+    if (isVariableGrid(grid)) {
+      // Variable tempo: draw the analyser's measured beat positions so the ticks
+      // stay on the audio instead of sliding away as the track drifts.
+      const beats = grid.beats as number[]
+      const firstIndex = Math.max(0, Math.floor(beatIndexAt(grid, tStart)))
+      for (let i = firstIndex; i < beats.length; i++) {
+        const t = beats[i]
+        if (t > windowEnd) break
+        if (t < 0) continue
+        drawTick(t, (((i - anchorBeat) % bpb) + bpb) % bpb === 0)
+      }
+    } else {
+      const beatLen = 60 / grid.bpm
+      const firstVisibleBeat = Math.ceil((tStart - grid.firstBeat) / beatLen)
+      for (let k = firstVisibleBeat; ; k++) {
+        const t = grid.firstBeat + k * beatLen
+        if (t > windowEnd) break
+        if (t < 0) continue
+        const beatsFromBar = Math.round((t - grid.firstBar) / beatLen)
+        drawTick(t, ((beatsFromBar % bpb) + bpb) % bpb === 0)
+      }
     }
     ctx.globalAlpha = 1
   }

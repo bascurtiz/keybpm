@@ -1,6 +1,21 @@
 import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
-import { HOT_CUE_COUNT, type FxType, type LoopRegion, type Track } from './types'
-import { positiveMod } from './dsp'
+import { HOT_CUE_COUNT, type BeatGrid, type FxType, type LoopRegion, type Track } from './types'
+import {
+  barLengthAt,
+  barPhaseAt,
+  beatIndexAt,
+  beatLengthAt,
+  beatTimeAt,
+  bpmAt,
+  collapseGridToConstant,
+  isVariableGrid,
+  normalizeGrid,
+  reanchorBar,
+  scaleGridBeats,
+  shiftBars,
+  shiftGridBeats,
+  snapToBeat as snapToGridBeat,
+} from './grid'
 
 interface WorkletMessage {
   t: string
@@ -370,10 +385,51 @@ export class DeckEngine {
     }
   }
 
-  /** Effective BPM after pitch rate is applied. */
+  /**
+   * Grid tempo at the playhead, before the pitch fader. On a variable-tempo grid
+   * this is the *local* tempo, which is what lets sync follow a drifting master
+   * instead of chasing a single average tempo.
+   */
+  get localBpm(): number | null {
+    const grid = this.track?.grid
+    if (grid) return bpmAt(grid, this.position)
+    return this.track?.bpm ?? null
+  }
+
+  /** Local tempo after the pitch fader is applied. */
   get effectiveBpm(): number | null {
-    if (!this.track?.bpm) return null
-    return Math.round(this.track.bpm * this._rate * 100) / 100
+    const local = this.localBpm
+    if (!local) return null
+    return Math.round(local * this._rate * 100) / 100
+  }
+
+  /** Local beat length in seconds at `time`. */
+  beatLengthAt(time = this.position): number {
+    const grid = this.track?.grid
+    if (grid) return beatLengthAt(grid, time)
+    const bpm = this.track?.bpm
+    return bpm && bpm > 0 ? 60 / bpm : 0.5
+  }
+
+  /** Local bar length in seconds at `time`. */
+  barLengthAt(time = this.position): number {
+    const grid = this.track?.grid
+    return grid ? barLengthAt(grid, time) : this.beatLengthAt(time) * 4
+  }
+
+  /** Fractional position inside the bar, 0 at the downbeat and 1 at the next bar. */
+  barPhase(): number {
+    return barPhaseAt(this.track?.grid, this.position)
+  }
+
+  /** The deck's grid, created on demand so manual grid edits always have one. */
+  private ensureGrid(): BeatGrid {
+    const existing = this.track?.grid
+    if (existing) return existing
+    const bpm = this.track?.bpm || 120
+    const grid: BeatGrid = { bpm, firstBeat: 0, firstBar: 0, beatsPerBar: 4 }
+    if (this.track) this.track.grid = grid
+    return grid
   }
 
   get position(): number {
@@ -393,10 +449,11 @@ export class DeckEngine {
     if (!this.track) return
     const validBpm = Math.max(20, Math.min(300, Math.round(bpm * 10) / 10))
     this.track.bpm = validBpm
-    if (this.track.grid) {
-      this.track.grid.bpm = validBpm
-      const beatLen = 60 / validBpm
-      this.track.grid.firstBeat = positiveMod(this.track.grid.firstBar, beatLen)
+    const grid = this.track.grid
+    if (grid) {
+      // A manual tempo edit asserts that the track holds one tempo, so a
+      // variable-tempo grid collapses here rather than fighting the new value.
+      this.track.grid = collapseGridToConstant(grid, validBpm, grid.firstBar)
     }
     this.updateFxTiming()
     this.emit()
@@ -416,18 +473,9 @@ export class DeckEngine {
 
   nudgeBeatGrid(deltaSeconds: number) {
     if (!this.track) return
-    const bpm = this.track.grid?.bpm || this.track.bpm || 120
-    const beatLen = 60 / bpm
-    if (!this.track.grid) {
-      this.track.grid = {
-        bpm,
-        firstBeat: 0,
-        firstBar: 0,
-        beatsPerBar: 4,
-      }
-    }
-    this.track.grid.firstBar = Math.max(0, this.track.grid.firstBar + deltaSeconds)
-    this.track.grid.firstBeat = positiveMod(this.track.grid.firstBar, beatLen)
+    // Shifting a variable grid moves every measured beat with the anchor, so the
+    // ticks stay locked to the audio instead of sliding off it.
+    this.track.grid = shiftGridBeats(this.ensureGrid(), deltaSeconds)
     this.emit()
   }
 
@@ -437,37 +485,20 @@ export class DeckEngine {
    */
   shiftBarPhase(deltaBeats: number) {
     if (!this.track) return
-    const bpm = this.track.grid?.bpm || this.track.bpm || 120
-    const beatLen = 60 / bpm
-    if (!this.track.grid) {
-      this.track.grid = {
-        bpm,
-        firstBeat: 0,
-        firstBar: 0,
-        beatsPerBar: 4,
-      }
-    }
-    this.track.grid.firstBar = Math.max(0, this.track.grid.firstBar + deltaBeats * beatLen)
-    this.track.grid.firstBeat = positiveMod(this.track.grid.firstBar, beatLen)
+    const grid = this.ensureGrid()
+    const anchorBeat = Math.round(beatIndexAt(grid, grid.firstBar))
+    const anchor = Math.max(0, beatTimeAt(grid, anchorBeat + deltaBeats))
+    this.track.grid = normalizeGrid({ ...grid, firstBar: anchor })
     this.emit()
   }
 
   setBeat1AtPosition(pos?: number) {
     if (!this.track) return
     const targetPos = Math.max(0, pos ?? this.position)
-    const bpm = this.track.grid?.bpm || this.track.bpm || 120
-    const beatLen = 60 / bpm
-    if (!this.track.grid) {
-      this.track.grid = {
-        bpm,
-        firstBeat: positiveMod(targetPos, beatLen),
-        firstBar: targetPos,
-        beatsPerBar: 4,
-      }
-    } else {
-      this.track.grid.firstBar = targetPos
-      this.track.grid.firstBeat = positiveMod(targetPos, beatLen)
-    }
+    // On a variable grid the downbeat has to land on a measured beat, otherwise
+    // bar phase stops being exact. `reanchorBar` does that, and for a constant
+    // grid it just re-establishes the phase invariant.
+    this.track.grid = reanchorBar({ ...this.ensureGrid(), firstBar: targetPos })
     this.emit()
   }
 
@@ -480,7 +511,18 @@ export class DeckEngine {
 
   multiplyGridBpm(multiplier: 0.5 | 2) {
     if (!this.track) return
-    const curBpm = this.track.grid?.bpm || this.track.bpm || 120
+    const grid = this.track.grid
+    const curBpm = grid?.bpm || this.track.bpm || 120
+    if (grid && isVariableGrid(grid)) {
+      // Halving/doubling a beat map renumbers its beats; the measured positions
+      // themselves stay where the audio put them.
+      const scaled = scaleGridBeats(grid, multiplier)
+      this.track.grid = scaled
+      this.track.bpm = scaled.bpm
+      this.updateFxTiming()
+      this.emit()
+      return
+    }
     const newBpm = Math.max(20, Math.min(300, Math.round(curBpm * multiplier * 10) / 10))
     this.setTrackBpm(newBpm)
   }
@@ -666,9 +708,12 @@ export class DeckEngine {
   beatJump(bars: number) {
     if (!this.track) return
     const grid = this.track.grid
-    const bpm = grid?.bpm ?? this.track.bpm ?? 120
-    const barLen = (60 / bpm) * (grid?.beatsPerBar ?? 4)
-    this.seek(this.position + bars * barLen)
+    if (grid) {
+      this.seek(shiftBars(grid, this.position, bars))
+      return
+    }
+    const bpm = this.track.bpm ?? 120
+    this.seek(this.position + bars * (60 / bpm) * 4)
   }
 
   // ----- pitch & continuous sync lock -----
@@ -747,18 +792,17 @@ export class DeckEngine {
   alignPhaseTo(other: DeckEngine): boolean {
     const ownGrid = this.track?.grid ?? null
     const otherGrid = other.track?.grid ?? null
-    const ownBpm = ownGrid?.bpm ?? this.track?.bpm
-    const otherBpm = otherGrid?.bpm ?? other.track?.bpm
-    if (!ownGrid || !otherGrid || !ownBpm || !otherBpm || this._scratching) return false
+    if (!ownGrid || !otherGrid || this._scratching) return false
+    if (!(ownGrid.bpm > 0) || !(otherGrid.bpm > 0)) return false
 
-    const ownBar = (60 / ownBpm) * (ownGrid.beatsPerBar || 4)
-    const otherBar = (60 / otherBpm) * (otherGrid.beatsPerBar || 4)
-    const phiSelf = positiveMod((this.position - ownGrid.firstBar) / ownBar, 1)
-    const phiOther = positiveMod((other.position - otherGrid.firstBar) / otherBar, 1)
+    const phiSelf = barPhaseAt(ownGrid, this.position)
+    const phiOther = barPhaseAt(otherGrid, other.position)
     let dPhi = phiOther - phiSelf
     if (dPhi > 0.5) dPhi -= 1.0
     if (dPhi < -0.5) dPhi += 1.0
-    const shift = dPhi * ownBar
+    // Shift by a fraction of the *local* bar so the correction is right even
+    // where a variable grid is running slower or faster than its average.
+    const shift = dPhi * barLengthAt(ownGrid, this.position)
     this.post({ t: 'shift', s: shift })
     this.posSeconds = Math.min(Math.max(this.posSeconds + shift, 0), this.duration)
     return true
@@ -773,10 +817,10 @@ export class DeckEngine {
       return null
     }
 
-    const ownGrid = this.track?.grid ?? null
-    const otherGrid = other.track?.grid ?? null
-    const ownBpm = ownGrid?.bpm ?? this.track?.bpm
-    const otherBpm = otherGrid?.bpm ?? other.track?.bpm
+    // Match the *local* tempo of both decks, so coupling to a drifting master
+    // tracks it instead of landing on its average.
+    const ownBpm = this.localBpm
+    const otherBpm = other.localBpm
     if (!ownBpm || !otherBpm) return null
 
     let rate = (otherBpm * other.rate) / ownBpm
@@ -977,14 +1021,13 @@ export class DeckEngine {
   snapToBeat(time: number): number {
     if (!this.track) return time
     const grid = this.track.grid
-    const bpm = grid?.bpm ?? this.track.bpm
+    if (grid) {
+      return Math.max(0, Math.min(snapToGridBeat(grid, time), this.duration))
+    }
+    const bpm = this.track.bpm
     if (!bpm || bpm <= 0) return time
-
     const beatLen = 60 / bpm
-    const anchor = grid?.firstBeat ?? 0
-    const beatIndex = Math.round((time - anchor) / beatLen)
-    const snapped = anchor + beatIndex * beatLen
-    return Math.max(0, Math.min(snapped, this.duration))
+    return Math.max(0, Math.min(Math.round(time / beatLen) * beatLen, this.duration))
   }
 
   // ----- hot cues -----
@@ -1042,12 +1085,14 @@ export class DeckEngine {
 
     // QUANT MODE active during playback: beat-accurate skipping between cue points
     const grid = this.track.grid
-    const bpm = grid?.bpm || this.effectiveBpm || this.track.bpm || 120
-    const beatLen = 60 / bpm
-    const anchor = grid?.firstBeat ?? 0
     const currentPos = this.position
-    const elapsedInBeat = positiveMod(currentPos - anchor, beatLen)
-    const timeUntilNextBeat = beatLen - elapsedInBeat
+    // Measure the phase from the previous grid beat so the queued jump lands on
+    // a real beat, including on a variable-tempo grid.
+    const beatLen = this.beatLengthAt(currentPos)
+    const elapsedInBeat = grid
+      ? currentPos - beatTimeAt(grid, Math.floor(beatIndexAt(grid, currentPos)))
+      : currentPos % beatLen
+    const timeUntilNextBeat = Math.max(0, beatLen - elapsedInBeat)
 
     // If clicked right on the beat (within 35ms of the beat onset), jump immediately in phase
     if (elapsedInBeat < 0.035) {
@@ -1101,14 +1146,15 @@ export class DeckEngine {
   setBarLoop(bars: number) {
     if (!this.track) return
     const grid = this.track.grid
-    const bpm = grid?.bpm ?? this.track.bpm ?? 120
-    const beatsPerBar = grid?.beatsPerBar ?? 4
-    const beatLen = 60 / bpm
-    const barSec = beatLen * beatsPerBar
-    const len = bars * barSec
 
     // Snap start to nearest beatgrid downbeat/beat if snap mode is enabled
     const start = this.snapMode ? this.snapToBeat(this.position) : this.position
+    // Walk the grid forward `bars` bars instead of multiplying a fixed bar
+    // length, so a loop stays the right length on a drifting track.
+    const beatsPerBar = grid?.beatsPerBar ?? 4
+    const len = grid
+      ? shiftBars(grid, start, bars) - start
+      : bars * this.beatLengthAt(start) * beatsPerBar
     const end = Math.min(start + len, this.duration)
     this.loop = { start, end, bars }
     this.post({ t: 'loop', loop: this.loop })
@@ -1142,6 +1188,7 @@ export class DeckEngine {
   private _eqLow = 0
   private _eqMid = 0
   private _eqHigh = 0
+  private _filter = 0
 
   get gain(): number {
     return this._gain
@@ -1187,6 +1234,7 @@ export class DeckEngine {
    * Filter knob: -1 = full LPF (20Hz), 0 = off (bypass), +1 = full HPF (20kHz).
    */
   setFilter(norm: number) {
+    this._filter = norm
     const t = this.ctx.currentTime
     if (Math.abs(norm) < 0.02) {
       this.filter.type = 'allpass'
@@ -1202,6 +1250,11 @@ export class DeckEngine {
       this.filter.frequency.setTargetAtTime(f, t, 0.01)
       this.filter.Q.setTargetAtTime(1.2, t, 0.01)
     }
+  }
+
+  /** Current filter knob value, -1..1 (negative low-pass, positive high-pass). */
+  get filterValue(): number {
+    return this._filter
   }
 
   setVolume(vol: number) {

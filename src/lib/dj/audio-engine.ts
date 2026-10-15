@@ -2,6 +2,14 @@ import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
 import { DeckEngine } from './deck-engine'
 import type { DeckId } from './types'
 import { getVinylWorkletUrl } from './vinyl-worklet'
+import { MixRecorder, type MixTimeline } from './mix-timeline'
+import {
+  LIMITER_SETTINGS,
+  renderMix as renderMixOffline,
+  type MixRenderOptions,
+  type MixRenderProgress,
+  type RenderedMix,
+} from './mix-renderer'
 
 /**
  * Top-level audio graph: two decks -> master gain -> limiter -> destination.
@@ -17,10 +25,13 @@ export class AudioEngine {
   readonly glowAnalyser: AnalyserNode
   readonly decks: Record<DeckId, DeckEngine>
 
-  private readonly recordDest: MediaStreamAudioDestinationNode
-  private recorder: MediaRecorder | null = null
-  private chunks: Blob[] = []
+  /** Captures the performance; rendering happens afterwards, offline. */
+  private recorder: MixRecorder | null = null
   recordingStartedAt: number | null = null
+  /** Most recent rendered mix, so the UI can offer it for download. */
+  lastMix: RenderedMix | null = null
+  /** Live render progress, or null when no render is running. */
+  renderProgress: MixRenderProgress | null = null
 
   crossfade = 0
   masterVolume = 0.9
@@ -47,22 +58,21 @@ export class AudioEngine {
     this.master = this.ctx.createGain()
     this.master.gain.value = 0.9
 
-    // Brickwall limiter
+    // Brickwall limiter, shared with the offline renderer so a rendered mix
+    // and live playback are limited identically.
     this.limiter = this.ctx.createDynamicsCompressor()
-    this.limiter.threshold.value = -1.5
-    this.limiter.knee.value = 0
-    this.limiter.ratio.value = 20
-    this.limiter.attack.value = 0.002
-    this.limiter.release.value = 0.25
+    this.limiter.threshold.value = LIMITER_SETTINGS.threshold
+    this.limiter.knee.value = LIMITER_SETTINGS.knee
+    this.limiter.ratio.value = LIMITER_SETTINGS.ratio
+    this.limiter.attack.value = LIMITER_SETTINGS.attack
+    this.limiter.release.value = LIMITER_SETTINGS.release
     this.master.connect(this.limiter)
 
     this.masterAnalyser = this.ctx.createAnalyser()
     this.masterAnalyser.fftSize = 1024
-    this.recordDest = this.ctx.createMediaStreamDestination()
 
     this.limiter.connect(this.masterAnalyser)
     this.masterAnalyser.connect(this.ctx.destination)
-    this.limiter.connect(this.recordDest)
 
     // Stereo split for VU meters
     this.masterAnalyserL = this.ctx.createAnalyser()
@@ -126,12 +136,12 @@ export class AudioEngine {
         continue
       }
 
-      const ownGrid = follower.track?.grid
-      const masterGrid = master.track?.grid
-      if (!ownGrid || !masterGrid) continue
+      // Local tempo at each playhead, so a follower tracks a master that is
+      // drifting rather than locking onto its average tempo.
+      const ownBpm = follower.localBpm
+      const masterBpm = master.localBpm
+      if (!ownBpm || !masterBpm) continue
 
-      const ownBpm = ownGrid.bpm
-      const masterBpm = masterGrid.bpm
       const targetRate = (masterBpm * master.rate) / ownBpm
 
       // Keep follower tempo locked to master pitch changes
@@ -175,12 +185,10 @@ export class AudioEngine {
     this.masterBpm = validBpm
     if (syncDecks) {
       // fromSync=true so locked SYNC is not silently disengaged by a master BPM edit.
-      if (this.decks.A.track?.bpm) {
-        this.decks.A.setRate(validBpm / this.decks.A.track.bpm, true)
-      }
-      if (this.decks.B.track?.bpm) {
-        this.decks.B.setRate(validBpm / this.decks.B.track.bpm, true)
-      }
+      const ownA = this.decks.A.localBpm
+      if (ownA) this.decks.A.setRate(validBpm / ownA, true)
+      const ownB = this.decks.B.localBpm
+      if (ownB) this.decks.B.setRate(validBpm / ownB, true)
     }
     this.emit()
   }
@@ -214,41 +222,63 @@ export class AudioEngine {
   }
 
   get recording() {
-    return this.recorder?.state === 'recording'
+    return this.recorder?.recording ?? false
   }
 
+  /** Seconds captured so far, for a recording timer. */
+  get recordingSeconds(): number {
+    return this.recorder?.elapsedSeconds ?? 0
+  }
+
+  /**
+   * Starts capturing the performance. Nothing is written to disk or encoded
+   * while this runs: the mix is rebuilt later from the captured timeline.
+   */
   startRecording() {
     if (this.recording) return
-    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(m =>
-      MediaRecorder.isTypeSupported(m)
-    )
-    this.chunks = []
-    this.recorder = new MediaRecorder(this.recordDest.stream, mime ? { mimeType: mime } : undefined)
-    this.recorder.ondataavailable = e => {
-      if (e.data.size > 0) this.chunks.push(e.data)
-    }
-    this.recorder.start(1000)
+    this.recorder = new MixRecorder(this)
+    this.recorder.start()
     this.recordingStartedAt = performance.now()
     this.emit()
   }
 
-  stopRecording(): Promise<Blob | null> {
-    return new Promise(resolve => {
-      const rec = this.recorder
-      if (!rec || rec.state !== 'recording') {
-        resolve(null)
-        return
-      }
-      rec.onstop = () => {
-        const blob = new Blob(this.chunks, { type: rec.mimeType || 'audio/webm' })
-        this.chunks = []
-        this.recordingStartedAt = null
-        this.emit()
-        resolve(blob)
-      }
-      rec.stop()
-      this.recorder = null
-    })
+  /** Stops capture and returns what was performed, or null if nothing played. */
+  stopRecording(): MixTimeline | null {
+    const timeline = this.recorder?.stop() ?? null
+    this.recorder = null
+    this.recordingStartedAt = null
+    this.emit()
+    return timeline
+  }
+
+  /**
+   * Renders a captured timeline offline into a WAV file.
+   *
+   * This is a real render, not a save: every keylocked segment is time-stretched
+   * again at a quality realtime playback cannot afford. Progress is published on
+   * the engine so the UI can show it.
+   */
+  async renderRecording(
+    timeline: MixTimeline,
+    options: MixRenderOptions = {}
+  ): Promise<RenderedMix> {
+    this.renderProgress = { phase: 'measuring' }
+    this.emit()
+    try {
+      const rendered = await renderMixOffline(timeline, {
+        ...options,
+        onProgress: progress => {
+          this.renderProgress = progress
+          options.onProgress?.(progress)
+          this.emit()
+        },
+      })
+      this.lastMix = rendered
+      return rendered
+    } finally {
+      this.renderProgress = null
+      this.emit()
+    }
   }
 }
 

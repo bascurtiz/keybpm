@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
-import { positiveMod } from '@/lib/dj/dsp'
+import { beatInBarAt } from '@/lib/dj/grid'
 
 interface BeatCounterProps {
   deckA: DeckEngine
@@ -15,14 +15,11 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
   useEffect(() => {
     let raf = 0
     const tick = () => {
-      // Deck A 4-beat bar indicator
+      // Deck A 4-beat bar indicator. The grid module resolves the phase, so this
+      // stays correct on both constant and variable-tempo grids.
       const gridA = deckA.track?.grid
-      const bpmA = gridA?.bpm || deckA.track?.bpm || 120
-      const beatLenA = 60 / bpmA
-      const firstBarA = gridA?.firstBar ?? gridA?.firstBeat ?? 0
-      const beatNumA = Math.floor((deckA.position - firstBarA + 0.04) / beatLenA)
       const beatsPerBarA = gridA?.beatsPerBar || 4
-      const activeIdxA = positiveMod(beatNumA, beatsPerBarA)
+      const activeIdxA = beatInBarAt(gridA, deckA.position, 0.04) % beatsPerBarA
 
       for (let i = 0; i < 4; i++) {
         const el = beatAEls.current[i]
@@ -37,12 +34,8 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
 
       // Deck B 4-beat bar indicator
       const gridB = deckB.track?.grid
-      const bpmB = gridB?.bpm || deckB.track?.bpm || 120
-      const beatLenB = 60 / bpmB
-      const firstBarB = gridB?.firstBar ?? gridB?.firstBeat ?? 0
-      const beatNumB = Math.floor((deckB.position - firstBarB + 0.04) / beatLenB)
       const beatsPerBarB = gridB?.beatsPerBar || 4
-      const activeIdxB = positiveMod(beatNumB, beatsPerBarB)
+      const activeIdxB = beatInBarAt(gridB, deckB.position, 0.04) % beatsPerBarB
 
       for (let i = 0; i < 4; i++) {
         const el = beatBEls.current[i]

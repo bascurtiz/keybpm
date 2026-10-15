@@ -255,11 +255,10 @@ function DeckTransport({
     if (deck.loop) {
       deck.exitLoop()
     } else {
-      const grid = deck.track.grid
-      const bpm = grid?.bpm || deck.effectiveBpm || deck.track.bpm || 120
-      const beatLen = 60 / bpm
-      const loopLenSeconds = currentBeats * beatLen
+      // Local beat length at the loop start, so loops stay beat-accurate on a
+      // variable-tempo grid instead of assuming one global tempo.
       const start = deck.snapMode ? deck.snapToBeat(deck.position) : deck.position
+      const loopLenSeconds = currentBeats * deck.beatLengthAt(start)
       deck.setLoop(start, start + loopLenSeconds)
     }
   }
@@ -268,8 +267,7 @@ function DeckTransport({
     const nextIdx = Math.max(0, selectedLoopIdx - 1)
     setSelectedLoopIdx(nextIdx)
     if (deck.loop && deck.track) {
-      const bpm = deck.track.grid?.bpm || deck.effectiveBpm || deck.track.bpm || 120
-      const beatLen = 60 / bpm
+      const beatLen = deck.beatLengthAt(deck.loop.start)
       const halfBeats = LOOP_BEAT_SIZES[nextIdx]
       const halfLen = halfBeats * beatLen
       deck.setLoop(deck.loop.start, deck.loop.start + halfLen)
@@ -280,8 +278,7 @@ function DeckTransport({
     const nextIdx = Math.min(LOOP_BEAT_SIZES.length - 1, selectedLoopIdx + 1)
     setSelectedLoopIdx(nextIdx)
     if (deck.loop && deck.track) {
-      const bpm = deck.track.grid?.bpm || deck.effectiveBpm || deck.track.bpm || 120
-      const beatLen = 60 / bpm
+      const beatLen = deck.beatLengthAt(deck.loop.start)
       const doubleBeats = LOOP_BEAT_SIZES[nextIdx]
       const doubleLen = doubleBeats * beatLen
       deck.setLoop(deck.loop.start, deck.loop.start + doubleLen)

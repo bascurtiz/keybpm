@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { AudioEngine } from '@/lib/dj/audio-engine'
 import { MiniWaveform } from './MiniWaveform'
 import { Knob } from './Knob'
-import { positiveMod } from '@/lib/dj/dsp'
+import { beatInBarAt } from '@/lib/dj/grid'
 import { camelotColor, shiftCamelot } from '@/lib/camelot'
 
 interface TopBarProps {
@@ -94,11 +94,7 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
       // 4-beat bar counter based on track beat grid
       const gridA = deckA.track?.grid
       if (gridA && deckA.track) {
-        const bpmA = gridA.bpm || deckA.track.bpm || 120
-        const beatLenA = 60 / bpmA
-        const firstBarA = gridA.firstBar ?? gridA.firstBeat ?? 0
-        const beatNumA = Math.floor((deckA.position - firstBarA + 0.04) / beatLenA)
-        const activeIdxA = positiveMod(beatNumA, gridA.beatsPerBar || 4)
+        const activeIdxA = beatInBarAt(gridA, deckA.position, 0.04)
 
         for (let i = 0; i < 4; i++) {
           const el = beatAEls.current[i]
@@ -122,11 +118,7 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
 
       const gridB = deckB.track?.grid
       if (gridB && deckB.track) {
-        const bpmB = gridB.bpm || deckB.track.bpm || 120
-        const beatLenB = 60 / bpmB
-        const firstBarB = gridB.firstBar ?? gridB.firstBeat ?? 0
-        const beatNumB = Math.floor((deckB.position - firstBarB + 0.04) / beatLenB)
-        const activeIdxB = positiveMod(beatNumB, gridB.beatsPerBar || 4)
+        const activeIdxB = beatInBarAt(gridB, deckB.position, 0.04)
 
         for (let i = 0; i < 4; i++) {
           const el = beatBEls.current[i]
