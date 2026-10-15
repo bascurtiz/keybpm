@@ -349,8 +349,32 @@ export function StackedWaveforms({
         </div>
       )}
 
-      {/* Deck A Left: Skip backwards to start (|◀) & Zoom controls */}
-      <div className="absolute top-1.5 left-2 z-10 flex items-center gap-1.5">
+      {/* Global Waveform Zoom controls */}
+      <div className="absolute top-1.5 left-2 z-10 flex items-center gap-1">
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={zoomOut}
+          disabled={windowSeconds >= 18}
+          className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
+          title="Zoom out"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={zoomIn}
+          disabled={windowSeconds <= 3}
+          className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
+          title="Zoom in"
+        >
+          +
+        </button>
+      </div>
+
+      {/* Deck A Left: Rewind to start (|◀) - vertically centered on Deck A lane */}
+      <div className="absolute top-[25%] -translate-y-1/2 left-2 z-10">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -359,40 +383,17 @@ export function StackedWaveforms({
             deckA.seek(0)
           }}
           disabled={!deckA.track}
-          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
-          title="Skip to start of Deck A (|◀)"
+          className="w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
+          title="Rewind to start of Deck A (|◀)"
         >
-          <svg viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
             <path d="M2 3a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1zm11.196 1.402A1 1 0 0 0 11.667 4L5.333 7.333a1 1 0 0 0 0 1.334l6.334 3.333A1 1 0 0 0 13.196 11.4V4.602a1 1 0 0 0 0-.2z" />
           </svg>
         </button>
-
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={zoomOut}
-            disabled={windowSeconds >= 18}
-            className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
-            title="Zoom out"
-          >
-            −
-          </button>
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={zoomIn}
-            disabled={windowSeconds <= 3}
-            className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
-            title="Zoom in"
-          >
-            +
-          </button>
-        </div>
       </div>
 
-      {/* Deck B Left: Skip backwards to start (|◀) */}
-      <div className="absolute top-[calc(50%+6px)] left-2 z-10 flex items-center gap-1.5">
+      {/* Deck B Left: Rewind to start (|◀) - vertically centered on Deck B lane */}
+      <div className="absolute top-[75%] -translate-y-1/2 left-2 z-10">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -401,16 +402,16 @@ export function StackedWaveforms({
             deckB.seek(0)
           }}
           disabled={!deckB.track}
-          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
-          title="Skip to start of Deck B (|◀)"
+          className="w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
+          title="Rewind to start of Deck B (|◀)"
         >
-          <svg viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
             <path d="M2 3a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1zm11.196 1.402A1 1 0 0 0 11.667 4L5.333 7.333a1 1 0 0 0 0 1.334l6.334 3.333A1 1 0 0 0 13.196 11.4V4.602a1 1 0 0 0 0-.2z" />
           </svg>
         </button>
       </div>
 
-      {/* Deck A Right: SET BEAT 1 & GRID A controls */}
+      {/* Deck A Right: SET DOWNBEAT & GRID A controls */}
       <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
@@ -420,11 +421,14 @@ export function StackedWaveforms({
             deckA.setBeat1AtPosition()
           }}
           disabled={!deckA.track}
-          className="h-5 px-2 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
-          title="Move Beat 1 downbeat anchor to the current playhead position"
+          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
+          title="Set Downbeat (Beat 1) at playhead"
         >
-          <span className="text-[#34d399] font-mono">1</span>
-          <span>SET BEAT 1</span>
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" className="w-3 h-3 text-[#34d399]" aria-hidden="true">
+            <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span className="text-[#34d399] font-mono font-bold text-[10px] leading-none">1</span>
         </button>
         <button
           type="button"
@@ -442,7 +446,7 @@ export function StackedWaveforms({
         </button>
       </div>
 
-      {/* Deck B Right: SET BEAT 1 & GRID B controls */}
+      {/* Deck B Right: SET DOWNBEAT & GRID B controls */}
       <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
@@ -452,11 +456,14 @@ export function StackedWaveforms({
             deckB.setBeat1AtPosition()
           }}
           disabled={!deckB.track}
-          className="h-5 px-2 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
-          title="Move Beat 1 downbeat anchor to the current playhead position"
+          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
+          title="Set Downbeat (Beat 1) at playhead"
         >
-          <span className="text-[#c084fc] font-mono">1</span>
-          <span>SET BEAT 1</span>
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" className="w-3 h-3 text-[#c084fc]" aria-hidden="true">
+            <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span className="text-[#c084fc] font-mono font-bold text-[10px] leading-none">1</span>
         </button>
         <button
           type="button"
@@ -512,10 +519,14 @@ export function StackedWaveforms({
             type="button"
             onClick={() => activeGridDeck.setBeat1AtPosition()}
             disabled={!activeGridDeck.track}
-            className="h-5 px-2 rounded bg-[#202020] border border-[#333333] hover:border-[#666666] text-white hover:text-white text-[10px] font-bold uppercase disabled:opacity-30 transition-colors"
-            title="Set Beat 1 (downbeat anchor) at the red playhead needle"
+            className="h-5 px-2 rounded bg-[#202020] border border-[#333333] hover:border-[#666666] text-white hover:text-white text-[10px] font-bold uppercase disabled:opacity-30 transition-colors flex items-center gap-1"
+            title="Set Downbeat (Beat 1) at the red playhead needle"
           >
-            SET BEAT 1
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" className="w-2.5 h-2.5 text-emerald-400" aria-hidden="true">
+              <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <span>SET DOWNBEAT</span>
           </button>
 
           {/* Shift Bar by ±1 Beat */}
