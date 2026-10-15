@@ -3,7 +3,8 @@ import { extractAudioMetadata } from '@/lib/audioMetadata'
 import { analyzeBeatGrid } from './beatgrid'
 import { computeAutoGain } from './autogain'
 import { computePeaks } from './peaks'
-import type { Track } from './types'
+import { collapseGridToConstant } from './grid'
+import type { Track, BeatGrid } from './types'
 
 export interface AnalyzeProgress {
   stage: 'decoding' | 'analyzing' | 'peaks' | 'ready'
@@ -104,7 +105,7 @@ export async function analyzeTrackFile(
   })
 
   // Run key detection & beat grid. Skip key detection if already precomputed (e.g. from Auto-detect modal)
-  const [keyResult, gridResult] = await Promise.all([
+  const [keyResult, rawGridResult] = await Promise.all([
     hasPrecomputedKey
       ? Promise.resolve(null)
       : detectAudioKey(file).catch(err => {
@@ -116,6 +117,7 @@ export async function analyzeTrackFile(
       return null
     }),
   ])
+  let gridResult: BeatGrid | null = rawGridResult
 
   onProgress?.({
     stage: 'peaks',
@@ -127,9 +129,21 @@ export async function analyzeTrackFile(
   const gain = computeAutoGain(buffer)
 
   // Use precomputed or detected BPM & Key
-  let bpm = precomputed?.bpm ?? gridResult?.bpm ?? keyResult?.bpm ?? null
+  let bpm = precomputed?.bpm ?? keyResult?.bpm ?? gridResult?.bpm ?? null
   if (bpm) {
     bpm = Math.round(bpm * 100) / 100
+  }
+
+  // Ensure beatgrid BPM strictly matches the verified/decided track BPM
+  if (gridResult && bpm && Math.abs(gridResult.bpm - bpm) > 0.05) {
+    gridResult = collapseGridToConstant(gridResult, bpm, gridResult.firstBar)
+  } else if (!gridResult && bpm) {
+    gridResult = {
+      bpm,
+      firstBar: 0,
+      firstBeat: 0,
+      beatsPerBar: 4,
+    }
   }
 
   const key = precomputed?.key ?? (keyResult

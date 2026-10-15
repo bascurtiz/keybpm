@@ -392,7 +392,7 @@ function makeConstBpm(
  */
 async function analyzeQueenMaryBeatGrid(
   buffer: PcmSource,
-  _hintBpm?: number
+  hintBpm?: number
 ): Promise<BeatGrid | null> {
   const essentia = await getOrInitEssentia()
   if (!essentia) return null
@@ -441,8 +441,8 @@ async function analyzeQueenMaryBeatGrid(
   // Cross-validate with Mixxx multi-band kick autocorrelation detector (which runs at true buffer.sampleRate)
   // The DJ-normalised reading drives the cross-checks exactly as before; the raw
   // measurement and the octave multiplier are kept for provenance.
-  const mixxxRaw = detectMixxxRawBpmFromPcm(mono, buffer.sampleRate, _hintBpm)
-  if ((!rawBpm || rawBpm <= 0) && (!mixxxRaw || mixxxRaw <= 0)) return null
+  const mixxxRaw = detectMixxxRawBpmFromPcm(mono, buffer.sampleRate, hintBpm)
+  if ((!rawBpm || rawBpm <= 0) && (!mixxxRaw || mixxxRaw <= 0) && (!hintBpm || hintBpm <= 0)) return null
 
   // The tempo decision is made on an envelope, so the envelope comes first — and
   // it is built exactly the way the measurement path builds it: the clearest
@@ -488,19 +488,21 @@ async function analyzeQueenMaryBeatGrid(
   // track as provenance.
   const regionFit = rawTicks.length >= 2 ? makeConstBpm(retrieveConstRegions(rawTicks)) : null
   const regionBpm = regionFit && regionFit.roundBpm > 0 ? regionFit.roundBpm : null
+  const priorBpm = hintBpm && hintBpm > 0 ? hintBpm : undefined
+
   const fusion = resolveTempo(
     [
-      ...estimateTempoCandidates(env, { minBpm: MIN_BPM, maxBpm: MAX_BPM }),
-      // Essentia's reading votes with high confidence but *not* as a committed
-      // octave. It was marked committed until the benchmark scored both paths: on
-      // a 174 BPM 2-step break, degara's tactus is the half-time pulse (87.09 BPM),
-      // and a committed vote at 87 **froze the octave decision before the tempo
-      // prior could tie-break** — the same prior tie-break the measurement path
-      // uses to reach 174 on that track. Marking it committed added nothing on the
-      // other eight tracks (where it agrees with the non-committed estimators
-      // anyway) and cost the one track where agreement is not the answer, so the
-      // engine's octave opinion is now evidence of the period, weighed at 0.9,
-      // rather than a veto on the beat rate.
+      ...(hintBpm && hintBpm > 0
+        ? [
+            {
+              bpm: hintBpm,
+              source: 'precomputed' as const,
+              confidence: 2.5,
+              octaveCommitted: true,
+            },
+          ]
+        : []),
+      ...estimateTempoCandidates(env, { minBpm: MIN_BPM, maxBpm: MAX_BPM, priorBpm }),
       ...(rawBpm > 0
         ? [{ bpm: rawBpm, source: 'essentia' as const, confidence: 0.9, octaveCommitted: false }]
         : []),
@@ -526,27 +528,17 @@ async function analyzeQueenMaryBeatGrid(
         : []),
     ],
     env,
-    { minBpm: MIN_BPM, maxBpm: MAX_BPM }
+    { minBpm: MIN_BPM, maxBpm: MAX_BPM, priorBpm }
   )
-  if (!fusion) return null
+  if (!fusion && (!hintBpm || hintBpm <= 0)) return null
 
-  // A reading the analyzer's own tempo range cannot express is not a tempo, and
-  // the committee has nothing useful to say about one. Essentia's
-  // RhythmExtractor does produce one on degenerate input — a silent buffer (the
-  // browser smoke test above passed a buffer it had filled the wrong way round)
-  // came back as **738.28 BPM**, and with nothing for the cross-check to compare
-  // against that number was stored as the track's BPM while the measurement path
-  // correctly declined to produce a grid at all.
-  if (!(fusion.bpm >= MIN_BPM * 0.9) || fusion.bpm > MAX_BPM * 1.1) return null
+  const targetBpm = hintBpm && hintBpm > 0 ? hintBpm : (fusion ? fusion.bpm : 120)
 
   // Phase and tempo refinement on the evidence envelope: the kick group plus the
-  // percussive group, each normalised to its own peak. The Essentia tick list is
-  // no longer trusted for phase — it survives below as extra ticks for a
-  // variable-tempo map, where the map has to agree with the agreed tempo to be
-  // kept at all.
+  // percussive group, each normalised to its own peak.
   const evidence = phaseEvidence(env)
-  const refined = refineTempoAndPhase(evidence, env.envRate, fusion.bpm)
-  const bpm = refined.score > 0 ? Math.round(refined.bpm * 100) / 100 : fusion.bpm
+  const refined = refineTempoAndPhase(evidence, env.envRate, targetBpm)
+  const bpm = hintBpm && hintBpm > 0 ? hintBpm : (refined.score > 0 ? Math.round(refined.bpm * 100) / 100 : targetBpm)
   const beatSec = 60 / bpm
   const phaseFrame =
     refined.phaseFrame >= 0
@@ -555,20 +547,14 @@ async function analyzeQueenMaryBeatGrid(
   const phaseSec =
     phaseFrame >= 0 ? frameToSeconds(phaseFrame, sr, ODF_HOP, ODF_WIN, windowStartSec) : 0
 
-  // Ellis-style dynamic-programming beat tracking over the same envelope. This
-  // is what lets the grid follow a performance that wobbles — a real drummer, a
-  // vinyl rip, a tape-saturated edit — instead of asserting one rigid phase, and
-  // its residual is the analyzer's own evidence for how well it did.
+  // Ellis-style dynamic-programming beat tracking over the same envelope.
   const tracked = trackBeats(env.odf, env.envRate, { bpm, minBpm: MIN_BPM, maxBpm: MAX_BPM })
   const trackedBeats = tracked
     ? tracked.keptFrames.map(f => frameToSeconds(f, sr, ODF_HOP, ODF_WIN, windowStartSec))
     : null
 
   // Locate the first audible beat from the audio intro, then score the bar
-  // rotations against it (see ./bar-structure). The anchor used to *be* bar 1,
-  // which is only right when a track's first audible beat happens to be a
-  // downbeat; an intro that starts on the fourth beat of a bar keeps every beat
-  // exactly where it belongs and puts every bar line one beat out.
+  // rotations against it (see ./bar-structure).
   const anchorTime = findMixxxFirstBeatAtIntro(buffer, bpm, phaseSec, rawTicks)
   const structure = analyzeBarStructure({
     env,
@@ -580,7 +566,16 @@ async function analyzeQueenMaryBeatGrid(
     anchorSec: anchorTime,
     endSec: windowStartSec + winMono.length / sr,
   })
-  const firstBarTime = structure.firstBar
+
+  // Unwind firstBar backwards by whole bars so Beat 1 is placed at the start of the track/intro,
+  // rather than arbitrarily jumping bars forward.
+  const barLen = BEATS_PER_BAR * beatSec
+  let firstBarTime = structure.firstBar
+  while (firstBarTime - barLen >= Math.max(0, anchorTime - 0.05)) {
+    firstBarTime -= barLen
+  }
+  firstBarTime = Math.max(0, firstBarTime)
+
   const constantGrid: BeatGrid = {
     bpm,
     firstBar: firstBarTime,
@@ -592,46 +587,44 @@ async function analyzeQueenMaryBeatGrid(
   }
 
   // Provenance: what was measured, what interpretation was applied, which engines
-  // voted and how well the tracked beats fitted. The candidates and the decision
-  // reason are the committee's own — a disagreement between engines is visible on
-  // the track itself rather than only deciding the outcome.
+  // voted and how well the tracked beats fitted.
   const analysis: BeatGridAnalysis = {
-    rawBpm: fusion.measuredBpm,
-    bpmMultiplier: fusion.multiplier,
+    rawBpm: fusion ? fusion.measuredBpm : bpm,
+    bpmMultiplier: fusion ? fusion.multiplier : 1,
     bpmSource:
-      rawBpm && mixxxRaw
-        ? 'essentia-rhythm2013+onset-acf'
-        : rawBpm
-          ? 'essentia-rhythm2013'
-          : 'onset-acf',
+      hintBpm && hintBpm > 0
+        ? 'precomputed'
+        : rawBpm && mixxxRaw
+          ? 'essentia-rhythm2013+onset-acf'
+          : rawBpm
+            ? 'essentia-rhythm2013'
+            : 'onset-acf',
     beatSource: tracked ? 'ellis-dp' : 'essentia-degara',
     fitResidual: tracked?.residualLogRms,
     contrast: tracked?.contrast,
     retainedRatio: tracked?.retainedRatio,
     confidence: tracked?.confidence,
-    tempoCandidates: fusion.candidates.map(toStoredCandidate),
-    octaveDecision: fusion.reason,
+    tempoCandidates: fusion ? fusion.candidates.map(toStoredCandidate) : [],
+    octaveDecision: fusion ? fusion.reason : 'precomputed hint',
+  }
+
+  const withAnalysis = { ...constantGrid, analysis }
+
+  // If a verified BPM hint was supplied by the caller/detector, lock to the constant grid.
+  if (hintBpm && hintBpm > 0) {
+    return withAnalysis
   }
 
   // 7. Variable-tempo check. Tracks that hold one tempo (all machine-timed dance
   //    music) come back with no beat map, so this changes nothing for them — but
   //    when the tracked beats disagree with any single tempo, the measured beat
   //    positions become the grid so the ticks stop sliding on live drums, disco,
-  //    funk and vinyl rips. The DP's tracked beats are preferred over the Essentia
-  //    tick list because they are measured here, tolerantly, and come with the
-  //    residual that says whether they can be trusted.
+  //    funk and vinyl rips.
   const ticks = trackedBeats && trackedBeats.length >= 16 ? trackedBeats : rawTicks
-  const withAnalysis = { ...constantGrid, analysis }
   const outcome = buildBeatMapFromTicks(ticks, bpm, phaseSec, buffer.duration)
   if (!outcome) return withAnalysis
 
   if (outcome.map && !mapAgreesWithTempo(outcome.map, bpm)) {
-    // A beat map built from a tick list that disagrees with the tempo the
-    // analyzer decided on is not a grid: it claims a different tempo as well as
-    // different beat times. Essentia's tick lists do this on degenerate input —
-    // they produced a map at 738.57 BPM, which the cross-checked constant grid
-    // did not have. Keep the constant grid in that case; a wrong map is worse
-    // than a rigid lattice.
     console.warn(
       `beat map rejected: local tempo ${outcome.map.bpm} disagrees with ${bpm}`
     )

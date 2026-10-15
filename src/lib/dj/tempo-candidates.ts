@@ -61,6 +61,7 @@ export type TempoSource =
   | 'essentia'
   | 'mixxx-acf'
   | 'mixxx-regions'
+  | 'precomputed'
 
 export interface TempoCandidate {
   bpm: number
