@@ -197,6 +197,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             step={0.01}
             value={volumeA}
             defaultValue={1}
+            onDragChange={v => deckA.setVolume(v)}
             onValueChange={v => {
               setVolumeA(v)
               deckA.setVolume(v)
@@ -564,6 +565,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             step={0.01}
             value={volumeB}
             defaultValue={1}
+            onDragChange={v => deckB.setVolume(v)}
             onValueChange={v => {
               setVolumeB(v)
               deckB.setVolume(v)

@@ -264,6 +264,8 @@ export class DeckEngine {
   private _playing = false
   private _scratching = false
   private _cuePreviewing = false
+  /** Set when a hot cue is held in momentary-play mode (CDJ behavior). Null otherwise. */
+  private _hotCueHoldIndex: number | null = null
   private _rate = 1
   private _nudgeFactor = 1.0
   private posSeconds = 0
@@ -1486,7 +1488,10 @@ export class DeckEngine {
     this.fxDecayRaf = requestAnimationFrame(step)
   }
 
-  async triggerBabyScratch(durationMs = 480) {
+  async triggerBabyScratch() {
+    // Duration = 1 beat at current BPM (scales properly: 70 BPM → 857ms, 180 BPM → 333ms)
+    const bpm = this.effectiveBpm ?? 120
+    const durationMs = (60 / bpm) * 1000
     if (!this.track) return
     if (this.fxDecayRaf) {
       cancelAnimationFrame(this.fxDecayRaf)
@@ -1591,6 +1596,7 @@ export class DeckEngine {
     if (!this.track) return
     const existing = this.hotCues[index]
     if (existing === null) {
+      // No cue set yet → set it at current position, don't play
       this.hotCues[index] = this.snapMode ? this.snapToBeat(this.position) : this.position
       this.emit()
       return
@@ -1601,16 +1607,28 @@ export class DeckEngine {
       this.post({ t: 'slipCueOn', s: existing })
       this.emit()
     } else {
-      this.triggerHotCue(index)
+      // Momentary cue-hold (CDJ behavior): seek to cue, play while held
+      this._hotCueHoldIndex = index
+      this._cuePreviewing = false
+      this.seek(existing)
+      if (!this._playing) void this.play()
     }
   }
 
-  hotCueUp(_index: number) {
+  hotCueUp(index: number) {
     if (!this.track) return
     if (this._slipMode && this._playing) {
       // In FLUX mode: release back to ghost playhead
       this.post({ t: 'slipCueOff' })
       this.emit()
+      return
+    }
+    // Momentary cue-hold: pause and return to cue point on release
+    if (this._hotCueHoldIndex === index) {
+      this._hotCueHoldIndex = null
+      const cueTime = this.hotCues[index]
+      this.pause()
+      if (cueTime !== null) this.seek(cueTime)
     }
   }
 

@@ -137,6 +137,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             bipolar
             snapCenter
             ticks={5}
+            onDragChange={v => engine.setCrossfade(v)}
             onValueChange={v => {
               if (autoFadeRafRef.current) {
                 cancelAnimationFrame(autoFadeRafRef.current)

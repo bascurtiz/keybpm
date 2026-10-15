@@ -475,8 +475,12 @@ export function buildBeatMapFromTicks(
   //    the track holds tempo, so report the refinement and no map.
   const refinedBpm = (60 * spanBeats) / span
   const refined = residualStats(beats, indices, refinedBpm, phase)
-  if (refined.max <= constantToleranceSeconds) {
-    return { map: null, refinedBpm, maxDrift: refined.max }
+  const knownSpan = knownTimes[knownTimes.length - 1] - knownTimes[0]
+  const knownSpanBeats = knownIndices[knownIndices.length - 1] - knownIndices[0]
+  const knownRefinedBpm = knownSpan > 0 && knownSpanBeats > 0 ? (60 * knownSpanBeats) / knownSpan : refinedBpm
+  const knownResidual = residualStats(knownTimes, knownIndices, knownRefinedBpm, phase)
+  if (refined.max <= constantToleranceSeconds || knownResidual.max <= constantToleranceSeconds) {
+    return { map: null, refinedBpm: knownRefinedBpm, maxDrift: Math.min(refined.max, knownResidual.max) }
   }
 
   const stats = localBpmStats(beats)

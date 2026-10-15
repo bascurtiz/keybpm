@@ -63,6 +63,7 @@ export function MixerSection({ engine, className = '' }: MixerSectionProps) {
             bipolar
             snapCenter
             ticks={5}
+            onDragChange={v => engine.setCrossfade(v)}
             onValueChange={v => engine.setCrossfade(v)}
             label="Crossfader"
             className="h-6 w-[130px] max-w-[130px]"

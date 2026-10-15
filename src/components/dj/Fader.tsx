@@ -7,6 +7,8 @@ interface FaderProps {
   step?: number
   defaultValue?: number
   onValueChange: (value: number) => void
+  /** Called on every drag move without triggering React re-renders — use for real-time audio updates. */
+  onDragChange?: (value: number) => void
   orientation?: 'horizontal' | 'vertical'
   bipolar?: boolean
   snapCenter?: boolean
@@ -31,6 +33,7 @@ export function Fader({
   step,
   defaultValue,
   onValueChange,
+  onDragChange,
   orientation = 'horizontal',
   bipolar = false,
   snapCenter = false,
@@ -48,8 +51,11 @@ export function Fader({
   const rawNorm = clamp01((value - min) / range)
   const norm = invert ? 1 - rawNorm : rawNorm
   const trackRef = useRef<HTMLDivElement>(null)
+  const handleRef = useRef<HTMLDivElement>(null)
   const vuRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ fine: boolean; startNorm: number; startPos: number } | null>(null)
+  /** Last norm committed during drag (used for smooth handle position update). */
+  const liveNorm = useRef(norm)
 
   useEffect(() => {
     if (!analyser || !vertical) return
@@ -79,7 +85,8 @@ export function Fader({
     return () => cancelAnimationFrame(raf)
   }, [analyser, vertical])
 
-  const commit = useCallback(
+  /** Compute the audio value from a normalised [0,1] position. */
+  const normToValue = useCallback(
     (n: number) => {
       const effectiveNorm = invert ? 1 - clamp01(n) : clamp01(n)
       let v = min + effectiveNorm * range
@@ -88,9 +95,40 @@ export function Fader({
         const mid = (min + max) / 2
         if (Math.abs(v - mid) < range * 0.035) v = mid
       }
-      onValueChange(Math.min(max, Math.max(min, v)))
+      return Math.min(max, Math.max(min, v))
     },
-    [min, max, range, step, snapCenter, onValueChange, invert]
+    [min, max, range, step, snapCenter, invert]
+  )
+
+  /** Move the fader handle directly in the DOM (no React re-render). */
+  const moveHandleDom = useCallback(
+    (n: number) => {
+      const el = handleRef.current
+      if (!el) return
+      const pct = `${clamp01(n) * 100}%`
+      if (vertical) {
+        el.style.bottom = pct
+      } else {
+        el.style.left = pct
+      }
+    },
+    [vertical]
+  )
+
+  const commit = useCallback(
+    (n: number, isDrag = false) => {
+      const v = normToValue(n)
+      liveNorm.current = invert ? 1 - clamp01((v - min) / range) : clamp01((v - min) / range)
+      moveHandleDom(liveNorm.current)
+      if (isDrag && onDragChange) {
+        // Smooth real-time audio update, no React setState
+        onDragChange(v)
+      } else {
+        // Full commit: update React state (triggers re-render to sync value prop)
+        onValueChange(v)
+      }
+    },
+    [normToValue, moveHandleDom, min, range, invert, onDragChange, onValueChange]
   )
 
   const normFromEvent = (e: React.PointerEvent) => {
@@ -114,7 +152,7 @@ export function Fader({
       startNorm: norm,
       startPos: vertical ? e.clientY : e.clientX,
     }
-    if (!e.shiftKey) commit(normFromEvent(e))
+    if (!e.shiftKey) commit(normFromEvent(e), false)
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -124,19 +162,22 @@ export function Fader({
       const rect = trackRef.current?.getBoundingClientRect()
       const length = (vertical ? rect?.height : rect?.width) || 1
       const delta = vertical ? d.startPos - e.clientY : e.clientX - d.startPos
-      commit(d.startNorm + (delta / length) * 0.25)
+      commit(d.startNorm + (delta / length) * 0.25, true)
     } else {
-      commit(normFromEvent(e))
+      commit(normFromEvent(e), true)
     }
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    const d = drag.current
     drag.current = null
     try {
       e.currentTarget.releasePointerCapture(e.pointerId)
     } catch {
       // ignore
     }
+    // Final commit to sync React state after drag ends
+    if (d) commit(liveNorm.current, false)
   }
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -271,6 +312,7 @@ export function Fader({
 
       {/* Fader Handle / Cap (Neutral grayscale #505050 with white indicator) */}
       <div
+        ref={handleRef}
         aria-hidden
         className={`absolute rounded-[2px] bg-[#505050] border border-[#383838] shadow-md flex items-center justify-center pointer-events-none z-20 ${
           vertical
