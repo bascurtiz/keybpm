@@ -21,6 +21,15 @@
  *  - a track that speeds up (the case a rigid lattice cannot hold)
  *  - humanised jitter, which must *not* be mistaken for drift
  *  - half-time / sparse kicks, which invite an octave error
+ *  - an intro that starts on the 4th beat of a bar, and one that starts on a
+ *    snare, both of which make "bar 1 is the first kick" wrong
+ *  - a breakdown and drop, which is where the section markers come from
+ *
+ * Each case also carries **bar ground truth**: `rotation` (how many beats after
+ * the first audible beat the true downbeat sits), `downbeats`, `drops`, and
+ * `rotationDecidable` — whether the audio's kick, bass or snare pattern actually
+ * states the bar. The last one matters as much as the others: material without a
+ * recoverable downbeat must be scored as "no claim", not as a lucky guess.
  */
 
 /** Deterministic PRNG (mulberry32) so a corpus run is reproducible. */
@@ -160,8 +169,27 @@ function fourOnTheFloor({ bpm, seconds, sampleRate, kickGain, hats, snare, bassH
 }
 
 /**
- * The corpus. Each entry: `{ name, sampleRate, mono, beats, notes }`, where
- * `beats` are the exact times the synthesizer played.
+ * Bar ground truth for a case.
+ *
+ * `schedule` is the full beat schedule; `firstIndex` is the schedule index of the
+ * first beat the audio actually plays, which is 0 unless the case deliberately
+ * starts mid-bar. The rotation is then how many beats after that beat the bar
+ * begins, and the downbeats are the schedule's four-beat grid from there on.
+ */
+function groundTruth(schedule, firstIndex = 0, extras = {}) {
+  return {
+    rotation: (4 - (((firstIndex % 4) + 4) % 4)) % 4,
+    downbeats: schedule.filter((_, i) => i % 4 === 0 && i >= firstIndex),
+    drops: extras.drops ?? [],
+    rotationDecidable: extras.rotationDecidable ?? false,
+  }
+}
+
+/**
+ * The corpus. Each entry is
+ * `{ name, sampleRate, mono, beats, rotation, downbeats, drops, notes }`, where
+ * `beats` and `downbeats` are the exact times the synthesizer played and an empty
+ * `drops` means the case has no section change to find.
  */
 export function syntheticCorpus() {
   const sampleRate = 44100
@@ -179,7 +207,14 @@ export function syntheticCorpus() {
       bassHz: 55,
       bassOnBeat: true,
     })
-    cases.push({ name: 'house-128-steady', sampleRate, mono, beats, notes: '4/4 kick, hats, snare 2+4' })
+    cases.push({
+      name: 'house-128-steady',
+      sampleRate,
+      mono,
+      beats,
+      ...groundTruth(beats),
+      notes: '4/4 kick, hats, snare 2+4: the kick is even, so the bar is a snare pair plus the convention',
+    })
   }
 
   // 2. Techno at 138 with offbeat bass: the low band is busy on the offbeat.
@@ -191,7 +226,14 @@ export function syntheticCorpus() {
       addHat(track.data, sampleRate, beat, 0.18)
       addBass(track.data, sampleRate, beat + 60 / 138 / 2, 60 / 138 / 2, 48, 0.34)
     }
-    cases.push({ name: 'techno-138-offbeat-bass', sampleRate, mono: finish(track), beats, notes: 'offbeat sub, rolling hats' })
+    cases.push({
+      name: 'techno-138-offbeat-bass',
+      sampleRate,
+      mono: finish(track),
+      beats,
+      ...groundTruth(beats),
+      notes: 'offbeat sub, rolling hats: no beat position states the bar',
+    })
   }
 
   // 3. Drum and bass at 174: fast tempo, busy break.
@@ -203,7 +245,14 @@ export function syntheticCorpus() {
       if (i % 4 === 2) addSnare(track.data, sampleRate, beats[i], 21)
       addHat(track.data, sampleRate, beats[i] + 60 / 174 / 2, 5, 0.2)
     }
-    cases.push({ name: 'dnb-174-break', sampleRate, mono: finish(track), beats, notes: '2-step break at 174' })
+    cases.push({
+      name: 'dnb-174-break',
+      sampleRate,
+      mono: finish(track),
+      beats,
+      ...groundTruth(beats),
+      notes: '2-step break at 174: kick on 1 and 3, no bass, so the bar is convention only',
+    })
   }
 
   // 4. Wobbling live drums: period jitter, the case a rigid lattice gets wrong.
@@ -215,7 +264,14 @@ export function syntheticCorpus() {
       if (i % 4 === 2) addSnare(track.data, sampleRate, beats[i], 33, 0.55)
       addHat(track.data, sampleRate, beats[i], 3, 0.14)
     }
-    cases.push({ name: 'live-drums-96-wobble', sampleRate, mono: finish(track), beats, notes: 'period jitter +/-3%, live feel' })
+    cases.push({
+      name: 'live-drums-96-wobble',
+      sampleRate,
+      mono: finish(track),
+      beats,
+      ...groundTruth(beats),
+      notes: 'period jitter +/-3%, live feel',
+    })
   }
 
   // 5. Accelerating track: 124 -> 128 over 40 s. No single tempo is right.
@@ -227,7 +283,14 @@ export function syntheticCorpus() {
       addHat(track.data, sampleRate, beat, 0.16)
       addBass(track.data, sampleRate, beat, 60 / 126, 52, 0.26)
     }
-    cases.push({ name: 'rising-tempo-124-128', sampleRate, mono: finish(track), beats, notes: 'linear acceleration over 42 s' })
+    cases.push({
+      name: 'rising-tempo-124-128',
+      sampleRate,
+      mono: finish(track),
+      beats,
+      ...groundTruth(beats),
+      notes: 'linear acceleration over 42 s',
+    })
   }
 
   // 6. Humanised but steady: 25 ms jitter, constant tempo. Must NOT read as drift.
@@ -238,29 +301,41 @@ export function syntheticCorpus() {
       addKick(track.data, sampleRate, beat, 0.85)
       addSnare(track.data, sampleRate, beat + 60 / 122 / 2, 17, 0.3)
     }
-    cases.push({ name: 'humanised-122-tight', sampleRate, mono: finish(track), beats, notes: 'steady tempo, small human jitter' })
+    cases.push({
+      name: 'humanised-122-tight',
+      sampleRate,
+      mono: finish(track),
+      beats,
+      ...groundTruth(beats),
+      notes: 'steady tempo, small human jitter',
+    })
   }
 
-  // 7. Bassline intro, kick drops after 5 s: the Bar-1 anchor case.
+  // 7. Pad intro, then the kick drops on a downbeat: the Bar-1 anchor case.
+  //    The post-drop pattern is a full bar (kick all four, snare 2+4, bass stab
+  //    on the 1) so the bar is *decidable* once the rhythm arrives: the case asks
+  //    both whether the drop is found and whether the bar it found is bar 1.
   {
     const track = makeTrack(sampleRate, 36)
-    const beats = beatTimes({ bpm: 126, seconds: 36, firstBeat: 0 })
-    const dropAt = 5
-    addPad(track.data, sampleRate, 0, dropAt, 0.5)
-    for (const beat of beats) {
-      if (beat < dropAt) continue
+    const schedule = beatTimes({ bpm: 126, seconds: 36, firstBeat: 0.5 })
+    const dropIndex = 12 // a downbeat: 0.5 + 12 * 60/126 = 6.21 s
+    const dropAt = schedule[dropIndex]
+    // A quiet pad: loud enough to be audible material before the drop, quiet
+    // enough that the drop is the energy step it is in real tracks.
+    addPad(track.data, sampleRate, 0, dropAt, 0.08)
+    for (let i = dropIndex; i < schedule.length; i++) {
+      const beat = schedule[i]
       addKick(track.data, sampleRate, beat, 0.9)
-      addSnare(track.data, sampleRate, beat + 60 / 126 / 2, 23, 0.35)
-      addBass(track.data, sampleRate, beat, 60 / 126, 50, 0.3)
+      if (i % 4 === 0) addBass(track.data, sampleRate, beat, 60 / 126, 50, 0.3)
+      if (i % 4 === 1 || i % 4 === 3) addSnare(track.data, sampleRate, beat, 23, 0.35)
     }
-    const dropBeat = beats.find(beat => beat >= dropAt)
-    const dropped = dropBeat === undefined ? beats : beats.filter(beat => beat >= dropBeat)
     cases.push({
       name: 'pad-intro-kick-drop-126',
       sampleRate,
       mono: finish(track),
-      beats: dropped,
-      notes: '5 s pad intro, then the kick drops: exercises the Bar-1 anchor',
+      beats: schedule.slice(dropIndex),
+      ...groundTruth(schedule, dropIndex, { drops: [dropAt], rotationDecidable: true }),
+      notes: '6 s pad intro, then the kick drops on a downbeat with a bass stab on the 1',
     })
   }
 
@@ -272,7 +347,14 @@ export function syntheticCorpus() {
       addHat(track.data, sampleRate, beats[i], (i % 3) + 40, 0.5)
       if (i % 2 === 1) addSnare(track.data, sampleRate, beats[i], 47, 0.3)
     }
-    cases.push({ name: 'claps-hats-118-no-kick', sampleRate, mono: finish(track), beats, notes: 'no kick at all: low group must fall back to the full band' })
+    cases.push({
+      name: 'claps-hats-118-no-kick',
+      sampleRate,
+      mono: finish(track),
+      beats,
+      ...groundTruth(beats),
+      notes: 'no kick at all: low group must fall back to the full band, and the claps only narrow the bar',
+    })
   }
 
   // 9. Half-time trap at 140: kick on 1 and 3, sub slides, inviting an octave error.
@@ -284,7 +366,75 @@ export function syntheticCorpus() {
       if (i % 4 === 2) addSnare(track.data, sampleRate, beats[i], 57, 0.4)
       addHat(track.data, sampleRate, beats[i] + 60 / 140 / 2, 3, 0.5)
     }
-    cases.push({ name: 'trap-halftime-140', sampleRate, mono: finish(track), beats, notes: 'sparse kicks at 140' })
+    cases.push({
+      name: 'trap-halftime-140',
+      sampleRate,
+      mono: finish(track),
+      beats,
+      ...groundTruth(beats),
+      notes: 'sparse kicks at 140',
+    })
+  }
+
+  // 10. Intro starting on the 4th beat of a bar. This is the case the
+  //     "bar 1 is the first kick" rule gets wrong: every beat is tracked
+  //     perfectly and every bar line is one beat out, so the drop of a mix
+  //     lands on beat 4 instead of beat 1. The bass stab on the 1 is what makes
+  //     the true bar recoverable from the audio.
+  {
+    const track = makeTrack(sampleRate, 36)
+    const schedule = beatTimes({ bpm: 124, seconds: 36, firstBeat: 0.5 })
+    const firstIndex = 3
+    for (let i = firstIndex; i < schedule.length; i++) {
+      const beat = schedule[i]
+      addKick(track.data, sampleRate, beat, 0.85)
+      if (i % 4 === 0) addBass(track.data, sampleRate, beat, 60 / 124, 52, 0.34)
+      if (i % 4 === 1 || i % 4 === 3) addSnare(track.data, sampleRate, beat, 29, 0.4)
+    }
+    cases.push({
+      name: 'midbar-intro-124',
+      sampleRate,
+      mono: finish(track),
+      beats: schedule.slice(firstIndex),
+      ...groundTruth(schedule, firstIndex, { rotationDecidable: true }),
+      notes: 'starts on beat 4 of the bar: a pickup intro, so bar 1 is one beat after the first kick',
+    })
+  }
+
+  // 11. Breakdown and drop: four bars of drums, four bars of hats and pad, then
+  //     the drop. The hats keep the beat audible through the breakdown so the
+  //     beat tracker is scored on a track that has beats, and the drop is a real
+  //     energy step (x7) rather than a gap.
+  {
+    const track = makeTrack(sampleRate, 44)
+    const schedule = beatTimes({ bpm: 126, seconds: 44, firstBeat: 0.5 })
+    const breakdownFrom = 16 // bar 5
+    const dropIndex = 32 // bar 9, a downbeat
+    addPad(
+      track.data,
+      sampleRate,
+      schedule[breakdownFrom],
+      schedule[dropIndex] - schedule[breakdownFrom],
+      0.08
+    )
+    for (let i = 0; i < schedule.length; i++) {
+      const beat = schedule[i]
+      if (i >= breakdownFrom && i < dropIndex) {
+        addHat(track.data, sampleRate, beat, 40 + i, 0.3)
+        continue
+      }
+      addKick(track.data, sampleRate, beat, 0.9)
+      if (i % 4 === 0) addBass(track.data, sampleRate, beat, 60 / 126, 50, 0.32)
+      if (i % 4 === 1 || i % 4 === 3) addSnare(track.data, sampleRate, beat, 53, 0.35)
+    }
+    cases.push({
+      name: 'breakdown-bass-126',
+      sampleRate,
+      mono: finish(track),
+      beats: schedule,
+      ...groundTruth(schedule, 0, { drops: [schedule[dropIndex]], rotationDecidable: true }),
+      notes: 'four bars of drums, four of hats and pad, then the drop on bar 9',
+    })
   }
 
   return cases

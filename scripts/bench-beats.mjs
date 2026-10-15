@@ -42,6 +42,8 @@ import {
   BEAT_TOLERANCE_SECONDS,
   beatFMeasure,
   continuity,
+  downbeatReport,
+  dropReport,
   formatDrift,
   gridBeatsAcross,
   gridDrift,
@@ -77,6 +79,7 @@ const GATES = {
   medianCmlt: 0.97,
   maxMeanAbsSeconds: 0.02,
   maxDriftSecondsPerMinute: 0.15,
+  meanDownbeatMatch: 0.97,
 }
 
 const PRIMARY_GATES = {
@@ -84,6 +87,7 @@ const PRIMARY_GATES = {
   medianCmlt: 0.95,
   maxMeanAbsSeconds: 0.04,
   maxDriftSecondsPerMinute: 0.15,
+  meanDownbeatMatch: 0.95,
 }
 
 const PATHS = {
@@ -165,7 +169,11 @@ function realCorpus(root) {
   if (missing.length > 0) {
     console.warn(`warning: ${missing.length} audio file(s) have no annotation: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ', …' : ''}`)
   }
-  return pairs.map(({ base, audio, annotation }) => {
+  const withBars = pairs.filter(pair => pair.downbeats).length
+  if (withBars > 0 && withBars < pairs.length) {
+    console.warn(`note: ${withBars}/${pairs.length} track(s) have a downbeat annotation; bar columns cover those`)
+  }
+  return pairs.map(({ base, audio, annotation, downbeats }) => {
     const wav = readWav(new Uint8Array(readFileSync(join(root, audio))))
     const beats = parseBeatAnnotation(readFileSync(join(root, annotation), 'utf8'))
     return {
@@ -173,6 +181,8 @@ function realCorpus(root) {
       sampleRate: wav.sampleRate,
       mono: monoOf(wav.channels, wav.length),
       beats,
+      // Optional: scored when present, absent rather than invented when not.
+      downbeats: downbeats ? parseBeatAnnotation(readFileSync(join(root, downbeats), 'utf8')) : undefined,
       notes: basename(annotation),
     }
   })
@@ -222,6 +232,15 @@ async function scoreTrack(track, tolerance, path) {
     octave,
     variable: drift.variableGrid,
     drift,
+    // Bar-level scoring. `downbeat` is null when the corpus carries no bar
+    // annotation (real corpora without a downbeat file); the drop report is always
+    // produced, because "the analyzer invented a drop" is checkable everywhere.
+    downbeat: Array.isArray(track.downbeats) && track.downbeats.length > 0
+      ? downbeatReport(grid, track.downbeats, tolerance)
+      : null,
+    drop: dropReport(grid, Array.isArray(track.drops) ? track.drops : [], tolerance, Array.isArray(track.drops)),
+    rotationDecidable: Boolean(track.rotationDecidable),
+    truthRotation: typeof track.rotation === 'number' ? track.rotation : null,
     elapsedMs,
   }
 }
@@ -245,14 +264,37 @@ function aggregate(results) {
     variableGrids: scored.filter(r => r.variable).length,
     octaveErrors: scored.filter(r => r.octave !== 1).length,
     answeredByEssentia: scored.filter(r => r.answeredBy === 'essentia').length,
+    meanDownbeatMatch:
+      scored.length > 0
+        ? scored.reduce((a, r) => a + (r.downbeat ? r.downbeat.matchRate : 1), 0) / scored.length
+        : 0,
+    // A whole-beat bar error: every beat in place, every bar line on the wrong
+    // beat. Counted separately from the match rate because it is the failure a
+    // DJ hears and a match rate alone hides.
+    rotationErrors: scored.filter(r => r.downbeat && r.downbeat.offsetBeats !== 0).length,
+    wrongClaims: scored.filter(r => r.downbeat && r.downbeat.decided && r.downbeat.offsetBeats !== 0).length,
+    missedDecisions: scored.filter(r => r.rotationDecidable && !(r.downbeat && r.downbeat.decided)).length,
+    dropsMissing: scored.reduce((a, r) => a + r.drop.missing, 0),
+    dropsExtra: scored.reduce((a, r) => a + r.drop.extra, 0),
     totalMs: Math.round(scored.reduce((a, r) => a + r.elapsedMs, 0)),
     results,
   }
 }
 
+/** `0`/`+1`/`dec`/`amb`/`1/1` — the bar and section state, in one column. */
+function formatBar(result) {
+  if (!result.downbeat) return result.drop.detected > 0 ? `— /${result.drop.extra}x` : '—'
+  const offset = result.downbeat.offsetBeats === 0 ? '0' : `${result.downbeat.offsetBeats > 0 ? '+' : ''}${result.downbeat.offsetBeats}`
+  const claim = result.downbeat.decided ? 'dec' : 'amb'
+  const wrong = result.downbeat.offsetBeats !== 0 && result.downbeat.decided ? '!' : ''
+  return `${offset}${wrong} ${claim}  ${result.drop.matched}/${result.drop.matched + result.drop.missing}${
+    result.drop.extra > 0 ? `+${result.drop.extra}` : ''
+  }`
+}
+
 function printSection(path, summary) {
   console.log(`\n[${PATHS[path].label}]${PATHS[path].gated ? '  — gated' : '  — reported, not gated'}`)
-  console.log('track                          F      P      R     CMLt   AMLt   tempo        grid    answered-by   drift')
+  console.log('track                          F      P      R     CMLt   AMLt   tempo        grid    answered-by   bar(offset claim drops)  drift')
   for (const r of summary.results) {
     if (r.failed) {
       console.log(`${r.name.padEnd(28)} FAILED: ${r.failed}`)
@@ -270,6 +312,7 @@ function printSection(path, summary) {
         tempo.padEnd(12),
         (r.variable ? 'map' : 'const').padEnd(6),
         r.answeredBy === 'essentia' ? 'essentia   ' : 'measurement',
+        formatBar(r).padEnd(22),
         formatDrift(r.drift),
       ].join('  ')
     )
@@ -281,6 +324,9 @@ function printSection(path, summary) {
       `   worst |drift| ${(summary.worstDriftSecondsPerMinute * 1000).toFixed(0)}ms/min` +
       `   variable grids ${summary.variableGrids}/${summary.tracks}` +
       `   octave errors ${summary.octaveErrors}` +
+      `   downbeats ${summary.meanDownbeatMatch.toFixed(3)}` +
+      `   bar errors ${summary.rotationErrors} (wrong claims ${summary.wrongClaims}, missed ${summary.missedDecisions})` +
+      `   drops ${summary.dropsMissing} missed / ${summary.dropsExtra} extra` +
       `   ${summary.totalMs}ms total`
   )
 }
@@ -358,6 +404,28 @@ if (args.gate && !args.corpus) {
     }
     if (gated.failed > 0) failures.push(`${path}: ${gated.failed} track(s) produced no grid`)
     if (gated.octaveErrors > 0) failures.push(`${path}: ${gated.octaveErrors} track(s) landed on the wrong octave`)
+    if (gated.meanDownbeatMatch < gates.meanDownbeatMatch) {
+      failures.push(
+        `${path}: downbeat match ${gated.meanDownbeatMatch.toFixed(3)} < ${gates.meanDownbeatMatch}`
+      )
+    }
+    // The bar gates are the point of scoring downbeats at all: a whole-beat bar
+    // error is invisible to the beat metrics and wrecks a mix, and a rotation the
+    // analyzer claims has to be right — a wrong claim is worse than no claim,
+    // because the DJ has no reason to check it.
+    if (gated.rotationErrors > 0) {
+      failures.push(`${path}: ${gated.rotationErrors} track(s) have bar lines a whole beat out`)
+    }
+    if (gated.wrongClaims > 0) {
+      failures.push(`${path}: ${gated.wrongClaims} track(s) claim a bar rotation they get wrong`)
+    }
+    if (gated.missedDecisions > 0) {
+      failures.push(
+        `${path}: ${gated.missedDecisions} track(s) left a decidable bar rotation undecided`
+      )
+    }
+    if (gated.dropsMissing > 0) failures.push(`${path}: ${gated.dropsMissing} annotated drop(s) not found`)
+    if (gated.dropsExtra > 0) failures.push(`${path}: ${gated.dropsExtra} drop(s) reported where none happens`)
   }
   if (failures.length > 0) {
     console.error(`\nbenchmark gate failed:\n  - ${failures.join('\n  - ')}\n`)

@@ -81,13 +81,15 @@ export function readWav(bytes) {
 }
 
 /**
- * Beat times from an annotation file, in seconds, ascending.
+ * Beat (or downbeat) times from an annotation file, in seconds, ascending.
  *
  * Accepts the plain "one time per line" layout (Ballroom `.beats`, mir_eval
  * reference beat files) and the "time beat-number" two-column variant; ignores
  * blank lines and `#` comments; tolerates a stray CRLF. A `.beats` file may also
  * carry a tempo on a `# tempo` comment line, which is ignored here — the tempo is
  * re-derived from the annotation so the harness never mixes its own reference.
+ * Downbeat annotations use the same two layouts, so they are read by the same
+ * parser rather than a second one with its own quirks.
  */
 export function parseBeatAnnotation(text) {
   const times = []
@@ -102,6 +104,11 @@ export function parseBeatAnnotation(text) {
   return times
 }
 
+/** True for a downbeat annotation rather than a beat annotation. */
+function isDownbeatFile(name) {
+  return /downbeats?(\.txt)?$/i.test(name)
+}
+
 /**
  * Pairs audio files with their annotations in a corpus directory.
  *
@@ -110,12 +117,19 @@ export function parseBeatAnnotation(text) {
  * Layout C: a Ballroom download folder where the annotation is
  * `annotations/*.beats` and audio is `*.wav` — same as A and B combined.
  *
+ * A fourth file is optional and worth looking for: `name.downbeats`, the bar
+ * annotation that Ballroom, SMC and Harmonix ship (Harmonix also ships sections).
+ * Where it exists the harness scores the bar as well as the beat — see
+ * bench/README.md — and where it does not, the bar columns are simply absent
+ * rather than guessed at.
+ *
  * Returns `{ pairs, missing }` so the caller can fail loudly instead of silently
  * benchmarking three tracks out of a hundred.
  */
 export function pairCorpusFiles(listing) {
   const audio = listing.filter(name => /\.(wav|WAV)$/.test(name))
-  const annotations = listing.filter(name => /\.(beats|txt|bpm)$/i.test(name))
+  const annotations = listing.filter(name => /\.(beats|txt|bpm)$/i.test(name) && !isDownbeatFile(name))
+  const downbeats = listing.filter(name => isDownbeatFile(name))
   const byBase = new Map()
   for (const name of audio) {
     const base = name.replace(/^.*\//, '').replace(/\.(wav|WAV)$/, '')
@@ -125,6 +139,11 @@ export function pairCorpusFiles(listing) {
     const base = name.replace(/^.*\//, '').replace(/\.(beats|txt|bpm)$/i, '')
     const entry = byBase.get(base)
     if (entry) entry.annotation = name
+  }
+  for (const name of downbeats) {
+    const base = name.replace(/^.*\//, '').replace(/[._-]?downbeats?(\.txt)?$/i, '')
+    const entry = byBase.get(base)
+    if (entry) entry.downbeats = name
   }
   const pairs = [...byBase.values()].filter(entry => entry.annotation)
   const missing = [...byBase.values()].filter(entry => !entry.annotation).map(entry => entry.base)

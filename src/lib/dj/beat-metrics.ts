@@ -27,7 +27,7 @@
  * benchmark prints per-track numbers rather than only an average.
  */
 
-import { beatIndexAt, beatTimeAt, isVariableGrid } from './grid.ts'
+import { beatIndexAt, beatTimeAt, beatsPerBarOf, downbeatTimes, isVariableGrid, FALLBACK_BPM } from './grid.ts'
 import type { BeatGrid } from './types.ts'
 
 /** Literature-standard match tolerance for beat evaluation, in seconds. */
@@ -324,6 +324,123 @@ export function gridDrift(
     referenceBpm,
     variableGrid: isVariableGrid(grid),
   }
+}
+
+export interface DownbeatReport {
+  /** Grid downbeats offered inside the annotated span. */
+  estimatedBeats: number
+  /** Annotated downbeats. */
+  referenceBeats: number
+  /** Fraction of annotated downbeats with a grid downbeat inside the tolerance. */
+  matchRate: number
+  /**
+   * Whole beats between the grid's first bar and the nearest annotated downbeat,
+   * wrapped into `[-beatsPerBar/2, beatsPerBar/2)`. This is the number a DJ means
+   * by "the bar is out": `-1` is a grid whose bar lines land on beat 4.
+   */
+  offsetBeats: number
+  /** Residual phase error after that whole-beat offset, in seconds. */
+  offsetSeconds: number
+  /** Stored rotation, relative to the grid's first audible beat. */
+  rotation: number | null
+  /** Whether the analyzer claimed the rotation or left it to the anchor. */
+  decided: boolean
+}
+
+/**
+ * Bar-level scoring: the same match test as the beats, applied to downbeats.
+ *
+ * Reported separately from the beat F-measure because the two failures are
+ * independent: a grid can track every beat perfectly and still put its bar lines
+ * one beat out, which scores 1.0 on beats and ruins a mix. The offset is what
+ * names that failure; the match rate is what says whether the bar lines are
+ * *tight*, since a bar line five milliseconds off is a bar line that lines up.
+ */
+export function downbeatReport(
+  grid: BeatGrid,
+  reference: number[],
+  tolerance = BEAT_TOLERANCE_SECONDS
+): DownbeatReport {
+  const first = reference.length > 0 ? reference[0] : 0
+  const last = reference.length > 0 ? reference[reference.length - 1] : 0
+  // Ask for a tolerance of slack at both ends: the grid's first and last bar can
+  // legitimately fall a few milliseconds either side of the annotated span, and a
+  // bar line just outside the range is still a bar line a DJ can match. Without
+  // it every track lost its first or last downbeat to a strict comparison.
+  const estimated =
+    reference.length > 0 ? downbeatTimes(grid, first - tolerance, last + tolerance) : []
+  const matches = matchBeats(reference, estimated, tolerance)
+  const bpb = beatsPerBarOf(grid)
+  const beatLen = 60 / (grid.bpm > 0 ? grid.bpm : FALLBACK_BPM)
+
+  let nearest = reference.length > 0 ? reference[0] : grid.firstBar
+  for (const time of reference) {
+    if (Math.abs(time - grid.firstBar) < Math.abs(nearest - grid.firstBar)) nearest = time
+  }
+  const rawBeats = reference.length > 0 ? (grid.firstBar - nearest) / beatLen : 0
+  const wrapped = ((rawBeats + bpb / 2) % bpb + bpb) % bpb - bpb / 2
+  const offsetBeats = Math.round(wrapped)
+  return {
+    estimatedBeats: estimated.length,
+    referenceBeats: reference.length,
+    matchRate: reference.length > 0 ? matches.length / reference.length : 0,
+    offsetBeats,
+    offsetSeconds: reference.length > 0 ? grid.firstBar - (nearest + offsetBeats * beatLen) : 0,
+    rotation: grid.barStructure ? grid.barStructure.rotation : null,
+    decided: grid.barStructure ? grid.barStructure.rotationDecided : false,
+  }
+}
+
+export interface DropReport {
+  detected: number
+  matched: number
+  missing: number
+  extra: number
+  /** Error of the closest detected drop to the first annotated one, or null. */
+  firstErrorSeconds: number | null
+  /** True when an annotated drop had no detected drop inside the tolerance. */
+  firstMissing: boolean
+  /** False when the corpus carries no drop annotation, so `extra` is not a claim. */
+  annotated: boolean
+}
+
+/**
+ * Drop markers against annotated section changes.
+ *
+ * Scored on both sides: a drop the analyzer missed is a marker a DJ cannot load
+ * at, and a drop it invented is a marker that sends the mix somewhere the track
+ * does not change. `annotated` says whether the corpus was in a position to make
+ * that second judgement at all — a corpus with no drop annotation marks every
+ * detected drop as "extra" otherwise, which would be the harness inventing a
+ * failure out of its own missing ground truth.
+ */
+export function dropReport(
+  grid: BeatGrid,
+  reference: number[],
+  tolerance = BEAT_TOLERANCE_SECONDS,
+  annotated = true
+): DropReport {
+  const detected = grid.drops ?? []
+  let matched = 0
+  let missing = 0
+  let firstErrorSeconds: number | null = null
+  let firstMissing = false
+  for (let i = 0; i < reference.length; i++) {
+    let best: number | null = null
+    for (const time of detected) {
+      if (best === null || Math.abs(time - reference[i]) < Math.abs(best - reference[i])) best = time
+    }
+    if (best !== null && Math.abs(best - reference[i]) <= tolerance) matched++
+    else {
+      missing++
+      if (i === 0) firstMissing = true
+    }
+    if (i === 0 && best !== null) firstErrorSeconds = best - reference[0]
+  }
+  const extra = annotated
+    ? detected.filter(time => !reference.some(marker => Math.abs(marker - time) <= tolerance)).length
+    : 0
+  return { detected: detected.length, matched, missing, extra, firstErrorSeconds, firstMissing, annotated }
 }
 
 /** Compact one-line summary for a benchmark run. */

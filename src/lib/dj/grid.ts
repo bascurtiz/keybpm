@@ -1,4 +1,4 @@
-import type { BeatGrid } from './types.ts'
+import type { BeatGrid, DropRecord, PhraseRecord } from './types.ts'
 
 /**
  * Beat-grid timing utilities.
@@ -500,10 +500,120 @@ export function buildBeatMapFromTicks(
 // Grid transforms
 // ---------------------------------------------------------------------------
 
+/**
+ * Bar-aligned downbeat times covering `[from, to]`.
+ *
+ * Derived from the grid model rather than read out of `grid.downbeats`: the
+ * stored array only covers the span the analyzer actually scored (120 s of a
+ * six-minute track), and it is rebuilt on every transform, whereas this answers
+ * "where are the bar lines here" for any point on the timeline, on both grid
+ * kinds.
+ */
+export function downbeatTimes(grid: BeatGrid | null | undefined, from: number, to: number): number[] {
+  if (!grid || !(to > from)) return []
+  const first = barIndexAt(grid, from) - 1
+  const last = barIndexAt(grid, to) + 1
+  const out: number[] = []
+  for (let bar = first; bar <= last && out.length < 8192; bar++) {
+    const time = barTimeAt(grid, bar)
+    if (time >= from - 1e-6 && time <= to + 1e-6) out.push(time)
+  }
+  return out
+}
+
+/** Drop markers recorded by the analyzer, with their evidence. */
+export function dropMarkers(grid: BeatGrid | null | undefined): DropRecord[] {
+  return grid?.barStructure?.drops ?? []
+}
+
+/** Sections the analyzer grouped, when it found any. */
+export function phrasesOf(grid: BeatGrid | null | undefined): PhraseRecord[] {
+  return grid?.barStructure?.phrases ?? []
+}
+
+/** Inferred phrase length in bars, or null when the drops did not imply one. */
+export function phraseLengthBars(grid: BeatGrid | null | undefined): number | null {
+  const bars = grid?.barStructure?.phraseBars
+  return bars && bars > 0 ? bars : null
+}
+
+/**
+ * Phrase boundaries covering `[from, to]`, counted from bar 1.
+ *
+ * Only available once a phrase length has been measured or assumed: a DJ mixing
+ * on phrase boundaries needs the boundary before the drop as well as the drop
+ * itself, which a bare list of detected drops cannot give.
+ */
+export function phraseBoundaries(grid: BeatGrid | null | undefined, from: number, to: number): number[] {
+  const bars = phraseLengthBars(grid)
+  if (!grid || !bars) return []
+  const barLen = barLengthAt(grid, Math.max(0, from)) * bars
+  if (!(barLen > 0)) return []
+  const first = Math.floor((from - barTimeAt(grid, 0)) / barLen) - 1
+  const last = Math.ceil((to - barTimeAt(grid, 0)) / barLen) + 1
+  const out: number[] = []
+  for (let n = first; n <= last && out.length < 8192; n++) {
+    const time = barTimeAt(grid, n * bars)
+    if (time >= from - 1e-6 && time <= to + 1e-6) out.push(time)
+  }
+  return out
+}
+
+/**
+ * Which beat of the bar the analyzer scored as the downbeat, relative to the
+ * first audible beat — or `null` when it never scored one.
+ */
+export function barRotation(grid: BeatGrid | null | undefined): number | null {
+  return grid?.barStructure ? grid.barStructure.rotation : null
+}
+
+/**
+ * Rebuild the derived bar data after a transform.
+ *
+ * `downbeats`, the drop bars and the phrase times are all functions of the grid
+ * geometry (`firstBar`, `bpm`, `beats[]`), so a manual BPM change, beat jump or
+ * bar shift would quietly leave them describing the previous grid — bar markers
+ * drawn a beat away from the bars, in the one place a DJ looks at them. Every
+ * transform therefore funnels through here, and the analyser's *decisions*
+ * (`rotation`, its scores, its reason) are deliberately left alone: they are
+ * provenance, not geometry, and a manual bar edit must win over them.
+ */
+export function refreshBarData(grid: BeatGrid): BeatGrid {
+  const structure = grid.barStructure
+  const hasDownbeats = Array.isArray(grid.downbeats)
+  if (!structure && !hasDownbeats && !Array.isArray(grid.drops)) return grid
+
+  const barLen = beatLengthForBpm(grid.bpm) * beatsPerBarOf(grid)
+  const end = structure?.span?.[1] ?? (hasDownbeats ? (grid.downbeats as number[]).slice(-1)[0] + barLen : grid.firstBar)
+  const start = structure?.span?.[0] ?? grid.firstBar
+  const downbeats = hasDownbeats ? downbeatTimes(grid, Math.max(0, start), end) : undefined
+
+  const drops = structure
+    ? structure.drops.map(drop => ({ ...drop, bar: barIndexAt(grid, drop.time) }))
+    : undefined
+  const phrases = structure
+    ? structure.phrases.map(phrase => ({
+        ...phrase,
+        start: barTimeAt(grid, phrase.startBar),
+        end: barTimeAt(grid, phrase.startBar + phrase.bars),
+        drop: drops ? drops.some(drop => drop.bar === phrase.startBar) : phrase.drop,
+      }))
+    : undefined
+
+  return {
+    ...grid,
+    ...(hasDownbeats ? { downbeats } : {}),
+    ...(drops ? { drops: drops.map(drop => drop.time) } : {}),
+    ...(structure
+      ? { barStructure: { ...structure, drops: drops as DropRecord[], phrases: phrases as PhraseRecord[] } }
+      : {}),
+  }
+}
+
 /** Re-establish the `firstBeat === firstBar (mod 60 / bpm)` invariant. */
 export function normalizeGrid(grid: BeatGrid): BeatGrid {
   const beatLen = beatLengthForBpm(grid.bpm)
-  return { ...grid, firstBeat: positiveMod(grid.firstBar, beatLen) }
+  return refreshBarData({ ...grid, firstBeat: positiveMod(grid.firstBar, beatLen) })
 }
 
 /**
@@ -528,7 +638,7 @@ export function shiftGridBeats(grid: BeatGrid, deltaSeconds: number): BeatGrid {
     if (shifted.length === 0 || v - shifted[shifted.length - 1] > MIN_GAP) shifted.push(v)
   }
   if (shifted.length < 2) return collapseGridToConstant(grid, grid.bpm, grid.firstBar)
-  return { ...grid, beats: shifted, firstBar: Math.max(0, grid.firstBar + delta) }
+  return normalizeGrid({ ...grid, beats: shifted, firstBar: Math.max(0, grid.firstBar + delta) })
 }
 
 /**

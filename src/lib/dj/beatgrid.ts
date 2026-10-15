@@ -49,18 +49,25 @@ import {
  *     Correlates uniform beat-grid phase candidates against the kick onset envelope
  *     across the track to find the optimal global phase offset.
  *
- *  6. Mixxx Downbeat Anchor (First Beat / Bar 1):
- *     Scans candidate beat positions starting from the audio intro to locate the
- *     first genuine kick drum transient drop, anchoring Bar 1 (Beat 1) directly to it.
+ *  6. First-Beat Anchor and Bar Rotation (First Beat / Bar 1):
+ *     Finds the first onset of the intro and snaps it to the lattice, then scores
+ *     all four bar rotations against it — the bass note under the beat, the
+ *     kick/bass attack contrast, and the snare pair — so bar 1 is measured rather
+ *     than assumed to be the first kick. See ./bar-structure.ts.
  *
  *  7. Variable-Tempo Grid (only when needed):
  *     Turns the tracker's beat ticks into a variable-tempo beat map when no
  *     single tempo fits the track (live drums, disco, funk, vinyl rips). Tracks
  *     that do hold tempo keep the constant grid, and may still take a refined
  *     global BPM from the same ticks. See ./grid.ts.
+ *
+ *  8. Section Structure (same pass as 6):
+ *     Bar-aligned drops — the end of an intro or a breakdown — and the phrase
+ *     grouping their spacing implies, both stored on the grid.
  */
 import { getOrInitEssentia } from './essentia-loader.ts'
 import { beatGridFromMap, buildBeatMapFromTicks } from './grid.ts'
+import { analyzeBarStructure } from './bar-structure.ts'
 
 export async function analyzeBeatGrid(
   buffer: PcmSource,
@@ -557,13 +564,31 @@ async function analyzeQueenMaryBeatGrid(
     ? tracked.keptFrames.map(f => frameToSeconds(f, sr, ODF_HOP, ODF_WIN, windowStartSec))
     : null
 
-  // Locate the actual first beat / downbeat from the audio intro (Bar 1 downbeat anchor)
-  const firstBarTime = findMixxxFirstBeatAtIntro(buffer, bpm, phaseSec, rawTicks)
+  // Locate the first audible beat from the audio intro, then score the bar
+  // rotations against it (see ./bar-structure). The anchor used to *be* bar 1,
+  // which is only right when a track's first audible beat happens to be a
+  // downbeat; an intro that starts on the fourth beat of a bar keeps every beat
+  // exactly where it belongs and puts every bar line one beat out.
+  const anchorTime = findMixxxFirstBeatAtIntro(buffer, bpm, phaseSec, rawTicks)
+  const structure = analyzeBarStructure({
+    env,
+    mono: winMono,
+    sampleRate: sr,
+    windowStartSec,
+    bpm,
+    beatsPerBar: BEATS_PER_BAR,
+    anchorSec: anchorTime,
+    endSec: windowStartSec + winMono.length / sr,
+  })
+  const firstBarTime = structure.firstBar
   const constantGrid: BeatGrid = {
     bpm,
     firstBar: firstBarTime,
     firstBeat: positiveMod(firstBarTime, beatSec),
     beatsPerBar: BEATS_PER_BAR,
+    downbeats: structure.downbeats,
+    drops: structure.drops,
+    barStructure: structure.analysis,
   }
 
   // Provenance: what was measured, what interpretation was applied, which engines
@@ -879,9 +904,10 @@ function analyze(buffer: PcmSource, hintBpm?: number): BeatGrid | null {
   const windowStartSec = startSample / buffer.sampleRate
   const phaseSec = frameToSeconds(bestPhaseFrame, sr, ODF_HOP, ODF_WIN, windowStartSec)
 
-  // 7. Mixxx First Beat / Bar 1 Anchor:
-  // Locate the actual first kick downbeat from the audio intro (first 30 seconds)
-  const firstBarTime = findMixxxFirstBeatAtIntro(buffer, storedBpm, phaseSec)
+  // 7. First Beat Anchor: locate the first audible beat from the audio intro
+  //    (first 35 seconds). That used to be bar 1 by definition; the rotation
+  //    scoring below decides which beat of the bar it actually is.
+  const anchorTime = findMixxxFirstBeatAtIntro(buffer, storedBpm, phaseSec)
 
   // 8. Beat tracking and the variable-tempo decision.
   //
@@ -908,11 +934,26 @@ function analyze(buffer: PcmSource, hintBpm?: number): BeatGrid | null {
     octaveDecision: fusion.reason,
   }
 
+  // Downbeats, bar rotation, drops and phrases from the same analysed window.
+  const structure = analyzeBarStructure({
+    env,
+    mono,
+    sampleRate: sr,
+    windowStartSec,
+    bpm: storedBpm,
+    beatsPerBar: BEATS_PER_BAR,
+    anchorSec: anchorTime,
+    endSec: windowStartSec + mono.length / sr,
+  })
+  const firstBarTime = structure.firstBar
   const constantGrid: BeatGrid = {
     bpm: storedBpm,
     firstBeat: positiveMod(firstBarTime, storedBeatSec),
     firstBar: firstBarTime,
     beatsPerBar: BEATS_PER_BAR,
+    downbeats: structure.downbeats,
+    drops: structure.drops,
+    barStructure: structure.analysis,
   }
   const withAnalysis: BeatGrid = { ...constantGrid, analysis }
 
@@ -1020,73 +1061,49 @@ function findMixxxFirstBeatAtIntro(
   const envRate = env.envRate
   const kickFlux = env.lowOdf
   const totalFlux = env.odf
-
-
-  // 3. Grid candidate beats: t_k = phase0 + k * beatSec
+  // 3. The first onset of the intro, snapped to the lattice: t_k = phase0 + k * beatSec.
+  //
+  // This used to be "the first lattice beat whose ±35 ms window contains a kick
+  // above 15 % of the loudest kick". The benchmark found what that costs on
+  // material whose tempo is not constant: at 96 BPM with ±3 % period jitter the
+  // beats wander 56 ms by the fourth beat, so the first three kicks sat outside
+  // their lattice windows, the scan walked forward, and it anchored bar 1 three
+  // beats into a track whose kick starts at 0:00. Reading the onsets and snapping
+  // the first one to the lattice cannot miss a beat that way: a late onset still
+  // names its own beat. That matters beyond the marker — `firstBar` is where the
+  // deck cues and where every bar line is counted from.
   const phase0 = positiveMod(establishedPhaseSec, beatSec)
-  const maxBeats = Math.floor(scanSeconds / beatSec)
-
-  const kickPeaks: number[] = []
-  const totalPeaks: number[] = []
-  const windowFrames = Math.max(1, Math.round(envRate * 0.035)) // ±35ms window
+  const windowFrames = Math.max(1, Math.round(envRate * 0.035))
 
   let maxKickFlux = 0
   let maxTotalFlux = 0
-
-  for (let k = 0; k < maxBeats; k++) {
-    const t = phase0 + k * beatSec
-    const centerFrame = Math.round(t * envRate)
-    let kPeak = 0
-    let tPeak = 0
-    for (let w = -windowFrames; w <= windowFrames; w++) {
-      const idx = centerFrame + w
-      if (idx >= 0 && idx < frames) {
-        if (kickFlux[idx] > kPeak) kPeak = kickFlux[idx]
-        if (totalFlux[idx] > tPeak) tPeak = totalFlux[idx]
-      }
-    }
-    kickPeaks.push(kPeak)
-    totalPeaks.push(tPeak)
-    if (kPeak > maxKickFlux) maxKickFlux = kPeak
-    if (tPeak > maxTotalFlux) maxTotalFlux = tPeak
+  for (let f = 0; f < frames; f++) {
+    if (kickFlux[f] > maxKickFlux) maxKickFlux = kickFlux[f]
+    if (totalFlux[f] > maxTotalFlux) maxTotalFlux = totalFlux[f]
   }
-
-  // Find the earliest grid beat at or after audio starts
-  let firstAudibleBeatIdx = 0
-  for (let k = 0; k < maxBeats; k++) {
-    const t = phase0 + k * beatSec
-    if (t >= audioStartSec - 0.05) {
-      firstAudibleBeatIdx = k
-      break
-    }
-  }
-
-  // 4. Determine if the intro begins immediately with drums (e.g. J9_lime at 0:00)
-  // If the first audible beat already has a drum transient, anchor directly to it!
   const kickThresh = maxKickFlux > 0 ? maxKickFlux * 0.15 : 0
   const totalThresh = maxTotalFlux > 0 ? maxTotalFlux * 0.15 : 0
 
-  const hasDrumAtFirstBeat =
-    (kickPeaks[firstAudibleBeatIdx] >= kickThresh && kickThresh > 0) ||
-    (totalPeaks[firstAudibleBeatIdx] >= totalThresh && totalThresh > 0)
+  const firstAudibleBeatIdx = Math.max(
+    0,
+    Math.ceil((audioStartSec - 0.05 - phase0) / beatSec)
+  )
+  const audibleFallback = Math.max(0, phase0 + firstAudibleBeatIdx * beatSec)
 
-  if (hasDrumAtFirstBeat) {
-    return Math.max(0, phase0 + firstAudibleBeatIdx * beatSec)
-  }
-
-  // 5. If the intro starts with ambient/synth pad/silence before a drop (e.g. Lip_rona):
-  // Scan forward beat by beat to find the FIRST beat where the kick drum / rhythm drops.
-  // The first beat that hits the kick transient threshold is the authentic drop downbeat!
-  for (let k = firstAudibleBeatIdx; k < maxBeats; k++) {
-    const isKickDrop = kickPeaks[k] >= kickThresh && kickThresh > 0
-    const isRhythmDrop = totalPeaks[k] >= totalThresh && totalThresh > 0
+  let onsetFrame = -1
+  for (let f = Math.max(0, Math.round(audioStartSec * envRate) - windowFrames); f < frames; f++) {
+    const isKickDrop = kickThresh > 0 && kickFlux[f] >= kickThresh
+    const isRhythmDrop = totalThresh > 0 && totalFlux[f] >= totalThresh
     if (isKickDrop || isRhythmDrop) {
-      return Math.max(0, phase0 + k * beatSec)
+      onsetFrame = f
+      break
     }
   }
+  if (onsetFrame < 0) return audibleFallback
 
-  // Fallback: first audible beat
-  return Math.max(0, phase0 + firstAudibleBeatIdx * beatSec)
+  const onsetSec = frameToSeconds(onsetFrame, sr, ODF_HOP, ODF_WIN)
+  const index = Math.round((onsetSec - phase0) / beatSec)
+  return Math.max(0, phase0 + index * beatSec)
 }
 
 

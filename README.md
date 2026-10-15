@@ -138,6 +138,21 @@ path now shares one onset front-end (`src/lib/dj/spectral-flux.ts`):
   over a six-minute track, so the stored tempo is scanned on a ±1.2 % window in 0.04 % steps
   against the evidence envelope, re-optimising phase at each step (`refineTempoAndPhase`).
   This is what took the mean absolute grid error from 20 ms to 6 ms.
+- **Bars, downbeats and drops are measured too, not assumed** (`src/lib/dj/bar-structure.ts`).
+  Bar 1 used to *be* the first kick in the intro; a track whose intro starts on the fourth beat
+  of a bar therefore kept every beat in the right place and put every bar line one beat out.
+  All four rotations are now scored against three cues, in order of how much they can be
+  trusted: the **bass note under the beat** (low-band energy after the kick has decayed — the
+  only cue that survives a sparse kick pattern), the **kick/bass attack contrast** at one
+  position versus the others, and the **snare pair**, which can only *rule out* rotations (a
+  snare on 2 and 4 fits the bar either way, so it narrows the candidates and says so rather
+  than flipping a coin). The same pass produces bar-aligned **drops** (the end of an intro or a
+  breakdown) and groups bars into **phrases** from their spacing. All of it is stored on the
+  grid — `downbeats[]`, `drops[]` and `barStructure: { rotation, rotationScores,
+  rotationDecision, rotationDecided, rotationCandidates, phraseBars, phrases, drops }` — and
+  rebuilt by every grid transform, so a manual BPM or bar-shift edit cannot leave bar markers
+  describing the previous grid. The deck waveform draws the drops and the measured phrase
+  boundaries.
 - **Measurable quality, not a vibe.** Each analyzed grid carries
   `analysis: { rawBpm, bpmMultiplier, bpmSource, beatSource, fitResidual, contrast,
   retainedRatio, confidence, variable }`. `fitResidual` is the RMS of `ln(interval/period)`
@@ -162,20 +177,35 @@ times with the literature's metrics (F-measure at 70 ms, continuity, grid drift)
 CI with no browser and no downloads; [bench/README.md](bench/README.md) documents the corpus,
 the gates and how to point it at Ballroom/SMC/Harmonix annotations:
 
-| corpus (9 synthetic tracks) | before | now |
+| corpus (11 synthetic tracks) | before | now |
 |---|---|---|
-| mean F-measure, 70 ms | 0.772 | **0.992** |
+| mean F-measure, 70 ms | 0.772 | **0.993** |
 | median continuity (CMLt) | 0.985 | **1.000** |
 | mean absolute grid error | 42 ms | **6 ms** |
+| downbeat match, 70 ms | not scored | **0.997** |
+| bar lines a whole beat out | not scored (0 claimed) | **0 of 11** |
+| annotated drops found | not scored | **2 of 2** |
 
 The harness scores **both** analyzer paths, because the primary one is what the app runs. The
 Essentia WASM kernel turned out to load in Node as well as in the browser, so it is scored
 headlessly too — and it was measurably **worse than its own fallback**: mean F **0.626**
 against 0.992, from an octave decided by an ad-hoc cross-check and a phase taken from
 Essentia's tick list (three tracks landed half a beat off, 211–240 ms). Both paths now read
-0.992, and both are gated: the primary path's decision layer — octave committee, phase
+0.993, and both are gated: the primary path's decision layer — octave committee, phase
 anchor, map guards — is ours, so a regression in it fails the build. The defects that round
 found are itemised in [bench/README.md](bench/README.md).
+
+Scoring the bar found three more, in the code the app was already running: the first-beat
+anchor walked **three beats late** on jittery and accelerating material (bar 1 in the wrong
+place on a track whose kick starts at 0:00, because a ±35 ms lattice window misses a beat that
+has drifted 56 ms), every steady track reported a **spurious intro drop** at bar 1 (the
+preamble it measured included 5 ms of the first kick, which made silence look like a ×3.4
+energy arrival), and the metric that was supposed to catch bar errors compared each grid
+against itself and always returned "correct". The bar gates now fail the build on a whole-beat
+bar error, on a claimed rotation that is wrong, on a *decidable* rotation left undecided, and
+on a drop that is missed or invented — the last two in both directions, because a wrong claim
+is worse than an honest "unknown" and a marker that sends a mix looking for a change that is
+not there is worse than no marker.
 
 Those are synthetic tracks with click-accurate annotations, so they gate regressions and
 cannot substitute for an annotated corpus — the harness reports the corpus it used and which

@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { computePeaks } from '@/lib/dj/peaks'
-import { beatIndexAt, downbeatIndex, isVariableGrid, localTempoRange } from '@/lib/dj/grid'
+import {
+  beatIndexAt,
+  downbeatIndex,
+  dropMarkers,
+  isVariableGrid,
+  localTempoRange,
+  phraseBoundaries,
+} from '@/lib/dj/grid'
 import type { Track } from '@/lib/dj/types'
 
 interface StackedWaveformsProps {
@@ -14,6 +21,16 @@ interface StackedWaveformsProps {
 
 const zoomPeaksCache = new WeakMap<Track, Float32Array>()
 const ZOOM_PPS = 140
+
+/**
+ * Section-marker colours.
+ *
+ * Amber for a drop and a faint grey for a measured phrase boundary: colour is
+ * doing one job here, saying which lines are structural, and neither of them is
+ * allowed to compete with the beat grid's own white downbeat stripes.
+ */
+const MARKER_DROP = '#f59e0b'
+const MARKER_PHRASE = '#9ca3af'
 
 function getZoomPeaks(track: Track): Float32Array {
   let peaks = zoomPeaksCache.get(track)
@@ -661,6 +678,39 @@ function renderDeckLane({
         const beatsFromBar = Math.round((t - grid.firstBar) / beatLen)
         drawTick(t, ((beatsFromBar % bpb) + bpb) % bpb === 0)
       }
+    }
+
+    // 1b. Section markers. The drops are where a mix wants to arrive (the end of
+    // an intro or breakdown) and the phrase boundaries are the bars counted from
+    // bar 1 — both come from the analyzer, not from the drawing code. Phrase
+    // boundaries are only drawn when the analyzer measured a phrase length: an
+    // 8-bar line on a track whose phrases were never measured would be a guess
+    // drawn as a fact.
+    const windowEndForMarkers = tStart + windowSeconds
+    if (grid.barStructure?.phraseSource === 'drops') {
+      ctx.fillStyle = MARKER_PHRASE
+      ctx.globalAlpha = 0.9
+      for (const t of phraseBoundaries(grid, tStart, windowEndForMarkers)) {
+        const x = (t - tStart) / secPerPx
+        if (x < -4 || x > w + 4) continue
+        // A cap on the top edge of the lane, not a full-height line: a phrase
+        // boundary always lands on a downbeat, so a full-height grey line would
+        // sit under the white downbeat stripe where nobody can see it.
+        ctx.fillRect(x - 3, topY, 6, 3)
+      }
+    }
+    for (const drop of dropMarkers(grid)) {
+      const x = (drop.time - tStart) / secPerPx
+      if (x < -4 || x > w + 4) continue
+      ctx.fillStyle = MARKER_DROP
+      ctx.globalAlpha = 0.95
+      ctx.fillRect(x - 0.5, topY, 1, laneH)
+      ctx.beginPath()
+      ctx.moveTo(x - 4, topY)
+      ctx.lineTo(x + 4, topY)
+      ctx.lineTo(x, topY + 7)
+      ctx.closePath()
+      ctx.fill()
     }
     ctx.globalAlpha = 1
   }
