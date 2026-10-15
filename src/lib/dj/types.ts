@@ -10,9 +10,27 @@ export const HOT_CUE_COUNT = 8
  * keeping them separate is what lets the UI show where a number came from and
  * undo an interpretation that turned out to be wrong.
  */
+export interface TempoCandidateRecord {
+  /** The tempo this estimator proposed. */
+  bpm: number
+  /** Which estimator proposed it (`onset-acf`, `ioi-histogram`, `essentia`, …). */
+  source: string
+  /** That estimator's own 0..1 confidence; comparable within a source. */
+  confidence: number
+}
+
 export interface BeatGridAnalysis {
   /** Tempo as measured by the detectors, before DJ octave normalisation. */
   rawBpm?: number
+  /**
+   * Every tempo hypothesis the estimators produced, with confidences, whether or
+   * not it won. Kept because a lost octave guess is the single most common way a
+   * grid is wrong, and a user who disagrees with ours needs to see what the
+   * alternatives were rather than a single opaque number.
+   */
+  tempoCandidates?: TempoCandidateRecord[]
+  /** How the octave decision was reached: the evidence, not the threshold. */
+  octaveDecision?: string
   /** Multiplier applied to `rawBpm` to reach the stored `bpm` (0.5, 1 or 2). */
   bpmMultiplier?: number
   /** Tempo engines that agreed on `rawBpm`, e.g. `essentia-rhythm2013+onset-acf`. */

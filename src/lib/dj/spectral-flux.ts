@@ -197,11 +197,22 @@ export function suppressBackground(x: Float32Array, half: number): void {
  * The analyzer's frame -> time convention, in one place.
  *
  * An envelope frame `f` is the flux computed over the window that starts at
- * sample `f * hop`, so the onset it measures sits at that window's centre. Every
- * caller used to re-derive this as `(frame * HOP + WIN / 2) / sampleRate`, which
- * is how a beat that lands 35 ms early gets into a stored grid if one caller
- * forgets the half window.
+ * sample `f * hop`. Every caller used to re-derive this as
+ * `(frame * HOP + WIN / 2) / sampleRate`, which is how a beat that lands 35 ms
+ * early gets into a stored grid if one caller forgets the half window — and the
+ * half window is itself not the right answer.
+ *
+ * A transient raises the flux at the frame where it *enters* the window, so the
+ * onset sits late inside that frame's window, not at its centre. The exact
+ * position is between the window centre and its end, and it depends on the
+ * window's shape and on the transient, so it was measured rather than derived:
+ * a kick-like burst at 44.1/32/22.05 kHz put the flux peak 6/8/14.7 ms before the
+ * true onset under the centre convention, i.e. an early bias of about 0.28 of the
+ * window. `ONSET_POSITION_IN_WINDOW` is the centre plus that measured trim, and
+ * scripts/test-onset-latency.mjs locks it in so this cannot silently drift.
  */
+export const ONSET_POSITION_IN_WINDOW = 0.78
+
 export function frameToSeconds(
   frame: number,
   sampleRate: number,
@@ -209,7 +220,7 @@ export function frameToSeconds(
   win = ODF_WIN,
   offsetSeconds = 0
 ): number {
-  return (frame * hop + win / 2) / sampleRate + offsetSeconds
+  return (frame * hop + win * ONSET_POSITION_IN_WINDOW) / sampleRate + offsetSeconds
 }
 
 /** Inverse of {@link frameToSeconds}. */
@@ -220,7 +231,7 @@ export function secondsToFrame(
   win = ODF_WIN,
   offsetSeconds = 0
 ): number {
-  return (seconds - offsetSeconds) * (sampleRate / hop) - win / (2 * hop)
+  return (seconds - offsetSeconds) * (sampleRate / hop) - (win * ONSET_POSITION_IN_WINDOW) / hop
 }
 
 /** Standard deviation of an array (population), used to normalise the ODF. */

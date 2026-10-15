@@ -1,4 +1,4 @@
-import type { BeatGrid } from './types'
+import type { BeatGrid } from './types.ts'
 
 /**
  * Beat-grid timing utilities.
@@ -350,7 +350,7 @@ export function buildBeatMapFromTicks(
   duration: number,
   options: BeatMapOptions = {}
 ): BeatMapOutcome | null {
-  const constantToleranceSeconds = options.constantToleranceSeconds ?? 0.08
+  const constantToleranceSeconds = options.constantToleranceSeconds ?? 0.05
   const minBeats = options.minBeats ?? 16
   const minSpanSeconds = options.minSpanSeconds ?? 20
   const maxStepErrorRatio = options.maxStepErrorRatio ?? 0.3

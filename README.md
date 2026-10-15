@@ -104,13 +104,40 @@ path now shares one onset front-end (`src/lib/dj/spectral-flux.ts`):
   measured in log magnitude a quiet hi-hat band counts on the same footing as the kick. The
   sub-180 Hz group is still kept separately — a DJ grid is phase-anchored to the kick — but
   as the sum of the low bands rather than a magic multiplier.
+- **The phase anchor is the kick *plus* the percussion** (`phaseEvidence`). Scoring the kick
+  group alone locked the grid to a sub-bass on the offbeat on offbeat-bass house and techno —
+  a half-beat-out grid, which the benchmark caught as F 0.000 with a 205 ms phase error and
+  which is now F 1.000 with 0 ms. The two groups are each normalised to their own peak before
+  they are added, because in log-magnitude flux a quiet hi-hat can change its band as much as
+  a kick changes its own; comparing shapes rather than absolute levels is what makes the
+  combination meaningful. A track with no low content degrades to percussion-only, which is
+  the old fallback behaviour.
 - **Ellis dynamic-programming beat tracking** (`src/lib/dj/beat-tracker.ts`), the algorithm
   MixCN and librosa use: a Gaussian-smoothed local score (σ = period/32), a cumulative score
   maximised with a `tightness = 100` squared-log transition penalty over a `[P/2, 2P]`
   window, then backtracked from the last supported peak. A rigid lattice cannot follow
   timing wobble, which is exactly what real drums, disco and vinyl rips have: on a synthetic
   track drifting 128 → 124 BPM the DP holds every beat (worst error ~10 ms) where a lattice
-  at the mid-tempo drifts 355 ms by the outro.
+  at the mid-tempo drifts 355 ms by the outro. Both the Essentia path *and* the measurement
+  fallback now run it, so the fallback is no longer the worse analyzer on exactly the material
+  that needs the beat map.
+- **The octave is decided by committee, not a BPM threshold** (`src/lib/dj/tempo-candidates.ts`).
+  A reading under 85 BPM used to be doubled and one over 185 halved, which is how a 174 BPM
+  drum-and-bass track came back as **86.9 BPM** — inside the "fine" band, so nothing doubled
+  it, and the grid sat on every other beat. Now five in-process estimators vote (full-band and
+  low-band autocorrelation, an inter-onset-interval histogram whose fundamental pulse commits
+  on the octave, a comb filter, and the DP tracker's fitted tempo) plus Essentia when its
+  kernel is loaded. The decision is measured: each octave hypothesis is scored by **onset
+  coverage** — the fraction of the envelope's energy its lattice explains, so a half-tempo
+  lattice that leaves half the onsets unexplained scores ~0.5 while the correct one approaches
+  1.0 — then by whether an octave-committing estimator agrees, and only then by the DJ tempo
+  prior. The winner and every losing hypothesis are stored on the track
+  (`analysis.tempoCandidates`, `analysis.octaveDecision`), so a user who disagrees can see what
+  the alternatives were instead of one opaque number.
+- **Tempo is refined, not just measured.** A 0.1 % tempo error is invisible per beat and 4 s
+  over a six-minute track, so the stored tempo is scanned on a ±1.2 % window in 0.04 % steps
+  against the evidence envelope, re-optimising phase at each step (`refineTempoAndPhase`).
+  This is what took the mean absolute grid error from 20 ms to 6 ms.
 - **Measurable quality, not a vibe.** Each analyzed grid carries
   `analysis: { rawBpm, bpmMultiplier, bpmSource, beatSource, fitResidual, contrast,
   retainedRatio, confidence, variable }`. `fitResidual` is the RMS of `ln(interval/period)`
@@ -123,13 +150,37 @@ path now shares one onset front-end (`src/lib/dj/spectral-flux.ts`):
   `bpm`, so `rawBpm = bpm / bpmMultiplier` always holds and the interpretation can be undone.
 - **Variable-tempo grids** (`src/lib/dj/grid.ts`) hold per-beat positions for tracks that do
   not hold one tempo. The analyzer adopts one only when no single tempo fits the tracked
-  beats (`constantToleranceSeconds = 0.08`), so machine-timed 4/4 keeps the fast constant grid
-  and merely takes a refined BPM from the tracked beats.
+  beats within `constantToleranceSeconds` — **0.05 s**, down from 0.08: the tracker's tick
+  noise is a few tens of milliseconds, so an 80 ms tolerance was accepting a genuinely
+  wobbling track as "constant" (measured: a ±3 % wobbly live-drum pattern left a 67 ms
+  residual, survived as a constant grid, and scored F 0.583; at 0.05 it gets a beat map and
+  scores F 0.992). Machine-timed 4/4 keeps the fast constant grid and merely takes a refined
+  BPM from the tracked beats.
 
-Measured in the browser on synthetic material: a steady 128 BPM track reports confidence
-**0.97** with a 0.005 residual; the same track with ±25 ms humanised jitter reports **0.61**
-and 0.031; jitter alone never flips a track to a variable grid; and a 128 → 124 BPM drift
-produces a variable grid (`variable: true`) whose beats hold the tempo.
+**Measured, not asserted.** `npm run bench:beats` scores the stored grid against known beat
+times with the literature's metrics (F-measure at 70 ms, continuity, grid drift) and runs in
+CI with no browser and no downloads; [bench/README.md](bench/README.md) documents the corpus,
+the gates and how to point it at Ballroom/SMC/Harmonix annotations:
+
+| corpus (9 synthetic tracks) | before | now |
+|---|---|---|
+| mean F-measure, 70 ms | 0.772 | **0.992** |
+| median continuity (CMLt) | 0.985 | **1.000** |
+| mean absolute grid error | 42 ms | **6 ms** |
+
+The harness scores **both** analyzer paths, because the primary one is what the app runs. The
+Essentia WASM kernel turned out to load in Node as well as in the browser, so it is scored
+headlessly too — and it was measurably **worse than its own fallback**: mean F **0.626**
+against 0.992, from an octave decided by an ad-hoc cross-check and a phase taken from
+Essentia's tick list (three tracks landed half a beat off, 211–240 ms). Both paths now read
+0.992, and both are gated: the primary path's decision layer — octave committee, phase
+anchor, map guards — is ours, so a regression in it fails the build. The defects that round
+found are itemised in [bench/README.md](bench/README.md).
+
+Those are synthetic tracks with click-accurate annotations, so they gate regressions and
+cannot substitute for an annotated corpus — the harness reports the corpus it used and which
+path it scored. Grid confidence is still a *derived* score rather than a probability
+calibrated against annotations, and the benchmark is what will tell us how far off it is.
 
 ## Mixing and mix rendering
 

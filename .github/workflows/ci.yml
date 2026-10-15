@@ -33,6 +33,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Unit suites first: they are seconds and they localise a failure. Then the
+      # beat-grid benchmark, which gates the analyzer against annotated beats —
+      # F-measure, continuity and grid drift on the synthetic corpus. It needs no
+      # downloads and no browser; see bench/README.md for scoring real annotated
+      # corpora locally (that is the mode that supports an accuracy claim).
+      - run: npm test
       # `tsc -b && vite build` — typecheck plus a production bundle on base "/".
       # For a sub-path build (GitHub Pages style), set BASE_PATH=/<repo>/.
       - run: npm run build
