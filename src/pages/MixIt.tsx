@@ -14,6 +14,20 @@ import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
+/**
+ * Build fingerprint rendered next to the BETA chip.
+ *
+ * Formatted in UTC on purpose: `__BUILD_DATE__` is baked in at build time, so
+ * rendering it in the viewer's local timezone would show a different string to
+ * every visitor — useless for confirming which build is actually live.
+ */
+const BUILD_STAMP = (() => {
+  const d = new Date(__BUILD_DATE__)
+  if (Number.isNaN(d.getTime())) return 'unknown'
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`
+})()
+
 export function MixIt() {
   const engine = getAudioEngine()
   const deckA = engine.decks.A
@@ -178,6 +192,24 @@ export function MixIt() {
             <h1 className="text-lg font-bold text-white tracking-wide">Mix it!</h1>
             <span className="text-[10px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">
               Beta
+            </span>
+            <span
+              className={`text-[10px] font-mono font-medium tracking-wider px-1.5 py-0.5 rounded border tabular-nums ${
+                __GIT_DIRTY__
+                  ? 'bg-warn/10 text-warn border-warn/30'
+                  : 'bg-white/5 text-text-muted border-white/10'
+              }`}
+              title={[
+                `Version: ${__APP_VERSION__}`,
+                `Built:   ${__BUILD_DATE__}`,
+                `Commit:  ${__GIT_SHA__}`,
+                `Branch:  ${__GIT_BRANCH__}`,
+                __GIT_DIRTY__ ? 'Note:    built with uncommitted changes' : null,
+              ]
+                .filter(Boolean)
+                .join('\n')}
+            >
+              v{__APP_VERSION__} · {BUILD_STAMP}
             </span>
           </div>
           <p className="text-xs text-text-muted text-right">
