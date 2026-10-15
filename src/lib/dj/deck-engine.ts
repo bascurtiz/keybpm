@@ -1488,22 +1488,39 @@ export class DeckEngine {
     this.fxDecayRaf = requestAnimationFrame(step)
   }
 
-  async triggerBabyScratch() {
-    // Forward-only "cutter" modeled after djay Pro's DNA scratch pattern
-    // DeBaDeBa DeBaDeBa — 4 forward chops per beat across 2 beats, with hard
-    // silent gaps between each chop (the "e" and "a" cuts in the notation).
+  async triggerCutter() {
+    // Cutter modeled on D:\Music\keybpm-test\cutter.wav (analysis below).
     //
-    // Each chop is a positive scratch stroke at full vinyl speed (≈ +3.2x) for
-    // ~75% of a 16th, then xfade cuts to silence for the rest. A real cutter
-    // reverses the record during the muted slice so the next chop lands at
-    // roughly the same audible spot; on this engine the chunks are short
-    // enough that residual offset sounds like a normal "click-click-click"
-    // forward cutter rather than a slow drift.
-    const bpm = this.effectiveBpm ?? 120
-    const beatMs = (60 / bpm) * 1000
-    // 2 beats = 8 sixteenths = the full DeBaDeBa DeBaDeBa phrase.
-    const durationMs = beatMs * 2
-    const sixteenthMs = durationMs / 8
+    // The reference is a forward-only cutter: 8 chops over ~1.04 s with a
+    // (play ~56 ms) + (cut ~66 ms) cell. Critically the "cut" is NOT silent
+    // — it carries attenuated reverse audio (cut max_abs ≈ 0.4–0.5 of the
+    // chop peak). That continuous low-level reverse stroke is what gives a
+    // real cutter its buzzy, slightly-rattling character instead of
+    // stop-start clicks.
+    //
+    // Chops alternate 51/61 ms (the D/B distinction in "DeBa"), but at
+    // sub-16ms granularity RAF timing can't reproduce that difference
+    // reliably, so we use a single 56 ms play / 66 ms cut cell repeated
+    // 8 times.
+    //
+    // The pattern is BPM-locked to 2 beats (8 sixteenth-note cells). At the
+    // ~119 BPM of the reference recording that is 2 × 60/119 ≈ 1.008 s, which
+    // reproduces cutter.wav almost exactly — but locking to the deck tempo
+    // keeps the chops rhythmically useful at any BPM instead of drifting.
+    const NUM_CHOPS = 8
+    const PLAY_FRACTION = 0.459 // measured: 56 ms play / 122 ms cell
+    const PLAY_RATE = 3.2       // forward vinyl speed during the chop
+    const CUT_RATE = -1.6       // reverse vinyl speed during the cut (slower
+                                // than the forward stroke, like a real cutter)
+    const CUT_GAIN = 0.45       // xfade gain during the cut — NOT zero, so the
+                                // reverse stroke bleeds through (matches the
+                                // reference's ~45% cut-to-peak ratio)
+
+    const bpm = this.effectiveBpm ?? 119
+    const durationMs = (60 / bpm) * 1000 * 2 // 2 beats
+    const cellMs = durationMs / NUM_CHOPS
+    const CHOP_PLAY_MS = cellMs * PLAY_FRACTION
+
     if (!this.track) return
     if (this.fxDecayRaf) {
       cancelAnimationFrame(this.fxDecayRaf)
@@ -1513,47 +1530,39 @@ export class DeckEngine {
     await this.scratchBegin()
     const start = performance.now()
     const isFlux = this._slipMode
-    const CHOP_RATE = 3.2 // forward scratch speed per stroke
-    const CHOP_FRACTION = 0.72 // 72% of each 16th plays, 28% is the cut
 
-    // Track the previous 16th index so we can react to "start of new chop"
-    // (open xfade) vs "entering cut" (close xfade) vs "playing" (open).
-    let lastSixteenth = -1
+    // State so each cell-boundary fires its xfade/scratch transitions exactly
+    // once, regardless of RAF jitter.
+    let lastCell = -1
     let inCut = false
 
-    // Run the cutter as 8 little sub-cues on the same RAF. We do an outer
-    // "macro" schedule so the timeline reads naturally for FLUX handling
-    // and abort, but the inner work is per-chop with xfade gating.
     const step = () => {
       const elapsed = performance.now() - start
       const p = Math.min(1, elapsed / durationMs)
       const t = Math.min(durationMs, elapsed)
 
-      // Which 16th are we inside? 0..7
-      const sixteenthIndex = Math.min(7, Math.floor(t / sixteenthMs))
-      const phaseMs = t - sixteenthIndex * sixteenthMs
-      const enteredNewChop = sixteenthIndex !== lastSixteenth
+      const cellIndex = Math.min(NUM_CHOPS - 1, Math.floor(t / cellMs))
+      const phaseMs = t - cellIndex * cellMs
+      const enteredNewCell = cellIndex !== lastCell
 
-      if (enteredNewChop) {
-        // Beginning of a fresh stroke: open the xfade and start the
-        // forward scratch. Done unconditionally at the top of a chop.
+      if (enteredNewCell) {
+        // Top of a fresh chop: snap xfade to full open, drive forward.
         this.setCrossfadeGain(1)
-        this.scratchMove(CHOP_RATE)
+        this.scratchMove(PLAY_RATE)
         inCut = false
-        lastSixteenth = sixteenthIndex
-      } else if (phaseMs >= sixteenthMs * CHOP_FRACTION && !inCut) {
-        // We crossed into the cut slice of this 16th: drop scratch rate
-        // to zero AND close the crossfader so the chop is silent.
-        this.scratchMove(0)
-        this.setCrossfadeGain(0)
+        lastCell = cellIndex
+      } else if (phaseMs >= CHOP_PLAY_MS && !inCut) {
+        // Crossed into the cut slice: reverse the record AND drop xfade to
+        // CUT_GAIN (not zero — the reference's cuts carry attenuated audio).
+        this.scratchMove(CUT_RATE)
+        this.setCrossfadeGain(CUT_GAIN)
         inCut = true
-      } else if (phaseMs < sixteenthMs * CHOP_FRACTION && inCut) {
-        // (Defensive) we somehow re-entered the playing slice — reopen.
+      } else if (phaseMs < CHOP_PLAY_MS && inCut) {
+        // Defensive: re-entered the play slice (clock drift) — reopen.
         this.setCrossfadeGain(1)
-        this.scratchMove(CHOP_RATE)
+        this.scratchMove(PLAY_RATE)
         inCut = false
       }
-      // Silence threshold so we don't flicker in/out of cut on RAF jitter.
 
       if (p < 1) {
         this.fxDecayRaf = requestAnimationFrame(step)
