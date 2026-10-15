@@ -413,7 +413,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             type="button"
             onClick={triggerBabyScratch}
             className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
-            title="Vinyl Baby Scratch effect"
+            title="Vinyl Forward Cutter — 4 chops per beat (DeBaDeBa)"
           >
             SCR
           </button>
