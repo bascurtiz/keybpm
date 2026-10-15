@@ -1,5 +1,5 @@
 import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
-import { DeckEngine } from './deck-engine'
+import { DeckEngine, type KeyLockEngine } from './deck-engine'
 import type { DeckId } from './types'
 import { getVinylWorkletUrl } from './vinyl-worklet'
 import { MixRecorder, type MixTimeline } from './mix-timeline'
@@ -155,6 +155,23 @@ export class AudioEngine {
 
   async resume() {
     if (this.ctx.state === 'suspended') await this.ctx.resume()
+  }
+
+  /**
+   * Realtime keylock engine for both decks (SoundTouch by default).
+   *
+   * Kept as a single switch so both decks change together — a mix where one deck
+   * keylocks with Rubber Band and the other with SoundTouch would sound like two
+   * different rooms. See `DeckEngine.setKeyLockEngine` for why the default is the
+   * engine that is a couple of cents off rather than the exact one.
+   */
+  get keyLockEngine(): KeyLockEngine {
+    return this.decks.A.keyLockEngine
+  }
+
+  setKeyLockEngine(engine: KeyLockEngine) {
+    for (const id of ['A', 'B'] as const) this.decks[id].setKeyLockEngine(engine)
+    this.emit()
   }
 
   /**

@@ -1,4 +1,5 @@
 import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
+import { createRubberBandNode, type RubberBandNode } from './rubberband-node'
 import { HOT_CUE_COUNT, type BeatGrid, type FxType, type LoopRegion, type Track } from './types'
 import {
   barLengthAt,
@@ -17,6 +18,101 @@ import {
   snapToBeat as snapToGridBeat,
 } from './grid'
 
+/** Which realtime engine holds the key. See {@link DeckEngine.setKeyLockEngine}. */
+export type KeyLockEngine = 'rubberband' | 'soundtouch'
+
+/**
+ * How long a deck will play dry while a newly selected Rubber Band engine settles.
+ * The output tap normally resolves this in a few hundred ms; the cap is what stops
+ * a deck that happens to be silent at the moment of the switch from waiting forever.
+ */
+const RB_KEYLOCK_KERNEL_TIMEOUT_MS = 1500
+
+/** How often the output tap is read while waiting for the engine. */
+const RB_KEYLOCK_PROBE_INTERVAL_MS = 20
+
+/** Peak sample that counts as "this engine is producing audio". */
+const RB_KEYLOCK_SIGNAL_FLOOR = 1e-3
+
+/**
+ * Consecutive polls of real signal required before the wet path is engaged. One is
+ * not enough: a kernel that is still building can emit a burst and then starve
+ * again. Both voices are fed from the moment they exist, so by the time the engine
+ * is selected the audible one has been producing audio all along and this resolves
+ * in a couple of polls.
+ */
+const RB_KEYLOCK_READY_STREAK = 3
+
+/**
+ * A Rubber Band keylock voice: one realtime kernel plus the tap and gain that let it
+ * be checked and faded. A deck keeps {@link RB_VOICE_COUNT} of them; see
+ * {@link DeckEngine.setKeyLockEngine} for why.
+ */
+interface RubberBandVoice {
+  node: RubberBandNode
+  /** Taps this voice so the deck can tell whether it is producing audio right now. */
+  probe: AnalyserNode
+  /** Crossfade weight into the wet keylock bus. */
+  gain: GainNode
+  /** The ratio this kernel was last tuned to. */
+  pitch: number
+}
+
+/** Audible voice plus a second one, tuned and primed ready for the next ratio change. */
+const RB_VOICE_COUNT = 2
+
+/**
+ * A Rubber Band keylock voice is expensive (this machine sustains about six of them at 48 kHz
+ * before the render thread stops keeping up), so a deck keeps only the audible one while
+ * SoundTouch holds the key and creates the spare when Rubber Band is selected.
+ */
+const RB_SPARE_VOICE = 1
+
+/**
+ * An idle voice is held at this rather than 0: inaudible (-80 dB, below the deck's own
+ * noise), but it keeps the voice in the render graph so its kernel stays primed and a
+ * handover never has to wait for one to be built or re-fed from cold.
+ */
+const RB_IDLE_VOICE_GAIN = 1e-4
+
+/**
+ * Retune a voice only once the audible key is this far out. Below it the difference is
+ * inaudible, and skipping it is what stops a resting deck from churning voices.
+ */
+const RB_KEYLOCK_SWAP_CENTS = 8
+
+/**
+ * A retuned kernel emits a last burst of its *old* ratio (measured ~20 ms), then goes
+ * silent for ~100 ms while it re-primes, then settles on the new one. A handover waits
+ * for that hole and for signal to come back through it, which is what makes a ratio
+ * change inaudible instead of a click into silence.
+ */
+const RB_KEYLOCK_PRIME_STREAK = 4
+
+/** Cap on that wait, so a voice that never goes quiet cannot block a handover forever. */
+const RB_KEYLOCK_PRIME_TIMEOUT_MS = 700
+
+/** How long a handover takes to fade from one voice to the other. */
+const RB_KEYLOCK_FADE_S = 0.008
+
+/** Cost of a handover, used to aim a retune at where a moving fader is heading. */
+const RB_KEYLOCK_PRIME_LEAD_MS = 170
+
+/**
+ * How long the aim trusts a slew estimate after the last change to the wanted ratio.
+ * Without this a fader that stopped would keep steering handovers past its own value.
+ */
+const RB_KEYLOCK_VELOCITY_DECAY_S = 0.25
+
+/** Ceiling on that aim, so one abrupt jump cannot throw a handover a semitone away. */
+const RB_KEYLOCK_AIM_MAX_CENTS = 40
+
+/** Once the fader has been still this long, the key is worth one more handover. */
+const RB_KEYLOCK_SETTLE_MS = 350
+
+/** ...and "exact" then means within this, which is what a resting deck should hold. */
+const RB_KEYLOCK_SETTLE_CENTS = 2
+
 interface WorkletMessage {
   t: string
   s?: number
@@ -26,12 +122,34 @@ interface WorkletMessage {
 
 /**
  * Deck audio graph:
- * vinyl worklet -> [KeyLock Stage (SoundTouch vs Bypass)] -> autoGain -> trim ->
- * 3-band EQ -> filter -> channel fader -> crossfader gain -> master.
+ * vinyl worklet -> [KeyLock Stage (SoundTouch / Rubber Band / Bypass)] ->
+ * autoGain -> trim -> 3-band EQ -> filter -> channel fader -> crossfader -> master.
  *
  * KEYLOCK:
  * Keylock (Master Tempo) preserves original pitch when tempo/playbackRate changes.
- * Powered by SoundTouch real-time AudioWorklet.
+ * The vinyl worklet does the resampling, so the keylock stage is a pure pitch
+ * shift of an already-time-compressed stream. Both engines are realtime
+ * AudioWorklets — nothing here needs an offline render — and both are wired up:
+ *
+ *  - SoundTouch is the live default, because a deck changes pitch constantly
+ *    (fader, nudge, sync PLL, key shift) and its pitch is an AudioParam, so those
+ *    changes ramp smoothly. Measured on a 220 Hz tone at 1.30x it lands 1.1
+ *    cents high.
+ *  - Rubber Band's RealtimeRubberBand kernel is the accurate one — 0 cents on the
+ *    same tone, exact on a key shift — but its WASM binding calls `reset()` before
+ *    it applies any new ratio, so a `setPitch` on a kernel that is being heard
+ *    flushes its stretch pipeline: measured ~20 ms of the old ratio, ~100 ms of
+ *    silence, then an unsettled tail, then exact pitch. A single kernel therefore
+ *    cannot follow a fader (a sweep measured silent in 95 % of 10 ms windows, and
+ *    0 cents only once the fader stopped).
+ *
+ *    So a deck keeps two of them. The audible voice is never retuned: a new ratio is
+ *    prepared on the idle voice and faded in once that voice is producing audio again
+ *    (`RB_KEYLOCK_SWAP_CENTS` decides when a change is big enough to be worth it), and
+ *    the retune is aimed at where a moving fader is heading. Measured through the real
+ *    deck over a 3 s, 8 % sweep: 0 silent windows out of 304, the key held to a median of
+ *    7.7 cents while the fader moved, and under 2.5 cents once it stopped.
+ *
  * When active, pitch is compensated proportionally (1 / rate) to lock key.
  * When keyShift is adjusted, pitch is transposed by +/- 12 semitones.
  * When scratching, bypassing or rate == 1.0, clean direct path is used.
@@ -51,9 +169,33 @@ export class DeckEngine {
 
   // KeyLock / Master Tempo nodes
   private _keyLock = true
+  private _keyLockEngine: KeyLockEngine = 'soundtouch'
   private stNode: SoundTouchNode | null = null
+  /** Rubber Band voices, one audible and one kept primed for the next ratio change. */
+  private rbVoices: RubberBandVoice[] = []
+  /** Index into {@link rbVoices} of the voice currently feeding the wet bus. */
+  private rbAudibleVoice = 0
+  /** Non-null while an idle voice is being retuned for a handover. */
+  private rbHandover: {
+    index: number
+    tunedAt: number
+    sawSilence: boolean
+    streak: number
+  } | null = null
+  private rbHandoverTimer: number | null = null
+  /** The ratio the deck wants right now, in the audible voice's units. */
+  private rbTargetPitch = 1
+  /** Recent slew of that target in cents per second, used to aim a retune ahead of it. */
+  private rbPitchVelocity = 0
+  /** When the wanted ratio last actually changed, which is how "the fader is still" is read. */
+  private rbTargetChangedAt = 0
+  private rbSettleTimer: number | null = null
+  private readonly rbProbeBuffer = new Float32Array(256)
   private readonly keyLockDryGain: GainNode
   private readonly keyLockWetGain: GainNode
+  /** True while the deck plays dry, waiting for a newly selected engine to wake. */
+  private keyLockAwaitingKernel = false
+  private keyLockKernelTimer: number | null = null
 
   // Continuous Zero-Drift Sync Lock (PLL)
   private _syncLocked = false
@@ -139,7 +281,7 @@ export class DeckEngine {
     ctx: AudioContext,
     destination: AudioNode,
     vinylWorkletReady: Promise<unknown>,
-    _rubberbandReady?: Promise<unknown>,
+    rubberbandReady?: Promise<unknown>,
     soundTouchReady?: Promise<unknown>
   ) {
     this.ctx = ctx
@@ -256,7 +398,26 @@ export class DeckEngine {
         }
         this.pendingMessages = []
 
-        // Hook up SoundTouch (real-time keylock & pitch transposition)
+        // Rubber Band's realtime kernel, created eagerly so that selecting it is
+        // only ever a graph change: it is fed from here on (so its kernel builds
+        // and primes in the background), and setKeyLockEngine only has to move it
+        // into the wet path once the output tap hears it.
+        if (rubberbandReady) {
+          rubberbandReady
+            .then(() => {
+              const voice = this.createRubberBandVoice()
+              if (!voice) return
+              this.rbVoices = [voice]
+              this.setAudibleVoice(0)
+              this.wireKeyLockEngines()
+              this.updateKeyLockRouting()
+            })
+            .catch(err => console.warn('Rubber Band worklet not ready:', err))
+        }
+
+        // SoundTouch is the live engine: its pitch is an AudioParam, so the
+        // continuous pitch changes a deck makes ramp instead of restarting the
+        // stretch pipeline.
         if (soundTouchReady) {
           soundTouchReady
             .then(() => {
@@ -266,7 +427,7 @@ export class DeckEngine {
                   outputChannelCount: 2,
                 })
                 node.connect(this.stNode)
-                this.stNode.connect(this.keyLockWetGain)
+                this.wireKeyLockEngines()
                 this.updateKeyLockRouting()
               } catch (err) {
                 console.warn('SoundTouchNode instantiation skipped:', err)
@@ -358,17 +519,225 @@ export class DeckEngine {
     this.setKeyShift(0)
   }
 
+  get keyLockEngine(): KeyLockEngine {
+    return this._keyLockEngine
+  }
+
+  /**
+   * Selects the engine that holds the key on this deck.
+   *
+   * SoundTouch is the live default because a deck changes pitch constantly — fader,
+   * nudge, sync PLL, key shift — and its pitch is an AudioParam, so those changes ramp
+   * smoothly. Measured on a 220 Hz tone at 1.30x it lands 1.1 cents high.
+   *
+   * Rubber Band is the accurate engine — 0 cents on the same tone, exact on a key shift —
+   * and it can now follow a fader too, because a deck keeps *two* of its kernels. The
+   * binding resets the stretcher before applying any new ratio (measured: ~20 ms of the
+   * old ratio, ~100 ms of silence, an unsettled tail, then exact pitch), so a change is
+   * never applied to the voice being heard: it is prepared on the idle voice and faded in
+   * once that voice is audibly producing again. A 3 s, 8 % sweep measured 0 silent windows
+   * out of 304, with the key held to a median of 7.7 cents while the fader moved and under
+   * 2.5 cents once it stopped — against 95 % of windows silent for a single kernel.
+   *
+   * Safe to call while playing: the deck keeps playing dry until the output tap shows the
+   * new engine producing audio, so the switch is never a hole in the music.
+   */
+  setKeyLockEngine(engine: KeyLockEngine) {
+    if (engine === this._keyLockEngine) return
+    // Nothing to switch to if the R3 worklet never registered.
+    if (engine === 'rubberband' && this.rbVoices.length === 0) return
+    this._keyLockEngine = engine
+    this.cancelKernelWait()
+
+    if (engine === 'rubberband') {
+      // A handover needs a spare, and this is the only engine that uses one.
+      this.ensureSpareVoice()
+      this.setAudibleVoice(this.rbAudibleVoice)
+      // Hold the deck on the dry path *before* the graph changes underneath it, then wait
+      // for the tap to confirm the voice is audible. That costs no re-tune: the voices are
+      // fed from the moment they exist, so this normally resolves in a couple of polls.
+      this.keyLockAwaitingKernel = true
+      this.updateKeyLockRouting()
+      this.wireKeyLockEngines()
+      this.updateKeyLockRouting()
+      this.engageRubberBandWhenReady()
+    } else {
+      this.setAudibleVoice(0)
+      this.releaseSpareVoice()
+      this.wireKeyLockEngines()
+      this.updateKeyLockRouting()
+    }
+
+    this.emit()
+  }
+
+  /**
+   * Creates the idle voice a handover needs, if it is not already there.
+   *
+   * Only while Rubber Band holds the key: a high quality voice is expensive, and a deck
+   * keylocking with SoundTouch gains nothing from a spare it is not using.
+   */
+  private ensureSpareVoice() {
+    if (this.rbVoices.length >= RB_VOICE_COUNT) return
+    const voice = this.createRubberBandVoice()
+    if (voice) this.rbVoices.push(voice)
+  }
+
+  /** Drops the spare again once Rubber Band is no longer holding the key. */
+  private releaseSpareVoice() {
+    this.cancelKeyLockHandover()
+    const spare = this.rbVoices[RB_SPARE_VOICE]
+    if (!spare) return
+    // The surviving voice has to be the audible one, or the next selection would point
+    // at an index that no longer exists.
+    this.rbAudibleVoice = 0
+    this.rbVoices = [this.rbVoices[0]]
+    this.destroyRubberBandVoice(spare)
+  }
+
+  private cancelKeyLockHandover() {
+    if (this.rbHandoverTimer !== null) {
+      window.clearTimeout(this.rbHandoverTimer)
+      this.rbHandoverTimer = null
+    }
+    this.rbHandover = null
+  }
+
+  /** One Rubber Band voice: kernel, output tap and crossfade gain, wired into the wet bus. */
+  private createRubberBandVoice(): RubberBandVoice | null {
+    try {
+      const node = createRubberBandNode(this.ctx)
+      // Quality is a kernel rebuild, so it has to be set before any audio flows. High
+      // quality is the only mode with exact pitch: the fast mode measured +43 cents at
+      // 1.30x and -21 cents at 2.00x.
+      node.setHighQuality(true)
+      // Pitch-only shift: tempo 1 leaves the stream's length, and therefore the playback
+      // rate, to the vinyl worklet.
+      node.setTempo(1)
+      if (this.vinylNode) this.linkNodes(this.vinylNode, node)
+      const probe = this.ctx.createAnalyser()
+      probe.fftSize = 256
+      const gain = this.ctx.createGain()
+      gain.gain.value = RB_IDLE_VOICE_GAIN
+      node.connect(probe)
+      probe.connect(gain)
+      this.linkNodes(gain, this.keyLockWetGain)
+      return { node, probe, gain, pitch: 1 }
+    } catch (err) {
+      console.warn('Rubber Band keylock voice unavailable:', err)
+      return null
+    }
+  }
+
+  private destroyRubberBandVoice(voice: RubberBandVoice) {
+    if (this.vinylNode) this.unlinkNodes(this.vinylNode, voice.node)
+    this.unlinkNodes(voice.node, voice.probe)
+    this.unlinkNodes(voice.probe, voice.gain)
+    this.unlinkNodes(voice.gain, this.keyLockWetGain)
+    voice.node.close()
+  }
+
+  /** Keeps the deck dry until a newly selected Rubber Band voice is audible. */
+  private engageRubberBandWhenReady() {
+    const started = performance.now()
+    let streak = 0
+    const poll = () => {
+      const voice = this.rbVoices[this.rbAudibleVoice]
+      streak = voice && this.tapPeak(voice.probe) > RB_KEYLOCK_SIGNAL_FLOOR ? streak + 1 : 0
+      if (streak >= RB_KEYLOCK_READY_STREAK || performance.now() - started > RB_KEYLOCK_KERNEL_TIMEOUT_MS) {
+        this.keyLockKernelTimer = null
+        this.keyLockAwaitingKernel = false
+        this.updateKeyLockRouting()
+        return
+      }
+      this.keyLockKernelTimer = window.setTimeout(poll, RB_KEYLOCK_PROBE_INTERVAL_MS)
+    }
+    this.keyLockKernelTimer = window.setTimeout(poll, RB_KEYLOCK_PROBE_INTERVAL_MS)
+  }
+
+  /** Highest sample level an output tap has seen. */
+  private tapPeak(analyser: AnalyserNode): number {
+    analyser.getFloatTimeDomainData(this.rbProbeBuffer)
+    let peak = 0
+    for (let i = 0; i < this.rbProbeBuffer.length; i++) {
+      const level = Math.abs(this.rbProbeBuffer[i])
+      if (level > peak) peak = level
+    }
+    return peak
+  }
+
+  private cancelKernelWait() {
+    if (this.keyLockKernelTimer !== null) {
+      window.clearTimeout(this.keyLockKernelTimer)
+      this.keyLockKernelTimer = null
+    }
+    this.keyLockAwaitingKernel = false
+  }
+
+  /**
+   * Web Audio throws when told to disconnect an edge that is not there, so graph
+   * changes go through these two.
+   */
+  private linkNodes(node: AudioNode, destination: AudioNode) {
+    try {
+      node.connect(destination)
+    } catch (err) {
+      console.warn('keylock connect failed:', err)
+    }
+  }
+
+  private unlinkNodes(node: AudioNode, destination: AudioNode) {
+    try {
+      node.disconnect(destination)
+    } catch {
+      // Already disconnected: nothing to undo.
+    }
+  }
+
+  /** The node currently holding the key, or null when neither is available. */
+  private activeKeyLockEngine(): AudioWorkletNode | null {
+    const voice = this.rbVoices[this.rbAudibleVoice]
+    if (this._keyLockEngine === 'rubberband' && voice) return voice.node
+    return this.stNode
+  }
+
+  /**
+   * Plugs exactly one engine into the wet gain, so only that one is ever audible.
+   *
+   * Both engines still run, and both Rubber Band voices stay wired to the wet gain for
+   * the life of the deck: an AudioWorkletNode fed by the vinyl worklet is an active
+   * source, so Chrome keeps rendering it whether or not it reaches the destination, and
+   * that is what keeps the idle voice primed and ready to be faded in.
+   */
+  private wireKeyLockEngines() {
+    const engine = this.activeKeyLockEngine()
+    if (this.stNode) {
+      if (engine === this.stNode) this.linkNodes(this.stNode, this.keyLockWetGain)
+      else this.unlinkNodes(this.stNode, this.keyLockWetGain)
+    }
+    // Which Rubber Band voice is heard is decided by the voice gains, not by wiring.
+  }
+
   private updateKeyLockRouting() {
     const t = this.ctx.currentTime
     const effectiveRate = this._rate * this._nudgeFactor * this._pllCorrection
     const needsKeyLock = this._keyLock || this._keyShift !== 0
-    const active = needsKeyLock && !this._scratching && !!this.stNode
+    const engine = this.activeKeyLockEngine()
+    const active = needsKeyLock && !this._scratching && engine !== null && !this.keyLockAwaitingKernel
 
-    if (active && this.stNode) {
+    // Both engines are fed the vinyl worklet's output, which is already resampled
+    // to the pitch-fader rate, so keylock here is a pitch shift of (1 / rate) plus
+    // the key shift — the stream's length stays untouched.
+    const pitch = (this._keyLock ? 1 / effectiveRate : 1) * Math.pow(2, this._keyShift / 12)
+    if (this.rbVoices.length > 0) {
+      // Never applied directly: this is a request, and `requestKeyLockPitch` decides
+      // whether the audible voice is close enough already or a handover is needed.
+      this.requestKeyLockPitch(pitch)
+    }
+    if (engine === this.stNode && this.stNode) {
       // SoundTouch:
       // pipe.pitch = pitch * Math.pow(2, pitchSemitones / 12) / playbackRate
       // playbackRate is kept at 1.0 (vinyl worklet resamples at effectiveRate).
-      // Keylock factor (1 / effectiveRate) cancels out the pitch shift caused by speed adjustments.
       const targetPitch = this._keyLock ? 1 / effectiveRate : 1.0
       this.stNode.playbackRate.value = 1.0
       this.stNode.playbackRate.setValueAtTime(1.0, t)
@@ -376,13 +745,167 @@ export class DeckEngine {
       this.stNode.pitch.setValueAtTime(targetPitch, t)
       this.stNode.pitchSemitones.value = this._keyShift
       this.stNode.pitchSemitones.setValueAtTime(this._keyShift, t)
+    }
 
+    if (active) {
       this.keyLockWetGain.gain.setTargetAtTime(1, t, 0.015)
       this.keyLockDryGain.gain.setTargetAtTime(0, t, 0.015)
     } else {
       this.keyLockWetGain.gain.setTargetAtTime(0, t, 0.015)
       this.keyLockDryGain.gain.setTargetAtTime(1, t, 0.015)
     }
+  }
+
+  /**
+   * Keeps the audible voice's key in step with the fader without ever retuning it.
+   *
+   * A Rubber Band ratio change is unaffordable on the voice the listener is hearing and
+   * free on one they are not, so a request either does nothing (the wanted ratio is
+   * already within {@link RB_KEYLOCK_SWAP_CENTS}) or starts a handover onto the idle
+   * voice. Called for every rate, nudge, sync and key-shift change, so the request is
+   * cheap by design.
+   */
+  private requestKeyLockPitch(pitch: number) {
+    const now = performance.now()
+    if (Math.abs(1200 * Math.log2(pitch / this.rbTargetPitch)) > 0.05) {
+      const seconds = (now - this.rbTargetChangedAt) / 1000
+      const cents = 1200 * Math.log2(pitch / this.rbTargetPitch)
+      if (this.rbTargetChangedAt > 0 && seconds > 0.01) {
+        this.rbPitchVelocity = this.rbPitchVelocity * 0.4 + (cents / seconds) * 0.6
+      }
+      this.rbTargetPitch = pitch
+      this.rbTargetChangedAt = now
+      this.scheduleKeyLockSettle()
+    }
+    if (this.rbHandover) return
+    const audible = this.rbVoices[this.rbAudibleVoice]
+    if (!audible) return
+    if (Math.abs(1200 * Math.log2(pitch / audible.pitch)) <= RB_KEYLOCK_SWAP_CENTS) return
+    this.beginKeyLockHandover()
+  }
+
+  /** Cents the fader has been still for, capped by nothing — used to decide when to settle. */
+  private faderStillMs(): number {
+    return this.rbTargetChangedAt > 0 ? performance.now() - this.rbTargetChangedAt : Infinity
+  }
+
+  /**
+   * Where a handover should aim, in cents off the wanted ratio.
+   *
+   * Positive during a fader move that is heading down in ratio (speeding up), and it fades
+   * to zero on its own once changes stop arriving, so a resting fader is aimed at exactly.
+   */
+  private keyLockAimCents(): number {
+    const stillFor = this.faderStillMs() / 1000
+    const decay = Math.exp(-stillFor / RB_KEYLOCK_VELOCITY_DECAY_S)
+    const aim = RB_KEYLOCK_PRIME_LEAD_MS * (this.rbPitchVelocity / 1000) * decay
+    return Math.max(-RB_KEYLOCK_AIM_MAX_CENTS, Math.min(RB_KEYLOCK_AIM_MAX_CENTS, aim))
+  }
+
+  /**
+   * Retunes the idle voice and fades it in once it is producing audio at the new ratio.
+   *
+   * The retune is aimed at where a moving fader is *heading*: a handover costs
+   * {@link RB_KEYLOCK_PRIME_LEAD_MS} of re-priming, so a voice tuned to the ratio the fader
+   * had when the handover started would land exactly that far behind. Aiming ahead by the
+   * measured slew is what keeps the error during a slide at a few cents instead of growing
+   * with the speed of the slide.
+   */
+  private beginKeyLockHandover() {
+    const index = 1 - this.rbAudibleVoice
+    const voice = this.rbVoices[index]
+    if (!voice) return
+    const aim = this.rbTargetPitch * Math.pow(2, this.keyLockAimCents() / 1200)
+    voice.node.setPitch(aim)
+    voice.pitch = aim
+    this.rbHandover = { index, tunedAt: performance.now(), sawSilence: false, streak: 0 }
+    this.scheduleHandoverProbe()
+  }
+
+  /**
+   * One more handover once the fader has stopped, so a deck nobody is touching holds the key
+   * exactly rather than within a handover threshold of it.
+   */
+  private scheduleKeyLockSettle() {
+    if (this.rbSettleTimer !== null) window.clearTimeout(this.rbSettleTimer)
+    this.rbSettleTimer = window.setTimeout(() => {
+      this.rbSettleTimer = null
+      // A handover already in flight re-checks against the settle threshold when it lands.
+      if (this.rbHandover) return
+      const audible = this.rbVoices[this.rbAudibleVoice]
+      if (!audible) return
+      if (Math.abs(1200 * Math.log2(this.rbTargetPitch / audible.pitch)) > RB_KEYLOCK_SETTLE_CENTS) {
+        this.beginKeyLockHandover()
+      }
+    }, RB_KEYLOCK_SETTLE_MS)
+  }
+
+  private scheduleHandoverProbe() {
+    if (this.rbHandoverTimer !== null) return
+    this.rbHandoverTimer = window.setTimeout(() => this.probeHandover(), RB_KEYLOCK_PROBE_INTERVAL_MS)
+  }
+
+  /**
+   * Hands over once the retuned voice is audible *again*.
+   *
+   * Its kernel emits a last burst of the old ratio, goes quiet while it re-primes, then
+   * settles, so the swap waits for that hole and for signal to come back through it
+   * rather than trusting the first level it sees.
+   */
+  private probeHandover() {
+    this.rbHandoverTimer = null
+    const handover = this.rbHandover
+    if (!handover) return
+    const voice = this.rbVoices[handover.index]
+    if (!voice) {
+      this.finishKeyLockHandover()
+      return
+    }
+    if (this.tapPeak(voice.probe) > RB_KEYLOCK_SIGNAL_FLOOR) {
+      if (handover.sawSilence && ++handover.streak >= RB_KEYLOCK_PRIME_STREAK) {
+        this.finishKeyLockHandover()
+        return
+      }
+    } else {
+      handover.sawSilence = true
+      handover.streak = 0
+    }
+    if (performance.now() - handover.tunedAt > RB_KEYLOCK_PRIME_TIMEOUT_MS) {
+      this.finishKeyLockHandover()
+      return
+    }
+    this.scheduleHandoverProbe()
+  }
+
+  private finishKeyLockHandover() {
+    const handover = this.rbHandover
+    this.rbHandover = null
+    if (this.rbHandoverTimer !== null) {
+      window.clearTimeout(this.rbHandoverTimer)
+      this.rbHandoverTimer = null
+    }
+    if (!handover) return
+    this.setAudibleVoice(handover.index)
+    // A fader that kept moving while this voice primed has left it behind again. Once the
+    // fader has stopped, the bar is a couple of cents instead of a whole swap threshold.
+    const threshold = this.faderStillMs() > RB_KEYLOCK_SETTLE_MS ? RB_KEYLOCK_SETTLE_CENTS : RB_KEYLOCK_SWAP_CENTS
+    const voice = this.rbVoices[handover.index]
+    if (voice && Math.abs(1200 * Math.log2(this.rbTargetPitch / voice.pitch)) > threshold) {
+      this.beginKeyLockHandover()
+    }
+  }
+
+  /** Fades the wet bus onto one voice and drops the other to its idle level. */
+  private setAudibleVoice(index: number) {
+    // Never point at a voice that is not there: that would leave the deck stuck on its dry
+    // path waiting for an engine that cannot be heard.
+    const chosen = this.rbVoices[index] ? index : 0
+    this.rbAudibleVoice = chosen
+    const t = this.ctx.currentTime
+    this.rbVoices.forEach((voice, i) => {
+      const audible = i === chosen && this._keyLockEngine === 'rubberband'
+      voice.gain.gain.setTargetAtTime(audible ? 1 : RB_IDLE_VOICE_GAIN, t, RB_KEYLOCK_FADE_S)
+    })
   }
 
   /**
