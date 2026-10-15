@@ -112,6 +112,11 @@ export class AudioEngine {
       B: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady, soundTouchReady),
     }
 
+    // Mirror the Master Tempo onto both decks. The SCR cutter reads it as the
+    // tempo to play its sample at when the deck has no track of its own.
+    this.decks.A.setMasterBpm(this.masterBpm)
+    this.decks.B.setMasterBpm(this.masterBpm)
+
     this.setCrossfade(0)
     this.startPllLoop()
   }
@@ -200,6 +205,10 @@ export class AudioEngine {
   setMasterBpm(bpm: number, syncDecks = true) {
     const validBpm = Math.max(20, Math.min(300, Math.round(bpm * 10) / 10))
     this.masterBpm = validBpm
+    // The decks mirror this for the SCR cutter's fallback tempo, whether or not
+    // the pitch faders are being re-driven below.
+    this.decks.A.setMasterBpm(validBpm)
+    this.decks.B.setMasterBpm(validBpm)
     if (syncDecks) {
       // fromSync=true so locked SYNC is not silently disengaged by a master BPM edit.
       const ownA = this.decks.A.localBpm

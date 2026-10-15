@@ -154,6 +154,33 @@ interface WorkletMessage {
  * When keyShift is adjusted, pitch is transposed by +/- 12 semitones.
  * When scratching, bypassing or rate == 1.0, clean direct path is used.
  */
+
+/**
+ * The SCR cutter is a *recorded* drum loop rather than a synthesis: the button
+ * fires `public/sounds/cutter.audio` (a copy of "Phat Drum 1.wav") once, at the
+ * deck's tempo, so the chop stays in time with the music instead of drifting
+ * against it. See {@link DeckEngine.triggerCutter}.
+ */
+
+/** Tempo the cutter loop was recorded at; `playbackRate` = deck tempo / this. */
+const CUTTER_SAMPLE_BPM = 120
+
+/** Trim on the loop, so the chop sits with the track rather than over it. */
+const CUTTER_LEVEL = 1
+
+/**
+ * Rate clamps. The deck's 20–300 BPM range maps to 0.17–2.5x; these keep a
+ * mis-detected tempo from turning the chop into a squeak or a sub-bass crawl.
+ */
+const CUTTER_MIN_RATE = 0.5
+const CUTTER_MAX_RATE = 2
+
+/**
+ * A re-press restarts the chop, and the outgoing one is faded over this instead
+ * of being cut dead — a hard `stop()` mid-waveform clicks.
+ */
+const CUTTER_RETRIGGER_FADE_S = 0.008
+
 export class DeckEngine {
   readonly ctx: AudioContext
   readonly analyser: AnalyserNode
@@ -219,6 +246,28 @@ export class DeckEngine {
   private _fxWet = 0.5
   private _fxBeats = 0.5
   private _slipMode = false
+
+  // ----- SCR cutter sample -----
+  /**
+   * Where the cutter loop enters the channel strip. Tapped in ahead of the EQ so
+   * the chop is shaped by the same EQ / filter / fader / crossfader as the track,
+   * but after autoGain/trim — the loop is already mastered, so it should not be
+   * re-normalised against whatever track happens to be loaded.
+   */
+  private readonly cutterGain: GainNode
+  /** Decoded cutter loop, kept for the session. */
+  private cutterBuffer: AudioBuffer | null = null
+  /** In-flight fetch/decode, so a double-press does not decode the file twice. */
+  private cutterLoad: Promise<AudioBuffer | null> | null = null
+  /** The chop currently sounding, so a re-press can fade the old one out. */
+  private cutterVoice: { source: AudioBufferSourceNode; gain: GainNode } | null = null
+  /**
+   * Top-level Master Tempo, mirrored here by {@link AudioEngine.setMasterBpm}.
+   * The cutter follows this deck's own tempo first (see
+   * {@link DeckEngine.cutterPlaybackRate}); this is the fallback for a deck that
+   * has no track of its own to read a tempo from.
+   */
+  private _masterBpm = 128
 
   private vinylNode: AudioWorkletNode | null = null
   private pendingMessages: { msg: unknown; transfer?: Transferable[] }[] = []
@@ -329,6 +378,12 @@ export class DeckEngine {
     this.fader.connect(this.analyser)
     this.analyser.connect(this.xfade)
     this.xfade.connect(destination)
+
+    // SCR cutter sample: built up front (but silent until triggered) so
+    // `triggerCutter` never has to touch the graph while the deck is playing.
+    this.cutterGain = ctx.createGain()
+    this.cutterGain.gain.value = 1
+    this.cutterGain.connect(this.eqLow)
 
     // ----- FX chains -----
     this.echoSend = ctx.createGain()
@@ -928,6 +983,20 @@ export class DeckEngine {
     return Math.round(local * this._rate * 100) / 100
   }
 
+  /**
+   * The top-level Master Tempo, mirrored onto the deck so the cutter has a tempo
+   * to follow even before a track is loaded. Kept as a plain setter rather than
+   * an `emit()`ing one: it is a read-only mirror of `AudioEngine.masterBpm`, which
+   * emits for itself.
+   */
+  get masterBpm(): number {
+    return this._masterBpm
+  }
+
+  setMasterBpm(bpm: number) {
+    if (Number.isFinite(bpm) && bpm > 0) this._masterBpm = bpm
+  }
+
   /** Local beat length in seconds at `time`. */
   beatLengthAt(time = this.position): number {
     const grid = this.track?.grid
@@ -1488,97 +1557,112 @@ export class DeckEngine {
     this.fxDecayRaf = requestAnimationFrame(step)
   }
 
+  /**
+   * SCR — forward cutter.
+   *
+   * Fires the recorded cutter loop once, played back at this deck's tempo so the
+   * chop stays in time with the music. It replaced a synthesised 8-chop RAF
+   * pattern: a sketch built from a running playhead cannot reproduce the detail
+   * the recording already carries (the hat grid, the kick, the reverse bleed that
+   * makes a real cutter buzz rather than click).
+   *
+   * The sample is 2 beats at {@link CUTTER_SAMPLE_BPM}, so `playbackRate` is just
+   * the tempo ratio — the loop then spans the same two beats it does at its own
+   * tempo, whatever the deck is running at.
+   */
   async triggerCutter() {
-    // Cutter modeled on D:\Music\keybpm-test\cutter.wav (analysis below).
-    //
-    // The reference is a forward-only cutter: 8 chops over ~1.04 s with a
-    // (play ~56 ms) + (cut ~66 ms) cell. Critically the "cut" is NOT silent
-    // — it carries attenuated reverse audio (cut max_abs ≈ 0.4–0.5 of the
-    // chop peak). That continuous low-level reverse stroke is what gives a
-    // real cutter its buzzy, slightly-rattling character instead of
-    // stop-start clicks.
-    //
-    // Chops alternate 51/61 ms (the D/B distinction in "DeBa"), but at
-    // sub-16ms granularity RAF timing can't reproduce that difference
-    // reliably, so we use a single 56 ms play / 66 ms cut cell repeated
-    // 8 times.
-    //
-    // The pattern is BPM-locked to 2 beats (8 sixteenth-note cells). At the
-    // ~119 BPM of the reference recording that is 2 × 60/119 ≈ 1.008 s, which
-    // reproduces cutter.wav almost exactly — but locking to the deck tempo
-    // keeps the chops rhythmically useful at any BPM instead of drifting.
-    const NUM_CHOPS = 8
-    const PLAY_FRACTION = 0.459 // measured: 56 ms play / 122 ms cell
-    const PLAY_RATE = 3.2       // forward vinyl speed during the chop
-    const CUT_RATE = -1.6       // reverse vinyl speed during the cut (slower
-                                // than the forward stroke, like a real cutter)
-    const CUT_GAIN = 0.45       // xfade gain during the cut — NOT zero, so the
-                                // reverse stroke bleeds through (matches the
-                                // reference's ~45% cut-to-peak ratio)
-
-    const bpm = this.effectiveBpm ?? 119
-    const durationMs = (60 / bpm) * 1000 * 2 // 2 beats
-    const cellMs = durationMs / NUM_CHOPS
-    const CHOP_PLAY_MS = cellMs * PLAY_FRACTION
-
     if (!this.track) return
-    if (this.fxDecayRaf) {
-      cancelAnimationFrame(this.fxDecayRaf)
-      this.fxDecayRaf = null
-    }
-    const wasPlaying = this._playing
-    await this.scratchBegin()
-    const start = performance.now()
-    const isFlux = this._slipMode
+    if (this.ctx.state === 'suspended') await this.ctx.resume()
 
-    // State so each cell-boundary fires its xfade/scratch transitions exactly
-    // once, regardless of RAF jitter.
-    let lastCell = -1
-    let inCut = false
+    const buffer = await this.loadCutterSample()
+    if (!buffer) return
 
-    const step = () => {
-      const elapsed = performance.now() - start
-      const p = Math.min(1, elapsed / durationMs)
-      const t = Math.min(durationMs, elapsed)
+    const t0 = this.ctx.currentTime
 
-      const cellIndex = Math.min(NUM_CHOPS - 1, Math.floor(t / cellMs))
-      const phaseMs = t - cellIndex * cellMs
-      const enteredNewCell = cellIndex !== lastCell
-
-      if (enteredNewCell) {
-        // Top of a fresh chop: snap xfade to full open, drive forward.
-        this.setCrossfadeGain(1)
-        this.scratchMove(PLAY_RATE)
-        inCut = false
-        lastCell = cellIndex
-      } else if (phaseMs >= CHOP_PLAY_MS && !inCut) {
-        // Crossed into the cut slice: reverse the record AND drop xfade to
-        // CUT_GAIN (not zero — the reference's cuts carry attenuated audio).
-        this.scratchMove(CUT_RATE)
-        this.setCrossfadeGain(CUT_GAIN)
-        inCut = true
-      } else if (phaseMs < CHOP_PLAY_MS && inCut) {
-        // Defensive: re-entered the play slice (clock drift) — reopen.
-        this.setCrossfadeGain(1)
-        this.scratchMove(PLAY_RATE)
-        inCut = false
-      }
-
-      if (p < 1) {
-        this.fxDecayRaf = requestAnimationFrame(step)
-      } else {
-        this.fxDecayRaf = null
-        // Restore xfade to fully open so the next track/transition is unaffected.
-        this.setCrossfadeGain(1)
-        this.scratchEnd()
-        if (isFlux || wasPlaying) {
-          if (!this._playing) void this.play()
-        }
+    // Re-press: fade the outgoing chop rather than cutting it dead.
+    const prev = this.cutterVoice
+    this.cutterVoice = null
+    if (prev) {
+      try {
+        prev.gain.gain.cancelScheduledValues(t0)
+        prev.gain.gain.setValueAtTime(prev.gain.gain.value, t0)
+        prev.gain.gain.linearRampToValueAtTime(0, t0 + CUTTER_RETRIGGER_FADE_S)
+        prev.source.stop(t0 + CUTTER_RETRIGGER_FADE_S)
+      } catch {
+        // Already stopped or never started — nothing to fade.
       }
     }
-    // Open the xfade from the very first frame so the first chop is audible.
-    this.setCrossfadeGain(1)
-    this.fxDecayRaf = requestAnimationFrame(step)
+
+    const source = this.ctx.createBufferSource()
+    source.buffer = buffer
+    // Rate 1.0 plays the buffer at its own sample rate whatever the context runs
+    // at: the resampler lives inside the node, so there is no 44.1/48 kHz term
+    // to correct for here.
+    source.playbackRate.value = this.cutterPlaybackRate()
+
+    const gain = this.ctx.createGain()
+    gain.gain.value = CUTTER_LEVEL
+
+    source.connect(gain)
+    gain.connect(this.cutterGain)
+
+    source.onended = () => {
+      if (this.cutterVoice?.source === source) this.cutterVoice = null
+      try {
+        source.disconnect()
+        gain.disconnect()
+      } catch {
+        // Already torn down by the re-press path.
+      }
+    }
+
+    source.start(t0)
+    this.cutterVoice = { source, gain }
+  }
+
+  /**
+   * Playback rate that lands the cutter loop on this deck's tempo.
+   *
+   * The deck's own tempo wins: the chop is a scratch performed on *this* deck, so
+   * it should match what the deck is playing. The Master Tempo field is only the
+   * fallback for a deck with no track to read a tempo from.
+   */
+  private cutterPlaybackRate(): number {
+    const bpm = this.effectiveBpm ?? this._masterBpm
+    if (!bpm || bpm <= 0) return 1
+    const rate = bpm / CUTTER_SAMPLE_BPM
+    return Math.min(CUTTER_MAX_RATE, Math.max(CUTTER_MIN_RATE, rate))
+  }
+
+  /**
+   * The cutter loop, fetched and decoded once per deck and kept for the session.
+   *
+   * Uses the same asset convention as `public/sounds/*.audio` — plain RIFF/WAVE
+   * with a renamed extension, so the file is served as a static asset without the
+   * dev server trying to hand it to a media element (see `src/lib/audioEngine.ts`).
+   */
+  private async loadCutterSample(): Promise<AudioBuffer | null> {
+    if (this.cutterBuffer) return this.cutterBuffer
+    if (!this.cutterLoad) {
+      const url = `${import.meta.env.BASE_URL}sounds/cutter.audio`
+      this.cutterLoad = fetch(url)
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.arrayBuffer()
+        })
+        .then(bytes => this.ctx.decodeAudioData(bytes))
+        .then(buf => {
+          this.cutterBuffer = buf
+          return buf
+        })
+        .catch(err => {
+          console.warn('cutter sample failed to load:', err)
+          // Allow a later press to retry rather than caching the failure.
+          this.cutterLoad = null
+          return null
+        })
+    }
+    return this.cutterLoad
   }
 
   // ----- FX -----
