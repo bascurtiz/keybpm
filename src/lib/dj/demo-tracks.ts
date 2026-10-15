@@ -1,3 +1,4 @@
+import { computeAutoGain } from './autogain'
 import { computePeaks } from './peaks'
 import type { Track } from './types'
 
@@ -56,7 +57,9 @@ export async function createDemoTracks(): Promise<Track[]> {
       bpm: spec.bpm,
       grid: { bpm: spec.bpm, firstBeat: 0, firstBar: 0, beatsPerBar: 4 },
       key: { name: spec.keyName, camelot: spec.camelot },
-      gain: 1,
+      // Normalised like any other track. Hardcoding 1 here meant the demo decks
+      // did not match each other or anything else at the same fader position.
+      gain: computeAutoGain(buffer),
       buffer,
       peaks: computePeaks(buffer),
     })

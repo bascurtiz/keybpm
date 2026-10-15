@@ -1,5 +1,6 @@
 import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
 import { createRubberBandNode, type RubberBandNode } from './rubberband-node'
+import { measureLevel, TARGET_RMS } from './autogain'
 import { HOT_CUE_COUNT, type BeatGrid, type FxType, type LoopRegion, type Track } from './types'
 import {
   barLengthAt,
@@ -165,8 +166,24 @@ interface WorkletMessage {
 /** Tempo the cutter loop was recorded at; `playbackRate` = deck tempo / this. */
 const CUTTER_SAMPLE_BPM = 120
 
-/** Trim on the loop, so the chop sits with the track rather than over it. */
-const CUTTER_LEVEL = 1
+/**
+ * Level of the chop relative to the track it is scratching over. `1` puts the
+ * chop at the same RMS as the auto-gained track; lower values tuck it under.
+ * This is the one number to turn if the chop reads too loud or too quiet
+ * across the board — see {@link DeckEngine.cutterLevel}.
+ */
+const CUTTER_TRACK_LEVEL = 1
+
+/**
+ * Used only when the track or the sample has no measured loudness (a buffer too
+ * short to analyse, or a track loaded from a cache written before loudness was
+ * recorded). Roughly what `CUTTER_TRACK_LEVEL` resolves to on typical material.
+ */
+const CUTTER_LEVEL_FALLBACK = 1.4
+
+/** Guard rails on the derived level, so a mis-measured buffer can't blow up the mix. */
+const CUTTER_GAIN_MIN = 0.25
+const CUTTER_GAIN_MAX = 4
 
 /**
  * Rate clamps. The deck's 20–300 BPM range maps to 0.17–2.5x; these keep a
@@ -180,6 +197,26 @@ const CUTTER_MAX_RATE = 2
  * of being cut dead — a hard `stop()` mid-waveform clicks.
  */
 const CUTTER_RETRIGGER_FADE_S = 0.008
+
+/**
+ * Pressing this close to a grid beat counts as "on the beat" and fires at once,
+ * rather than waiting a whole beat. Matches the hot-cue quantiser's window.
+ */
+const CUTTER_QUANT_GRACE_S = 0.035
+
+/**
+ * Cap on the output-latency allowance added to that window. A driver that
+ * reports something absurd should not be able to swallow half a beat.
+ */
+const CUTTER_MAX_LATENCY_ALLOWANCE_S = 0.08
+
+/** A chop, either already sounding or scheduled for the next grid beat. */
+type CutterVoice = {
+  source: AudioBufferSourceNode
+  gain: GainNode
+  /** Context time the source will sound at. */
+  startAt: number
+}
 
 export class DeckEngine {
   readonly ctx: AudioContext
@@ -249,18 +286,27 @@ export class DeckEngine {
 
   // ----- SCR cutter sample -----
   /**
-   * Where the cutter loop enters the channel strip. Tapped in ahead of the EQ so
-   * the chop is shaped by the same EQ / filter / fader / crossfader as the track,
-   * but after autoGain/trim — the loop is already mastered, so it should not be
-   * re-normalised against whatever track happens to be loaded.
+   * Bus the chop enters the channel strip on. Tapped in ahead of the EQ so the
+   * chop is shaped by the same EQ / filter / fader / crossfader as the track,
+   * but after autoGain/trim: those two nodes belong to the *track's* level, and
+   * the chop is a separate recording with its own loudness, so it normalises
+   * itself instead ({@link DeckEngine.cutterLevel}) rather than riding the
+   * track's gain — which would scale the chop by however much that particular
+   * track happened to need, and bury it under a loud one.
    */
   private readonly cutterGain: GainNode
   /** Decoded cutter loop, kept for the session. */
   private cutterBuffer: AudioBuffer | null = null
+  /** Loudness of the loop, measured once on decode. See {@link cutterLevel}. */
+  private cutterLoudness: number | null = null
   /** In-flight fetch/decode, so a double-press does not decode the file twice. */
   private cutterLoad: Promise<AudioBuffer | null> | null = null
-  /** The chop currently sounding, so a re-press can fade the old one out. */
-  private cutterVoice: { source: AudioBufferSourceNode; gain: GainNode } | null = null
+  /**
+   * The chop currently sounding — or, under QUANT, the one already scheduled for
+   * the next grid beat. `startAt` is the context time it will sound at, which is
+   * what tells a re-press whether to fade it out or cancel it outright.
+   */
+  private cutterVoice: CutterVoice | null = null
   /**
    * Top-level Master Tempo, mirrored here by {@link AudioEngine.setMasterBpm}.
    * The cutter follows this deck's own tempo first (see
@@ -1124,6 +1170,9 @@ export class DeckEngine {
   // ----- track loading -----
 
   loadTrack(track: Track) {
+    // A chop queued for a beat of the *old* track would sound at the old
+    // track's level over the new one, against a grid that is no longer loaded.
+    this.cancelPendingCutter()
     this.track = track
     this._playing = false
     this._scratching = false
@@ -1206,6 +1255,9 @@ export class DeckEngine {
       this.pendingQuantizedCue = null
       this.pendingQuantizedIndex = null
     }
+    // A chop queued for the next grid beat is queued against a playhead that is
+    // about to stop moving, so that beat is never going to arrive.
+    this.cancelPendingCutter()
     if (!this._playing && !instant) return
     this.post({ t: 'pause', instant })
     this._playing = false
@@ -1288,6 +1340,10 @@ export class DeckEngine {
 
   seek(time: number) {
     if (!this.track) return
+    // Moving the playhead re-phases the grid, so a chop queued against the old
+    // position would land off-beat. This is the one path every jump goes
+    // through — hot cues, beat jumps, CUE — so the cancel belongs here.
+    this.cancelPendingCutter()
     const t = Math.min(Math.max(time, 0), this.duration)
     if (this._cuePreviewing && Math.abs(t - this.cuePoint) > 0.01) {
       this._cuePreviewing = false
@@ -1561,14 +1617,20 @@ export class DeckEngine {
    * SCR — forward cutter.
    *
    * Fires the recorded cutter loop once, played back at this deck's tempo so the
-   * chop stays in time with the music. It replaced a synthesised 8-chop RAF
-   * pattern: a sketch built from a running playhead cannot reproduce the detail
-   * the recording already carries (the hat grid, the kick, the reverse bleed that
-   * makes a real cutter buzz rather than click).
+   * chop stays in time with the music, and at a level derived from whatever is
+   * on the deck so it sits with the track rather than under it. It replaced a
+   * synthesised 8-chop RAF pattern: a sketch built from a running playhead
+   * cannot reproduce the detail the recording already carries (the hat grid, the
+   * kick, the reverse bleed that makes a real cutter buzz rather than click).
    *
    * The sample is 2 beats at {@link CUTTER_SAMPLE_BPM}, so `playbackRate` is just
    * the tempo ratio — the loop then spans the same two beats it does at its own
    * tempo, whatever the deck is running at.
+   *
+   * Under QUANT the chop is *scheduled* rather than played: `source.start()` is
+   * handed the context time of the next grid beat, so the alignment is sample
+   * accurate. A `setTimeout` would have to be right about how long the main
+   * thread is busy, and the chop would drift by however much it was not.
    */
   async triggerCutter() {
     if (!this.track) return
@@ -1579,19 +1641,11 @@ export class DeckEngine {
 
     const t0 = this.ctx.currentTime
 
-    // Re-press: fade the outgoing chop rather than cutting it dead.
+    // Re-press: retire whatever the last press left behind — fade a chop that is
+    // sounding, cancel one that is still waiting for its beat.
     const prev = this.cutterVoice
     this.cutterVoice = null
-    if (prev) {
-      try {
-        prev.gain.gain.cancelScheduledValues(t0)
-        prev.gain.gain.setValueAtTime(prev.gain.gain.value, t0)
-        prev.gain.gain.linearRampToValueAtTime(0, t0 + CUTTER_RETRIGGER_FADE_S)
-        prev.source.stop(t0 + CUTTER_RETRIGGER_FADE_S)
-      } catch {
-        // Already stopped or never started — nothing to fade.
-      }
-    }
+    if (prev) this.retireCutterVoice(prev, t0)
 
     const source = this.ctx.createBufferSource()
     source.buffer = buffer
@@ -1601,10 +1655,12 @@ export class DeckEngine {
     source.playbackRate.value = this.cutterPlaybackRate()
 
     const gain = this.ctx.createGain()
-    gain.gain.value = CUTTER_LEVEL
+    gain.gain.value = this.cutterLevel()
 
     source.connect(gain)
     gain.connect(this.cutterGain)
+
+    const startAt = t0 + this.cutterQuantizeDelay()
 
     source.onended = () => {
       if (this.cutterVoice?.source === source) this.cutterVoice = null
@@ -1616,8 +1672,131 @@ export class DeckEngine {
       }
     }
 
-    source.start(t0)
-    this.cutterVoice = { source, gain }
+    source.start(startAt)
+    this.cutterVoice = { source, gain, startAt }
+  }
+
+  /**
+   * How far past a beat a press still counts as being *on* that beat.
+   *
+   * The deck's position runs ahead of what is coming out of the speakers by the
+   * output latency — the worklet advances as it renders, and the rendered audio
+   * is heard later. So a press made in time with the music reads as
+   * `outputLatency` past the beat, and with a bare 35 ms window a slow output
+   * path would push that press a whole beat late. Adding the latency back keeps
+   * the window measured against what the user actually heard.
+   */
+  private cutterGraceSeconds(): number {
+    const latency = this.ctx.outputLatency || this.ctx.baseLatency || 0
+    const allowance = Math.min(
+      CUTTER_MAX_LATENCY_ALLOWANCE_S,
+      Number.isFinite(latency) ? latency : 0,
+    )
+    return CUTTER_QUANT_GRACE_S + allowance
+  }
+
+  /**
+   * How long to hold the chop so it lands on a grid beat.
+   *
+   * Zero — fire now — when QUANT is off, when the deck is not running, or when
+   * the track has no grid: in each case there is no beat to wait for. Otherwise
+   * the chop waits for the *next* beat rather than snapping back to the previous
+   * one, so it never starts off-grid and never sounds before the press.
+   *
+   * A press inside the grace window ({@link cutterGraceSeconds}) counts as
+   * already being on the beat and fires at once. That is the compromise that
+   * keeps a press landing a few milliseconds early from being a whole beat late;
+   * the chop then starts within tens of milliseconds of the beat, which is as
+   * close as an instant response can be. Same rule the hot-cue quantiser uses.
+   */
+  private cutterQuantizeDelay(): number {
+    if (!this.quantMode || !this._playing) return 0
+
+    const grid = this.track?.grid
+    if (!grid) return 0
+
+    const pos = this.position
+    // Phase measured from the previous grid beat, so a variable-tempo grid
+    // resolves against the beat that is actually playing.
+    const beatIndex = Math.floor(beatIndexAt(grid, pos))
+    const elapsedInBeat = pos - beatTimeAt(grid, beatIndex)
+    if (elapsedInBeat < this.cutterGraceSeconds()) return 0
+
+    // Wait for the *next* beat's own time rather than a beat length from now:
+    // on a drifting grid the local beat length is a windowed average, so
+    // counting one out from the playhead lands a few milliseconds off the beat
+    // it was aiming at. `beatTimeAt` extrapolates past the last detected beat,
+    // so this is defined everywhere the playhead can be.
+    const nextBeat = beatTimeAt(grid, beatIndex + 1)
+    if (!(nextBeat > pos)) return 0
+
+    // The playhead covers track time at `_rate` per second of real time, so the
+    // wait has to be scaled by it or the chop lands late on a pitched deck.
+    const rate = this._rate > 0 ? this._rate : 1
+    return (nextBeat - pos) / rate
+  }
+
+  /**
+   * Stop a chop. One that has not sounded yet is cancelled outright — it never
+   * produced a waveform, so there is nothing to fade. One that is sounding is
+   * faded instead, because a hard `stop()` mid-waveform clicks.
+   */
+  private retireCutterVoice(voice: CutterVoice, now: number) {
+    try {
+      if (voice.startAt > now) {
+        // Stopping before the start time means the source never sounds.
+        voice.source.stop(now)
+        voice.source.disconnect()
+        voice.gain.disconnect()
+        return
+      }
+      voice.gain.gain.cancelScheduledValues(now)
+      voice.gain.gain.setValueAtTime(voice.gain.gain.value, now)
+      voice.gain.gain.linearRampToValueAtTime(0, now + CUTTER_RETRIGGER_FADE_S)
+      voice.source.stop(now + CUTTER_RETRIGGER_FADE_S)
+    } catch {
+      // Already stopped or never started — nothing left to retire.
+    }
+  }
+
+  /**
+   * Drop a chop that is waiting for its beat. The transport stopping is the one
+   * thing that can make a scheduled beat never arrive, so a queued chop has to
+   * go with it rather than sounding over a paused deck.
+   */
+  private cancelPendingCutter() {
+    const voice = this.cutterVoice
+    if (!voice || voice.startAt <= this.ctx.currentTime) return
+    this.cutterVoice = null
+    this.retireCutterVoice(voice, this.ctx.currentTime)
+  }
+
+  /**
+   * Level for the chop so it sits with whatever is on the deck.
+   *
+   * The deck normalises the track with `track.gain`, so the track leaves the
+   * channel at `track.loudness * track.gain`. The chop is a different recording
+   * with its own loudness, so matching it means normalising the sample to that
+   * same level. Applying the track's gain to the chop instead would be wrong in
+   * both directions: a track that needed heavy attenuation would drag the chop
+   * down with it, and the chop is not the thing that was too loud.
+   *
+   * The payoff is that the same sample sits correctly on a brickwalled master
+   * and on a quiet one — the track's auto-gain already put both at the same
+   * level, and the chop now follows that level instead of a fixed one.
+   */
+  private cutterLevel(): number {
+    const track = this.track
+    // `loudness` is absent on tracks analysed before it was recorded, so fall
+    // back to the reference the auto-gain was aiming for.
+    const trackLevel = track
+      ? (track.loudness ?? TARGET_RMS) * (track.gain || 1)
+      : TARGET_RMS
+
+    if (!this.cutterLoudness || !trackLevel) return CUTTER_LEVEL_FALLBACK
+
+    const level = (trackLevel * CUTTER_TRACK_LEVEL) / this.cutterLoudness
+    return Math.min(CUTTER_GAIN_MAX, Math.max(CUTTER_GAIN_MIN, level))
   }
 
   /**
@@ -1653,6 +1832,10 @@ export class DeckEngine {
         .then(bytes => this.ctx.decodeAudioData(bytes))
         .then(buf => {
           this.cutterBuffer = buf
+          // Measured once here rather than on every press: it is a full pass
+          // over the buffer, and the loop never changes. The loop is too short
+          // for the track loudness measure, so it uses its plain RMS.
+          this.cutterLoudness = measureLevel(buf)
           return buf
         })
         .catch(err => {

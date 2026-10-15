@@ -186,6 +186,13 @@ export interface Track {
   grid: BeatGrid | null
   key: TrackKeyInfo | null
   gain: number
+  /**
+   * Perceived loudness measured *before* {@link Track.gain} was applied, as the
+   * 90th percentile of 400 ms block RMS. `loudness * gain` is therefore the
+   * level the deck actually leaves the channel at, which is what other sources
+   * (the SCR cutter) normalise themselves against so they sit with the track.
+   */
+  loudness?: number
   buffer: AudioBuffer
   coverUrl?: string
   peaks: Float32Array

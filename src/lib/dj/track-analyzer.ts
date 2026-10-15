@@ -1,7 +1,7 @@
 import { detectAudioKey } from '@/lib/keyDetector'
 import { extractAudioMetadata } from '@/lib/audioMetadata'
 import { analyzeBeatGrid } from './beatgrid'
-import { computeAutoGain } from './autogain'
+import { computeAutoGain, measureLoudness } from './autogain'
 import { computePeaks } from './peaks'
 import { collapseGridToConstant } from './grid'
 import type { Track, BeatGrid } from './types'
@@ -126,6 +126,7 @@ export async function analyzeTrackFile(
   })
 
   const peaks = computePeaks(buffer)
+  const loudness = measureLoudness(buffer)
   const gain = computeAutoGain(buffer)
 
   // Use precomputed or detected BPM & Key
@@ -175,6 +176,7 @@ export async function analyzeTrackFile(
     grid: gridResult,
     key,
     gain,
+    loudness: loudness ?? undefined,
     buffer,
     coverUrl,
     peaks,

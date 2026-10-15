@@ -32,14 +32,15 @@ const gitBranch = git('rev-parse --abbrev-ref HEAD')
 const gitDirty = (git('status --porcelain --untracked-files=no') ?? '') !== ''
 
 /**
- * Auto-derived version: package.json base + commit count + short SHA, so the
- * number advances on its own with every commit instead of needing a manual
- * bump. Falls back to the bare package version when git isn't available.
+ * Auto-derived version: package.json's semver plus the commit count, so the
+ * number still advances on its own with every commit instead of needing a
+ * manual bump. Kept to plain dotted digits — `1.0.1.124` — because the SHA,
+ * branch and dirty flag are build provenance, not part of the version, and
+ * they made the chip unreadable. They live in the tooltip instead.
+ *
+ * Falls back to the bare package version when git isn't available.
  */
-const buildMeta = [gitCommits, gitSha].filter(Boolean).join('.')
-const version = buildMeta
-  ? `${pkg.version}+${buildMeta}${gitDirty ? '.dirty' : ''}`
-  : pkg.version
+const version = gitCommits ? `${pkg.version}.${gitCommits}` : pkg.version
 
 export default defineConfig({
   base: process.env.BASE_PATH || '/',

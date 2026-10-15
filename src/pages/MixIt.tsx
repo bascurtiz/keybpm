@@ -201,7 +201,7 @@ export function MixIt() {
               }`}
               title={[
                 `Version: ${__APP_VERSION__}`,
-                `Built:   ${__BUILD_DATE__}`,
+                `Built:   ${BUILD_STAMP}`,
                 `Commit:  ${__GIT_SHA__}`,
                 `Branch:  ${__GIT_BRANCH__}`,
                 __GIT_DIRTY__ ? 'Note:    built with uncommitted changes' : null,
