@@ -9,7 +9,7 @@ import { shortKey } from '@/lib/format'
 import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
 import { Knob } from './Knob'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
-import { MixRenderButton } from './MixRenderButton'
+// import { MixRenderButton } from './MixRenderButton'
 import { youtubeThumbUrl } from '@/lib/youtube'
 
 interface TraktorMiddleStripProps {
@@ -107,7 +107,12 @@ export function TraktorMiddleStrip({
   }, [deckA, deckB])
 
   const masterBpm =
-    deckA.effectiveBpm || deckB.effectiveBpm || (deckA.track?.bpm ?? deckB.track?.bpm ?? 128)
+    (deckA.playing && !deckB.playing ? deckA.effectiveBpm : null) ??
+    (deckB.playing && !deckA.playing ? deckB.effectiveBpm : null) ??
+    engine.masterBpm ??
+    deckA.effectiveBpm ??
+    deckB.effectiveBpm ??
+    (deckA.track?.bpm ?? deckB.track?.bpm ?? 128)
 
   return (
     <div className="w-full bg-[#1C1C1C] px-3 py-2 border-b border-[#282828] text-white select-none">
@@ -228,8 +233,8 @@ export function TraktorMiddleStrip({
             </select>
           </div>
 
-          {/* Capture + offline render to WAV */}
-          <MixRenderButton engine={engine} />
+          {/* Capture + offline render to WAV - hidden for now */}
+          {/* <MixRenderButton engine={engine} /> */}
         </div>
 
         {/* ================= RIGHT: DECK B INFO & OVERVIEW ================= */}

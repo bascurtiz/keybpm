@@ -11,7 +11,7 @@ import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
-import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
+// import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 export function MixIt() {
@@ -80,6 +80,12 @@ export function MixIt() {
       } else {
         deckB.loadTrack(analyzedTrack)
       }
+
+      // The loaded song's BPM dictates master BPM unless the other deck is already actively playing
+      const otherDeck = targetDeckId === 'A' ? deckB : deckA
+      if (!otherDeck.playing && analyzedTrack.bpm) {
+        engine.setMasterBpm(analyzedTrack.bpm, false)
+      }
     } catch (err: unknown) {
       if (loadGenRef.current[targetDeckId] !== gen) return
       console.error('Error analyzing DJ track:', err)
@@ -135,9 +141,12 @@ export function MixIt() {
         coverUrl: pending.metadata?.coverUrl,
         peaks: computePeaks(buffer),
       })
+      if (bpm) {
+        engine.setMasterBpm(bpm, false)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot transfer on mount
-  }, [deckA])
+  }, [deckA, engine])
 
   const onDrop = (targetDeckId: 'A' | 'B', e: React.DragEvent) => {
     e.preventDefault()
@@ -193,14 +202,14 @@ export function MixIt() {
         {/* Single Seamless Traktor DJ Hardware Chassis */}
         <div className="mt-4 w-full overflow-x-auto pb-2 flex justify-center">
           <div className="w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0">
-            {/* YouTube VJ hosts (mount players even when minimized / no video yet) */}
-            <YouTubeVideoOverlay
+            {/* YouTube VJ decks - hidden for now */}
+            {/* <YouTubeVideoOverlay
               crossfade={engine.crossfade}
               onEjectDeck={deckId => {
                 youtubeBridge.eject(deckId)
               }}
               onOpenLoadModal={deckId => setLoadModalDeck(deckId)}
-            />
+            /> */}
 
             {/* 1. TOP STRIP: METADATA, COLOR-CODED KEY & BPM, MINI WAVEFORMS, BEAT COUNTER */}
             <TraktorMiddleStrip

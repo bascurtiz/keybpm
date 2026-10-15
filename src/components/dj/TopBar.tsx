@@ -145,7 +145,12 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
   }, [deckA, deckB, engine])
 
   const masterBpm =
-    deckA.effectiveBpm || deckB.effectiveBpm || (deckA.track?.bpm ?? deckB.track?.bpm ?? 128)
+    (deckA.playing && !deckB.playing ? deckA.effectiveBpm : null) ??
+    (deckB.playing && !deckA.playing ? deckB.effectiveBpm : null) ??
+    engine.masterBpm ??
+    deckA.effectiveBpm ??
+    deckB.effectiveBpm ??
+    (deckA.track?.bpm ?? deckB.track?.bpm ?? 128)
 
   return (
     <div className="w-full bg-[#1C1C1C] px-3 pt-2 pb-1.5 border-b border-[#23252a] text-white select-none">

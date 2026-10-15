@@ -154,7 +154,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     }
   }
 
-  const triggerBackspin = async () => {
+  const triggerBabyScratch = async () => {
     const targets = fxAssign === 'A'
       ? [deckA]
       : fxAssign === 'B'
@@ -164,7 +164,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     const activeTargets = targets.length > 0 ? targets : [deckA]
     for (const target of activeTargets) {
       if (!target.track) continue
-      void target.triggerBackspin()
+      void target.triggerBabyScratch()
     }
   }
 
@@ -410,11 +410,11 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           </button>
           <button
             type="button"
-            onClick={triggerBackspin}
+            onClick={triggerBabyScratch}
             className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
-            title="Vinyl Backspin scratch effect"
+            title="Vinyl Baby Scratch effect"
           >
-            SPIN
+            SCR
           </button>
         </div>
 

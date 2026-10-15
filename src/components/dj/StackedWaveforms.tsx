@@ -349,32 +349,83 @@ export function StackedWaveforms({
         </div>
       )}
 
-      {/* Zoom controls embedded on top-left corner */}
-      <div className="absolute top-1.5 left-2 z-10 flex items-center gap-1">
+      {/* Deck A Left: Skip backwards to start (|◀) & Zoom controls */}
+      <div className="absolute top-1.5 left-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
-          onClick={zoomOut}
-          disabled={windowSeconds >= 18}
-          className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
-          title="Zoom out"
+          onClick={e => {
+            e.stopPropagation()
+            deckA.seek(0)
+          }}
+          disabled={!deckA.track}
+          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
+          title="Skip to start of Deck A (|◀)"
         >
-          −
+          <svg viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5" aria-hidden="true">
+            <path d="M2 3a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1zm11.196 1.402A1 1 0 0 0 11.667 4L5.333 7.333a1 1 0 0 0 0 1.334l6.334 3.333A1 1 0 0 0 13.196 11.4V4.602a1 1 0 0 0 0-.2z" />
+          </svg>
         </button>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={zoomOut}
+            disabled={windowSeconds >= 18}
+            className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
+            title="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={zoomIn}
+            disabled={windowSeconds <= 3}
+            className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
+            title="Zoom in"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Deck B Left: Skip backwards to start (|◀) */}
+      <div className="absolute top-[calc(50%+6px)] left-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
-          onClick={zoomIn}
-          disabled={windowSeconds <= 3}
-          className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
-          title="Zoom in"
+          onClick={e => {
+            e.stopPropagation()
+            deckB.seek(0)
+          }}
+          disabled={!deckB.track}
+          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
+          title="Skip to start of Deck B (|◀)"
         >
-          +
+          <svg viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5" aria-hidden="true">
+            <path d="M2 3a1 1 0 0 1 1 1v8a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1zm11.196 1.402A1 1 0 0 0 11.667 4L5.333 7.333a1 1 0 0 0 0 1.334l6.334 3.333A1 1 0 0 0 13.196 11.4V4.602a1 1 0 0 0 0-.2z" />
+          </svg>
         </button>
       </div>
 
-      {/* Beatgrid controls toggle button for Deck A (top lane) */}
+      {/* Deck A Right: SET BEAT 1 & GRID A controls */}
       <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation()
+            deckA.setBeat1AtPosition()
+          }}
+          disabled={!deckA.track}
+          className="h-5 px-2 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
+          title="Move Beat 1 downbeat anchor to the current playhead position"
+        >
+          <span className="text-[#34d399] font-mono">1</span>
+          <span>SET BEAT 1</span>
+        </button>
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -391,8 +442,22 @@ export function StackedWaveforms({
         </button>
       </div>
 
-      {/* Beatgrid controls toggle button for Deck B (bottom lane) */}
+      {/* Deck B Right: SET BEAT 1 & GRID B controls */}
       <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-1.5">
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation()
+            deckB.setBeat1AtPosition()
+          }}
+          disabled={!deckB.track}
+          className="h-5 px-2 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
+          title="Move Beat 1 downbeat anchor to the current playhead position"
+        >
+          <span className="text-[#c084fc] font-mono">1</span>
+          <span>SET BEAT 1</span>
+        </button>
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -793,25 +858,4 @@ function renderDeckLane({
     ctx.font = 'bold 9px Inter, ui-sans-serif, sans-serif'
     ctx.fillText(`${i + 1}`, x + 3, topY + 12)
   })
-
-  // 5. Main CUE Marker
-  if (deck.cuePoint !== null && deck.cuePoint >= 0) {
-    const xCue = (deck.cuePoint - tStart) / secPerPx
-    if (xCue >= 0 && xCue <= w) {
-      ctx.fillStyle = '#f59e0b' // Amber/Orange CUE
-      ctx.globalAlpha = 0.95
-      ctx.fillRect(xCue - 1, topY, 2, laneH)
-      // CUE badge at top
-      ctx.fillStyle = '#f59e0b'
-      ctx.beginPath()
-      ctx.roundRect(xCue - 13, topY + 2, 26, 12, 2)
-      ctx.fill()
-      ctx.fillStyle = '#000000'
-      ctx.font = 'bold 8px Inter, ui-sans-serif, system-ui, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText('CUE', xCue, topY + 8)
-      ctx.globalAlpha = 1
-    }
-  }
 }

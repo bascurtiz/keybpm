@@ -1058,9 +1058,11 @@ export class DeckEngine {
     this._scratching = false
     this._cuePreviewing = false
     // Clear sync lock and key shift so a new track doesn't inherit the previous one's mix state.
-    // Pitch rate is intentionally kept (Traktor-like fader persistence).
+    // Reset pitch rate to 1.0 so track plays at its own native BPM.
     this.setSyncLock(false)
     this._keyShift = 0
+    this._rate = 1.0
+    this.post({ t: 'rate', rate: 1.0 })
     const startPos = track.grid?.firstBar && track.grid.firstBar > 0.03 ? track.grid.firstBar : 0
     this.posSeconds = startPos
     this.cuePoint = startPos
@@ -1478,6 +1480,36 @@ export class DeckEngine {
         } else {
           // When FLUX is off: really stop the track
           this.pause()
+        }
+      }
+    }
+    this.fxDecayRaf = requestAnimationFrame(step)
+  }
+
+  async triggerBabyScratch(durationMs = 480) {
+    if (!this.track) return
+    if (this.fxDecayRaf) {
+      cancelAnimationFrame(this.fxDecayRaf)
+      this.fxDecayRaf = null
+    }
+    const wasPlaying = this._playing
+    await this.scratchBegin()
+    const start = performance.now()
+    const isFlux = this._slipMode
+
+    const step = () => {
+      const elapsed = performance.now() - start
+      const p = Math.min(1, elapsed / durationMs)
+      // 2 rhythmic forward-backward baby scratch strokes with crisp vinyl speed
+      const rate = 2.4 * Math.sin(p * Math.PI * 4)
+      this.scratchMove(rate)
+      if (p < 1) {
+        this.fxDecayRaf = requestAnimationFrame(step)
+      } else {
+        this.fxDecayRaf = null
+        this.scratchEnd()
+        if (isFlux || wasPlaying) {
+          if (!this._playing) void this.play()
         }
       }
     }
