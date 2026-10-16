@@ -9,6 +9,16 @@ interface TraktorTransportBarProps {
   className?: string
 }
 
+/**
+ * How many beats an auto-fade takes, cycled by the value chip next to the `<<` / `>>`
+ * arrows. Both arrows share one value: the fade is a property of the move, not of the
+ * destination, so a left fade and a right fade of the same length is what a DJ expects.
+ * Deliberately independent of the 1/2/4/8/16/32 beat *loop* sizes — those are a loop
+ * control, and having them silently set the crossfade length made the loop buttons a
+ * hidden second job.
+ */
+const FADE_BEAT_STEPS = [4, 8, 16, 32, 64]
+
 export function TraktorTransportBar({ engine, className = '' }: TraktorTransportBarProps) {
   const deckA = engine.decks.A
   const deckB = engine.decks.B
@@ -30,31 +40,52 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     }
   }, [engine, deckA, deckB])
 
-  const [loopBeatsA, setLoopBeatsA] = useState(4)
-  const [loopBeatsB, setLoopBeatsB] = useState(4)
+  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(0)
+  const fadeBeats = FADE_BEAT_STEPS[fadeBeatsIdx]
+  const cycleFadeBeats = () => setFadeBeatsIdx(i => (i + 1) % FADE_BEAT_STEPS.length)
 
   // Auto-Fade animation state
   const autoFadeRafRef = useRef<number | null>(null)
   const [isFading, setIsFading] = useState<'left' | 'right' | null>(null)
 
+  /** Stop a fade in flight, leaving the crossfader wherever it got to. */
+  const abortAutoFade = () => {
+    if (autoFadeRafRef.current !== null) {
+      cancelAnimationFrame(autoFadeRafRef.current)
+      autoFadeRafRef.current = null
+    }
+    setIsFading(null)
+  }
+
   const triggerAutoFade = (targetDirection: 'left' | 'right') => {
-    if (autoFadeRafRef.current) {
+    // Pressing the arrow that is already fading stops it. The crossfader holds its
+    // current position rather than completing the move or snapping back, which is
+    // where a manual nudge would have left it.
+    if (isFading === targetDirection) {
+      abortAutoFade()
+      return
+    }
+
+    if (autoFadeRafRef.current !== null) {
       cancelAnimationFrame(autoFadeRafRef.current)
       autoFadeRafRef.current = null
     }
 
     const startVal = engine.crossfade
     const targetVal = targetDirection === 'left' ? -1 : 1
-    if (Math.abs(startVal - targetVal) < 0.001) return
+    if (Math.abs(startVal - targetVal) < 0.001) {
+      setIsFading(null)
+      return
+    }
 
-    // Duration in seconds: based on loop beats of the playing or target deck
+    // Duration in seconds: the shared fade length, at the tempo of the deck being
+    // faded into when it is playing.
     const relevantDeck = targetDirection === 'left' ? deckA : deckB
     const otherDeck = targetDirection === 'left' ? deckB : deckA
     const activeDeck = relevantDeck.playing ? relevantDeck : otherDeck.playing ? otherDeck : relevantDeck
-    const beats = targetDirection === 'left' ? loopBeatsA : loopBeatsB
     const bpm = activeDeck.effectiveBpm || activeDeck.track?.bpm || engine.masterBpm || 128
     const beatSec = 60 / bpm
-    const durationMs = Math.max(500, beats * beatSec * 1000)
+    const durationMs = Math.max(500, fadeBeats * beatSec * 1000)
 
     const startTime = performance.now()
     setIsFading(targetDirection)
@@ -85,11 +116,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
   }, [])
 
   const nudgeCrossfade = (delta: number) => {
-    if (autoFadeRafRef.current) {
-      cancelAnimationFrame(autoFadeRafRef.current)
-      autoFadeRafRef.current = null
-      setIsFading(null)
-    }
+    abortAutoFade()
     engine.setCrossfade(engine.crossfade + delta)
   }
 
@@ -99,7 +126,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     >
       {/* ================= DECK A TRANSPORT (LEFT) ================= */}
       <div className="flex items-center justify-start">
-        <DeckTransport deck={deckA} deckId="A" onLoopBeatsChange={setLoopBeatsA} />
+        <DeckTransport deck={deckA} deckId="A" />
       </div>
 
       {/* ================= CENTER: AUTO-FADE CHEVRONS + CROSSFADER (CENTERED UNDER MIXER) ================= */}
@@ -113,9 +140,26 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
               ? 'bg-[#34d399]/20 text-[#34d399] border border-[#34d399]/50 shadow-[0_0_8px_rgba(52,211,153,0.3)] animate-pulse'
               : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
           }`}
-          title={`Auto-fade to Deck A over ${loopBeatsA} beats`}
+          title={
+            isFading === 'left'
+              ? 'Stop auto-fade'
+              : `Auto-fade to Deck A over ${fadeBeats} beats`
+          }
         >
           &lt;&lt;
+        </button>
+
+        {/* Shared auto-fade length: click to cycle 4 / 8 / 16 / 32 / 64 beats */}
+        <button
+          type="button"
+          onClick={cycleFadeBeats}
+          className="h-7 shrink-0 px-2 rounded border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] flex flex-col items-center justify-center transition-colors"
+          title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
+        >
+          <span className="text-[11px] font-mono font-bold leading-none">{fadeBeats}</span>
+          <span className="text-[6.5px] font-sans font-bold uppercase tracking-widest leading-none mt-0.5">
+            BEATS
+          </span>
         </button>
 
         <div className="w-[200px] flex items-center justify-between gap-1.5 px-2.5 py-1 bg-[#141414] rounded-lg border border-[#282828]">
@@ -139,11 +183,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             ticks={5}
             onDragChange={v => engine.setCrossfade(v)}
             onValueChange={v => {
-              if (autoFadeRafRef.current) {
-                cancelAnimationFrame(autoFadeRafRef.current)
-                autoFadeRafRef.current = null
-                setIsFading(null)
-              }
+              abortAutoFade()
               engine.setCrossfade(v)
             }}
             label="Crossfader"
@@ -169,7 +209,11 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
               ? 'bg-[#a855f7]/20 text-[#a855f7] border border-[#a855f7]/50 shadow-[0_0_8px_rgba(168,85,247,0.3)] animate-pulse'
               : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
           }`}
-          title={`Auto-fade to Deck B over ${loopBeatsB} beats`}
+          title={
+            isFading === 'right'
+              ? 'Stop auto-fade'
+              : `Auto-fade to Deck B over ${fadeBeats} beats`
+          }
         >
           &gt;&gt;
         </button>
@@ -177,7 +221,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
       {/* ================= DECK B TRANSPORT (RIGHT) ================= */}
       <div className="flex items-center justify-end">
-        <DeckTransport deck={deckB} deckId="B" onLoopBeatsChange={setLoopBeatsB} />
+        <DeckTransport deck={deckB} deckId="B" />
       </div>
     </div>
   )
@@ -185,23 +229,11 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
 const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
 
-function DeckTransport({
-  deck,
-  deckId,
-  onLoopBeatsChange,
-}: {
-  deck: DeckEngine
-  deckId: 'A' | 'B'
-  onLoopBeatsChange?: (beats: number) => void
-}) {
+function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }) {
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
   const currentBeats = LOOP_BEAT_SIZES[selectedLoopIdx]
   const isPlaying = deck.playing
   const isLoopActive = Boolean(deck.loop)
-
-  useEffect(() => {
-    onLoopBeatsChange?.(currentBeats)
-  }, [currentBeats, onLoopBeatsChange])
 
   // 4-Tap Tempo System
   const tapTimesRef = useRef<number[]>([])

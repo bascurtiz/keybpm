@@ -9,18 +9,22 @@
 /**
  * How close to unity the keylock transform has to be before the deck just plays dry.
  *
- * Both keylock engines are WSOLA-family time-stretchers, and their overlap-add stage
- * re-times each analysis window — by up to ~23 ms at 44.1 kHz — to find the best
- * alignment with the previous window. That search is the whole point of the algorithm
- * when the ratio is away from 1. At unity there is nothing to align and the re-timing
- * is pure damage.
+ * A time-stretcher's overlap-add stage re-times each analysis window — by up to ~23 ms at
+ * 44.1 kHz — to find the best alignment with the previous window. That search is the whole
+ * point of the algorithm when the ratio is away from 1. At unity there is nothing to align
+ * and the re-timing is pure damage, so the engine is bypassed instead of asked for an
+ * identity transform. (It is also the cheapest possible answer: a dry deck skips the
+ * kernel, and with it {@link RB_KEYLOCK_LATENCY_SAMPLES} of delay.)
  *
- * Measured on Catscan - Smeerpijp through the vendored worklet, at pitch 1.0 with
- * pitchSemitones 0 and playbackRate 1.0 — exactly what the deck sends at a centred
- * fader: the seek re-timed 8 windows over 20 s with jumps up to 17 ms, leaving 1.42 dB
- * of level modulation. A slow warble on a track that is meant to be playing straight.
- * Forcing the seek to a constant offset instead made the same pipe bit-transparent
- * (level ratio 1.0000, residual 0.00%), which is what pinned the seek as the cause.
+ * The measurement below is from the WSOLA engine the realtime path used to offer
+ * alongside Rubber Band, on Catscan - Smeerpijp through its vendored worklet, at pitch 1.0
+ * with pitchSemitones 0 and playbackRate 1.0 — exactly what the deck sends at a centred
+ * fader: the seek re-timed 8 windows over 20 s with jumps up to 17 ms, leaving 1.42 dB of
+ * level modulation. A slow warble on a track that is meant to be playing straight. Forcing
+ * the seek to a constant offset instead made the same pipe bit-transparent (level ratio
+ * 1.0000, residual 0.00%), which is what pinned the seek as the cause. That was the
+ * "wobble at original BPM" this rule exists to prevent, and it is kept because the rule is
+ * right for *any* engine of this family, not because that engine is still here.
  *
  * Note that a *constant* offset is harmless: consecutive windows still agree, so the
  * overlap crossfade joins a sample to itself. Only a *changing* offset tears the
@@ -37,14 +41,6 @@ export const KEYLOCK_UNITY_CENTS = 1
 export interface KeyLockTransform {
   /** The ratio the keylock engine should apply, key shift included. 1 means nothing to do. */
   pitch: number
-  /**
-   * The rate compensation alone, with the key shift left out.
-   *
-   * SoundTouch takes the key shift through its own `pitchSemitones` parameter — the
-   * worklet folds it in as `pitch * 2^(pitchSemitones / 12) / playbackRate` — so it
-   * wants this rather than {@link pitch}, or the shift would be applied twice.
-   */
-  ratePitch: number
   /** True when {@link pitch} is unity, so the engine should be bypassed. */
   identity: boolean
 }
@@ -52,9 +48,10 @@ export interface KeyLockTransform {
 /**
  * Resolves the ratio the keylock engine should apply.
  *
- * The engines are fed the vinyl worklet's output, which is already resampled to the
+ * The engine is fed the vinyl worklet's output, which is already resampled to the
  * pitch-fader rate, so keylock here is a pitch shift of (1 / rate) plus the key shift —
- * the stream's length stays untouched.
+ * the stream's length stays untouched. With keylock off the rate term drops out and only
+ * the key shift is left, which is deliberate: the key dial is independent of the fader.
  *
  * @param rate - Pitch-fader rate.
  * @param nudgeFactor - Pitch-bend factor, 1 at rest.
@@ -70,16 +67,12 @@ export function keyLockTransform(
   keyShiftSemitones: number,
 ): KeyLockTransform {
   const effectiveRate = rate * nudgeFactor * pllCorrection
-  const ratePitch = keyLock ? 1 / effectiveRate : 1
-  const pitch = ratePitch * Math.pow(2, keyShiftSemitones / 12)
-  return { pitch, ratePitch, identity: Math.abs(1200 * Math.log2(pitch)) < KEYLOCK_UNITY_CENTS }
+  const pitch = Math.pow(2, keyShiftSemitones / 12) * (keyLock ? 1 / effectiveRate : 1)
+  return { pitch, identity: Math.abs(1200 * Math.log2(pitch)) < KEYLOCK_UNITY_CENTS }
 }
 
-/** Which realtime engine holds the key. See {@link DeckEngine.setKeyLockEngine}. */
-export type KeyLockEngine = 'rubberband' | 'soundtouch'
-
 /**
- * How far the audio is held back by the keylock path, in seconds.
+ * How far the audio is held back by the keylock path, in samples.
  *
  * A deck reports its position from the vinyl worklet, which sits *before* the keylock
  * engine. The engine buffers before it can emit anything, so whenever the wet path is
@@ -87,38 +80,42 @@ export type KeyLockEngine = 'rubberband' | 'soundtouch'
  * display driven by that position (the stacked lanes, the mini waveforms, the beat
  * counters) leads the sound by the same amount.
  *
- * Measured through the vendored processor, keylock at a centred fader with the WSOLA seek
- * pinned so the output is an exact copy and the delay has one unambiguous correlation
- * peak: 5864 samples at 44.1 kHz (133.0 ms) and 6369 at 48 kHz (132.7 ms). Flat in
- * seconds across sample rate, which is why this is expressed in seconds.
+ * Measured through the realtime worklet: at a centred fader with tempo 1 and
+ * highQuality, the output correlates 0.998 against the input at a lag of exactly 4096
+ * samples — at 44.1 kHz (92.9 ms) and at 48 kHz (85.3 ms) alike. The kernel holds a
+ * fixed 4096-sample buffer, so this is constant in samples and not in seconds, which is
+ * why {@link keyLockLatencySeconds} needs the sample rate.
  *
- * It is close to flat across tempo too, at least for the rates a synced deck uses. The
- * WSOLA sequence length is `clamp(200 - 75 * tempo, 50, 125)` ms, so every tempo at or
- * below 1 pins it to the 125 ms maximum and the buffering does not change. Only decks
- * pitched *up* past their own tempo get a shorter pipeline, and this constant does not
- * model that — it is a fixed figure, deliberately, because the error there is a few tens
- * of ms on a display rather than a sync error.
+ * Away from unity the correlation cannot be used: the peak collapses to ~0.05, so it would be
+ * reading the noise floor. A step response can be used there instead, and it says this constant
+ * is only right near a centred fader. Measured at 48 kHz, tempo 1, highQuality, delay read as
+ * the 50%-of-steady crossing (the method reproduces 4101 samples at unity against the 4096
+ * above, a +5-sample bias it is known to have):
  *
- * Sanity check against the case that prompted this: a grid downbeat measured 23.5 px
- * right of the playhead on a lane of 91 px per beat — 0.258 beats, which at 123.04 BPM is
- * 126 ms. Within the pixel error of the 133 ms measured here.
- */
-export const ST_KEYLOCK_LATENCY_SECONDS = 0.133
-
-/**
- * The same figure for Rubber Band's realtime kernel, which is buffered in *samples* rather
- * than in time.
+ *   rate 0.90 (pitch 1.111)  ~3970 samples   82.7 ms
+ *   rate 0.95 (pitch 1.053)  ~4113 samples   85.7 ms
+ *   rate 1.00 (pitch 1.000)   4096 samples   85.3 ms   <- the measurement above
+ *   rate 1.05 (pitch 0.952)  ~4369 samples   91.0 ms
+ *   rate 1.08 (pitch 0.926)  ~4371 samples   91.1 ms
+ *   rate 1.25 (pitch 0.800)  ~4770 samples   99.4 ms
  *
- * Measured through the realtime worklet (see the harness notes in the daily log): at a
- * centred fader with tempo 1 and highQuality, the output correlates 0.998 against the input
- * at a lag of exactly 4096 samples — at 44.1 kHz (92.9 ms) and at 48 kHz (85.3 ms) alike.
- * Constant in samples, not in seconds: the kernel holds a fixed 4096-sample buffer, where
- * SoundTouch's WSOLA sequence length is expressed in milliseconds. So this one needs the
- * sample rate, and is why {@link keyLockLatencySeconds} takes it.
+ * So it is flat to within a few ms while a deck is at or below its own tempo — which is where a
+ * synced deck usually lives, and why this constant is good enough in the common case — and
+ * grows once a deck is pitched up, by up to 14 ms at 1.25x. The exact shape is not modelled
+ * here on purpose: the readings do not fit a simple law (they are not proportional to the ratio
+ * or its inverse), and a bad fit would be worse than the flat figure it replaced. What this
+ * note is for is so the next person starts from the measurement rather than re-deriving it.
  *
- * The figure used here before was 0.15 s, borrowed from `rubberband-offline.ts`. That is the
- * offline push/pull path with a flush at the end, and it overstates the realtime delay by
- * about 40%.
+ * That error is worth knowing about because of where it lands. `audiblePosition` subtracts this
+ * latency from the deck whose wet path is live and nothing from a dry deck, so on a *mixed*
+ * pair — one deck keylocked and pitched, the other playing straight — the error is not shared
+ * and does not cancel: it appears directly as the keylocked deck sitting that many ms off.
+ * Two keylocked decks or two dry decks both cancel it exactly. So if a keylocked deck sounds
+ * slightly late against a dry one, and it is pitched up, this is the first place to look.
+ *
+ * The figure used here before was 0.15 s, borrowed from `rubberband-offline.ts`. That is
+ * the offline push/pull path with a flush at the end, and it overstates the realtime
+ * delay by about 40%.
  */
 export const RB_KEYLOCK_LATENCY_SAMPLES = 4096
 
@@ -129,17 +126,12 @@ export const RB_KEYLOCK_LATENCY_SAMPLES = 4096
  * bypassed because the transform is unity — reports no delay and {@link audiblePosition}
  * collapses back onto the read head.
  *
- * @param sampleRate - The audio context's rate. Only Rubber Band needs it; SoundTouch's
- *   latency is already a time.
+ * @param active - Whether the wet keylock path is currently in the graph.
+ * @param sampleRate - The audio context's rate.
  */
-export function keyLockLatencySeconds(
-  engine: KeyLockEngine,
-  active: boolean,
-  sampleRate = 48000,
-): number {
+export function keyLockLatencySeconds(active: boolean, sampleRate = 48000): number {
   if (!active) return 0
-  if (engine === 'rubberband') return RB_KEYLOCK_LATENCY_SAMPLES / sampleRate
-  return ST_KEYLOCK_LATENCY_SECONDS
+  return RB_KEYLOCK_LATENCY_SAMPLES / sampleRate
 }
 
 /**

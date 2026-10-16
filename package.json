@@ -41,7 +41,6 @@
   "dependencies": {
     "@audio/decode-ape": "^1.0.0",
     "@audio/decode-eac3": "^1.0.0",
-    "@soundtouchjs/audio-worklet": "^2.1.1",
     "@soundtouchjs/core": "^2.1.1",
     "@tanstack/react-virtual": "^3.14.13",
     "audio-decode": "^3.12.0",

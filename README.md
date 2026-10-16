@@ -214,20 +214,15 @@ calibrated against annotations, and the benchmark is what will tell us how far o
 
 ## Mixing and mix rendering
 
-The DJ player (`/mix-it`) runs two decks through a realtime keylock stage, and both engines
-behind it are AudioWorklets — nothing about live keylock needs an offline render. A deck
+The DJ player (`/mix-it`) runs two decks through a realtime keylock stage, and the engine
+behind it is an AudioWorklet — nothing about live keylock needs an offline render. A deck
 plays the track through a vinyl worklet that does the resampling, so the keylock stage is a
 pure pitch shift of an already time-compressed stream:
 
-- **SoundTouch is the live engine.** A deck changes pitch constantly (fader, nudge, sync
-  PLL, key shift) and SoundTouch takes pitch as an AudioParam, so those changes ramp
-  instead of restarting anything. Measured through the real `DeckEngine` against a 220 Hz
-  tone: 220.1 Hz at 1.30x (+1 cent), and over a 2 s, 8 % fader sweep the key held to a
-  median of 1.1 cents (p90 2.4) with **no** window below the noise floor.
-- **Rubber Band's `RealtimeRubberBand` kernel is the accurate one, and is now a live engine
-  too** (`public/rubberband-processor.js`, `src/lib/dj/rubberband-node.ts`). On a held ratio
-  it is exact: 220.00 Hz at 1.30x, 261.62 Hz on a +3 st key shift (target 261.63). What made
-  it unusable live sits in the *binding*, not the engine: `RealtimeRubberBand::setPitch`
+- **Rubber Band's `RealtimeRubberBand` R3 kernel is the live engine**
+  (`public/rubberband-processor.js`, `src/lib/dj/rubberband-node.ts`). On a held ratio it is
+  exact: 220.00 Hz at 1.30x, 261.62 Hz on a +3 st key shift (target 261.63). What made it
+  unusable live sits in the *binding*, not the engine: `RealtimeRubberBand::setPitch`
   calls `fetchProcessed()` and then `stretcher_->reset()` before it applies the new ratio, so
   a change on a kernel that is being heard flushes its stretch pipeline. Measured on a 220 Hz
   tone that is ~20 ms of the old ratio, **~100 ms of silence**, ~15 ms unsettled, then exact
@@ -237,19 +232,40 @@ pure pitch shift of an already time-compressed stream:
   handover waits for the hole above and for signal to come back through it, which is what
   makes it a handover rather than a click into silence), aimed where a moving fader is
   heading by its measured slew. Through the real deck a 3 s, 8 % sweep measured **0 silent
-  windows out of 304**, the key held to a median of 7.7 cents while the fader moved (against
-  1.1 for SoundTouch), a worst handover glide of 16–20 cents, and **≤2.3 cents a couple of
-  seconds after the fader stopped** (re-measured on the final code: −1.7 cents held at 1.30x,
-  −0.2 at 1.38x) — a settle handover chases the last couple of cents once the input goes
-  quiet, so a reading taken *during* that settle is a few cents off.
-- Two details make that affordable. It runs in **high quality**, the only mode with exact
-  pitch — the fast mode measured **+43 cents at 1.30x and −21 cents at 2.00x** — and the
-  spare voice exists only while Rubber Band holds the key, because a high quality voice is
-  not free (measured ceiling on this machine: six voices clean, eight overloading the render
-  thread, and a two-deck mix with spares would be four). Selecting Rubber Band costs 61 ms of
-  dry audio before the keylocked path takes over, switching back is instant, and
-  `engine.setKeyLockEngine('soundtouch' | 'rubberband')` flips both decks together.
-  SoundTouch stays the default: it tracks a fader far more tightly for half the voices.
+  windows out of 304**, the key held to a median of 7.7 cents while the fader moved, a worst
+  handover glide of 16–20 cents, and **≤2.3 cents a couple of seconds after the fader
+  stopped** (re-measured on the final code: −1.7 cents held at 1.30x, −0.2 at 1.38x) — a
+  settle handover chases the last couple of cents once the input goes quiet, so a reading
+  taken *during* that settle is a few cents off.
+- It runs in **high quality**, the only mode with exact pitch — the fast mode measured
+  **+43 cents at 1.30x and −21 cents at 2.00x**. A high quality voice is not free (measured
+  ceiling on this machine: six voices clean, eight overloading the render thread), so a deck
+  only ever holds its two. Cold start costs 61 ms of dry audio before the keylocked path
+  takes over.
+- **SoundTouch used to be the alternative, and has been removed.** On steady signals the two
+  are indistinguishable in the artefact that matters (level modulation within 0.03 dB of each
+  other on tone, saw and noise), so the choice came down to the two things that are not a tie:
+  SoundTouch's pipeline is ~133 ms of buffering against Rubber Band's fixed 4096 samples, and
+  SoundTouch cannot hold pitch *exactly* at a held ratio where Rubber Band can. The realtime
+  SoundTouch worklet, its toggle and `@soundtouchjs/audio-worklet` are gone with it.
+- Keylock is bypassed whenever the transform is within a cent of unity, which is both the
+  cheaper answer and the correct one: at unity a time-stretcher has nothing to align and its
+  window re-timing becomes audible warble. See `KEYLOCK_UNITY_CENTS` in
+  `src/lib/dj/keylock-transform.ts` for the measurement that pinned it.
+
+The keylock stage holds the audio back by its own buffer — 4096 samples, 85 ms at 48 kHz — so
+the deck's *read head* (`position`) runs ahead of what you hear. Anything drawn against "where
+the track is right now" (the stacked lanes, the beat counters) uses `audiblePosition`
+instead, and sync compares audible positions for the same reason. Otherwise both decks would
+be a fraction of a beat early with keylock on and correct with it off, which reads as the two
+grids not lining up. See `keyLockLatencySeconds` for how that figure was measured.
+
+That figure is a *flat* 4096 samples, and a step-response measurement shows it is only flat
+while a deck is at or below its own tempo: pitched up to 1.25x the real pipeline is ~4770
+samples (99 ms), 14 ms more than the constant. Two keylocked decks or two dry decks share that
+error and cancel it, but a **mixed** pair — one keylocked and pitched, one straight — does not,
+so it lands on the sync as the keylocked deck sitting those few ms off. The measurement and the
+reason the shape is not modelled are in `keylock-transform.ts`.
 
 Recording a mix does **not** capture audio. It captures what the decks *did* — per deck:
 where the audio read from, how fast (the pitch fader's value, with any seek recorded as a
@@ -260,8 +276,8 @@ performance offline in an `OfflineAudioContext`:
   R3** by default, with the **SoundTouch core** as an automatic fallback (either can be
   forced from the MIX RENDER control, which also reports which engine wrote the file).
   Here the worklet route is closed: during a render the node's `port` messages never reach
-  the render thread (the same dead channel that makes the SoundTouch worklet ignore its own
-  window settings offline), so `src/lib/dj/rubberband-offline.ts` takes the engine class out
+  the render thread (the same dead channel that made the SoundTouch worklet ignore its own
+  window settings offline, back when it was still wired up), so `src/lib/dj/rubberband-offline.ts` takes the engine class out
   of the app's own processor asset and drives it synchronously on the main thread,
   128-frame block by 128-frame block. Measured on marker signals at 48 kHz, Rubber Band's
   alignment error is +0.1 ms at speed 1.0, +1.0 ms at 1.25 and −2.4 ms at 0.8, its length is

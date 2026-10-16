@@ -33,6 +33,21 @@ const ZOOM_PPS = 140
 const MARKER_DROP = '#f59e0b'
 const MARKER_PHRASE = '#9ca3af'
 
+/**
+ * Visible span of the waveform, in playback seconds.
+ *
+ * One step per button press *and* per wheel notch, so the − / + pill and the mouse
+ * wheel are two ways of working the same control rather than two similar controls.
+ */
+const WINDOW_MIN_S = 3
+const WINDOW_MAX_S = 18
+const WINDOW_STEP_S = 2
+
+/** Clamp-and-step for the zoom window. `dir` is −1 to zoom in, +1 to zoom out. */
+function stepWindowSeconds(current: number, dir: -1 | 1): number {
+  return Math.min(WINDOW_MAX_S, Math.max(WINDOW_MIN_S, current + dir * WINDOW_STEP_S))
+}
+
 function getZoomPeaks(track: Track): Float32Array {
   let peaks = zoomPeaksCache.get(track)
   if (!peaks) {
@@ -76,8 +91,26 @@ export function StackedWaveforms({
     return range ? `${range.min.toFixed(1)}-${range.max.toFixed(1)} BPM` : 'measured beats'
   }, [activeGrid])
 
-  const zoomIn = () => setWindowSeconds(s => Math.max(3, s - 2))
-  const zoomOut = () => setWindowSeconds(s => Math.min(18, s + 2))
+  const zoomIn = () => setWindowSeconds(s => stepWindowSeconds(s, -1))
+  const zoomOut = () => setWindowSeconds(s => stepWindowSeconds(s, 1))
+
+  // Wheel over the waveform zooms exactly like the − / + buttons: one notch, one step, so
+  // the two controls stay interchangeable and a user can count either one.
+  //
+  // Registered natively rather than through React's `onWheel` because React attaches
+  // `wheel` at the root as a *passive* listener, where preventDefault() is ignored — the
+  // page behind the waveform would scroll while the waveform zoomed.
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY === 0) return
+      e.preventDefault()
+      setWindowSeconds(s => stepWindowSeconds(s, e.deltaY < 0 ? -1 : 1))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -354,15 +387,17 @@ export function StackedWaveforms({
         </div>
       )}
 
-      {/* Global Waveform Zoom controls */}
-      <div className="absolute top-1.5 left-2 z-10 flex items-center gap-1">
+      {/* Global Waveform Zoom controls — centred on the seam between the two lanes, so
+          the control that rescales both decks sits between them rather than in Deck A's
+          corner. Translucent, because the playhead needle runs underneath it. */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-1">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomOut}
-          disabled={windowSeconds >= 18}
+          disabled={windowSeconds >= WINDOW_MAX_S}
           className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
-          title="Zoom out"
+          title="Zoom out (or scroll down over the waveforms)"
         >
           −
         </button>
@@ -370,9 +405,9 @@ export function StackedWaveforms({
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomIn}
-          disabled={windowSeconds <= 3}
+          disabled={windowSeconds <= WINDOW_MIN_S}
           className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
-          title="Zoom in"
+          title="Zoom in (or scroll up over the waveforms)"
         >
           +
         </button>
@@ -435,6 +470,41 @@ export function StackedWaveforms({
           </svg>
           <span className="text-[#34d399] font-mono font-bold text-[10px] leading-none">1</span>
         </button>
+
+        {/* Inline grid nudge. Aligning a grid to a kick is a repeated tap-and-listen, and
+            routing every one of those taps through the Grid dropdown was the complaint —
+            so the ±10 ms step lives here, beside the downbeat button that anchors it.
+            Shift-click still gives the 2 ms fine step the dropdown offers. */}
+        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm overflow-hidden shadow-sm">
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => {
+              e.stopPropagation()
+              deckA.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
+            }}
+            disabled={!deckA.track}
+            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            title="Shift Deck A beatgrid 10 ms earlier (Shift-click for 2 ms)"
+          >
+            ◀
+          </button>
+          <span className="text-[8px] leading-none font-mono text-[#666666] select-none">10ms</span>
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => {
+              e.stopPropagation()
+              deckA.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
+            }}
+            disabled={!deckA.track}
+            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            title="Shift Deck A beatgrid 10 ms later (Shift-click for 2 ms)"
+          >
+            ▶
+          </button>
+        </div>
+
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -470,6 +540,38 @@ export function StackedWaveforms({
           </svg>
           <span className="text-[#c084fc] font-mono font-bold text-[10px] leading-none">1</span>
         </button>
+
+        {/* Inline grid nudge — see the Deck A copy above. */}
+        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm overflow-hidden shadow-sm">
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => {
+              e.stopPropagation()
+              deckB.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
+            }}
+            disabled={!deckB.track}
+            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            title="Shift Deck B beatgrid 10 ms earlier (Shift-click for 2 ms)"
+          >
+            ◀
+          </button>
+          <span className="text-[8px] leading-none font-mono text-[#666666] select-none">10ms</span>
+          <button
+            type="button"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => {
+              e.stopPropagation()
+              deckB.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
+            }}
+            disabled={!deckB.track}
+            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            title="Shift Deck B beatgrid 10 ms later (Shift-click for 2 ms)"
+          >
+            ▶
+          </button>
+        </div>
+
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}

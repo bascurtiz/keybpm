@@ -140,32 +140,40 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     }
   }
 
-  const triggerBrake = async () => {
-    const targets = fxAssign === 'A'
-      ? [deckA]
-      : fxAssign === 'B'
-      ? [deckB]
-      : [deckA, deckB].filter(d => d.playing)
+  /**
+   * Which single deck a master-assigned FX should hit.
+   *
+   * MST means "the mix as it is being heard", so it resolves to one deck rather than
+   * every playing deck. Firing on both at once was the old behaviour and it doubled the
+   * hit — two SCR chops or two brakes starting a few milliseconds apart read as a flam
+   * instead of one punch, which is why A and B sounded right and MST did not.
+   *
+   * The crossfader already says which side the audience is on, so that picks the deck;
+   * a playing deck beats a stopped one, and a deck holding a track beats an empty one.
+   */
+  const pickMasterDeck = () => {
+    const favourA = engine.crossfade <= 0
+    const preferred = favourA ? deckA : deckB
+    const other = favourA ? deckB : deckA
+    if (preferred.track && preferred.playing) return preferred
+    if (other.track && other.playing) return other
+    return preferred.track ? preferred : other
+  }
 
-    const activeTargets = targets.length > 0 ? targets : [deckA]
-    for (const target of activeTargets) {
-      if (!target.track) continue
-      void target.triggerBrake()
-    }
+  /** The one deck an FX button acts on, for any of the three assignments. */
+  const fxTargetDeck = () =>
+    fxAssign === 'A' ? deckA : fxAssign === 'B' ? deckB : pickMasterDeck()
+
+  const triggerBrake = async () => {
+    const target = fxTargetDeck()
+    if (!target.track) return
+    void target.triggerBrake()
   }
 
   const triggerCutter = async () => {
-    const targets = fxAssign === 'A'
-      ? [deckA]
-      : fxAssign === 'B'
-      ? [deckB]
-      : [deckA, deckB].filter(d => d.playing)
-
-    const activeTargets = targets.length > 0 ? targets : [deckA]
-    for (const target of activeTargets) {
-      if (!target.track) continue
-      void target.triggerCutter()
-    }
+    const target = fxTargetDeck()
+    if (!target.track) return
+    void target.triggerCutter()
   }
 
   const isEchoActive = fxAssign === 'A'

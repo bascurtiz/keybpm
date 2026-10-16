@@ -1,5 +1,4 @@
-import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
-import { DeckEngine, type KeyLockEngine } from './deck-engine'
+import { DeckEngine } from './deck-engine'
 import type { DeckId } from './types'
 import { getVinylWorkletUrl } from './vinyl-worklet'
 import { MixRecorder, type MixTimeline } from './mix-timeline'
@@ -94,22 +93,17 @@ export class AudioEngine {
     this.limiter.connect(glowFilter)
     glowFilter.connect(this.glowAnalyser)
 
-    // Register audio worklets: vinyl player, Rubberband R3 & SoundTouch fallback
+    // Register audio worklets: the vinyl player and the Rubber Band R3 keylock kernel.
     const vinylWorkletReady = this.ctx.audioWorklet.addModule(getVinylWorkletUrl())
 
     const rubberbandUrl = `${import.meta.env.BASE_URL}rubberband-processor.js`
     const rubberbandReady = this.ctx.audioWorklet.addModule(rubberbandUrl).catch(err => {
-      console.warn('RubberBand worklet registration failed, will fallback to SoundTouch:', err)
-    })
-
-    const soundTouchUrl = `${import.meta.env.BASE_URL}soundtouch-processor.js`
-    const soundTouchReady = SoundTouchNode.register(this.ctx, soundTouchUrl).catch(err => {
-      console.warn('SoundTouch registration failed:', err)
+      console.warn('RubberBand worklet registration failed, keylock will be unavailable:', err)
     })
 
     this.decks = {
-      A: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady, soundTouchReady),
-      B: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady, soundTouchReady),
+      A: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady),
+      B: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady),
     }
 
     // Mirror the Master Tempo onto both decks. The SCR cutter reads it as the
@@ -160,34 +154,6 @@ export class AudioEngine {
 
   async resume() {
     if (this.ctx.state === 'suspended') await this.ctx.resume()
-  }
-
-  /**
-   * Realtime keylock engine for both decks (SoundTouch by default).
-   *
-   * Kept as a single switch so both decks change together — a mix where one deck
-   * keylocks with Rubber Band and the other with SoundTouch would sound like two
-   * different rooms. See `DeckEngine.setKeyLockEngine` for why the default is the
-   * engine that is a couple of cents off rather than the exact one.
-   */
-  get keyLockEngine(): KeyLockEngine {
-    return this.decks.A.keyLockEngine
-  }
-
-  /**
-   * Whether Rubber Band can be selected.
-   *
-   * Both decks have to be ready, not just one: {@link setKeyLockEngine} moves them together,
-   * and if only one switched the mix would be half SoundTouch and half Rubber Band, which is
-   * exactly the split this single switch exists to prevent.
-   */
-  get rubberBandAvailable(): boolean {
-    return this.decks.A.rubberBandAvailable && this.decks.B.rubberBandAvailable
-  }
-
-  setKeyLockEngine(engine: KeyLockEngine) {
-    for (const id of ['A', 'B'] as const) this.decks[id].setKeyLockEngine(engine)
-    this.emit()
   }
 
   /**
