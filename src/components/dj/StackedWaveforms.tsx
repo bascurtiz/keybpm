@@ -34,6 +34,15 @@ const MARKER_DROP = '#f59e0b'
 const MARKER_PHRASE = '#9ca3af'
 
 /**
+ * The white of the beat grid's downbeat stripes, as drawn by the waveform canvas.
+ *
+ * Held here rather than written twice: the Set-Downbeat button tints its marker with this same
+ * value, so the icon and the line it sets are the same colour by construction instead of two
+ * whites that merely look alike.
+ */
+const DOWNBEAT_STRIPE = '#f4f4f5'
+
+/**
  * Visible span of the waveform, in playback seconds.
  *
  * One step per button press *and* per wheel notch, so the − / + pill and the mouse
@@ -294,7 +303,7 @@ export function StackedWaveforms({
         secPerPx,
         waveColor: '#34d399',
         beatColor: '#a1a1aa',
-        downbeatColor: '#f4f4f5',
+        downbeatColor: DOWNBEAT_STRIPE,
       })
 
       // Divider line
@@ -316,7 +325,7 @@ export function StackedWaveforms({
         secPerPx,
         waveColor: '#a855f7',
         beatColor: '#a1a1aa',
-        downbeatColor: '#f4f4f5',
+        downbeatColor: DOWNBEAT_STRIPE,
       })
 
       // Virtual FLUX Mode Playhead Needles (Green). The offset is measured from the same
@@ -389,8 +398,12 @@ export function StackedWaveforms({
 
       {/* Global Waveform Zoom controls — centred on the seam between the two lanes, so
           the control that rescales both decks sits between them rather than in Deck A's
-          corner. Translucent, because the playhead needle runs underneath it. */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-3">
+          corner. Translucent, because the playhead needle runs underneath it.
+
+          The 24px between − and + is deliberately twice anything else in the row: the needle
+          crosses this pill, and the gap is the only part of it that stays clear of a control,
+          so it is where the playhead is meant to be read. */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-6">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -452,10 +465,10 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck A Right: SET DOWNBEAT & GRID A controls */}
-      {/* The whole row runs on the waveform zoom pill's 12px rhythm (gap-3): the Set-Downbeat
-          anchor, the ±10ms nudge and the GRID dropdown are three different kinds of control, and
-          at 6px apart they were too close to tell apart by aim. */}
-      <div className="absolute top-1.5 right-2 z-10 flex items-center gap-3">
+      {/* The downbeat anchor and the ±10ms nudge belong together — the anchor is what the nudge
+          fine-tunes — so they keep the row's 6px. GRID is a different kind of control again and
+          takes one extra step on top of it (ml-1.5, 12px total). */}
+      <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -467,11 +480,21 @@ export function StackedWaveforms({
           className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
           title="Set Downbeat (Beat 1) at playhead"
         >
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" className="w-3 h-3 text-[#34d399]" aria-hidden="true">
+          {/* The marker wears the exact white the canvas paints its downbeat stripes, and the numeral
+              simply takes the button's own colour — the same grey-then-white the GRID label uses, so
+              the icon is what says "this is the downbeat" and the 1 is only the beat number. */}
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            className="w-3 h-3"
+            style={{ color: DOWNBEAT_STRIPE }}
+            aria-hidden="true"
+          >
             <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          <span className="text-[#34d399] font-mono font-bold text-[10px] leading-none">1</span>
+          <span className="font-mono font-bold text-[10px] leading-none">1</span>
         </button>
 
         {/* Inline grid nudge. Aligning a grid to a kick is a repeated tap-and-listen, and
@@ -512,7 +535,7 @@ export function StackedWaveforms({
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'A' ? null : 'A'))}
-          className={`h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
+          className={`ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
             activeGridDeckId === 'A'
               ? 'bg-[#222222] border-emerald-500/70 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
               : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -525,7 +548,7 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck B Right: SET DOWNBEAT & GRID B controls */}
-      <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-3">
+      <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -537,11 +560,19 @@ export function StackedWaveforms({
           className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
           title="Set Downbeat (Beat 1) at playhead"
         >
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" className="w-3 h-3 text-[#c084fc]" aria-hidden="true">
+          {/* Marker and numeral styled as on Deck A — see the note there. */}
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            className="w-3 h-3"
+            style={{ color: DOWNBEAT_STRIPE }}
+            aria-hidden="true"
+          >
             <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          <span className="text-[#c084fc] font-mono font-bold text-[10px] leading-none">1</span>
+          <span className="font-mono font-bold text-[10px] leading-none">1</span>
         </button>
 
         {/* Inline grid nudge — see the Deck A copy above. */}
@@ -579,7 +610,7 @@ export function StackedWaveforms({
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'B' ? null : 'B'))}
-          className={`h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
+          className={`ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
             activeGridDeckId === 'B'
               ? 'bg-[#222222] border-purple-500/70 text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
               : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'

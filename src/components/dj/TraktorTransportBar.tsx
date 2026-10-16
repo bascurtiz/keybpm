@@ -40,7 +40,10 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     }
   }, [engine, deckA, deckB])
 
-  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(0)
+  // Default 16 beats — four bars, i.e. a phrase-length fade. Opening on the shortest step
+  // (4) made the chip a warning light rather than a setting: almost every real fade got
+  // cycled up first.
+  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(2)
   const fadeBeats = FADE_BEAT_STEPS[fadeBeatsIdx]
   const cycleFadeBeats = () => setFadeBeatsIdx(i => (i + 1) % FADE_BEAT_STEPS.length)
 
@@ -164,7 +167,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             type="button"
             onClick={toggleAuto}
             aria-pressed={autoArmed}
-            className={`absolute right-full mr-2 top-1/2 -translate-y-1/2 h-[22px] px-1.5 rounded border text-[8px] font-bold uppercase tracking-wider flex items-center justify-center transition-all ${
+            className={`absolute right-full mr-2 top-1/2 -translate-y-1/2 h-[18px] px-1.5 rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider flex items-center justify-center transition-all ${
               autoArmed
                 ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
                 : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -236,12 +239,17 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             </button>
           </div>
 
-          {/* Shared auto-fade length: click to cycle 4 / 8 / 16 / 32 / 64 beats. */}
+          {/* Shared auto-fade length: click to cycle 4 / 8 / 16 / 32 / 64 beats.
+              Sized to the FX plate's A/MST/B buttons — 18px tall, 3px corners — so the flanks of the
+              crossfader read as the same grade of control as the rest of the console. Its numeral is
+              a value rather than a label, so it keeps the console's value size (9px, as in the grid
+              panel) instead of AUTO's 7.5px label grade, and 30px wide is the FX plate's button
+              footprint: the digits are far narrower, so the box stays put as the value cycles 4 → 64. */}
           <button
             type="button"
             onClick={cycleFadeBeats}
             aria-label={`Auto-fade length: ${fadeBeats} beats`}
-            className="absolute left-full ml-2 top-1/2 -translate-y-1/2 h-[22px] min-w-[34px] px-1.5 rounded border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] font-mono text-[11px] font-bold leading-none flex items-center justify-center transition-colors"
+            className="absolute left-full ml-2 top-1/2 -translate-y-1/2 h-[18px] min-w-[30px] px-1.5 rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] font-mono text-[9px] font-bold leading-none flex items-center justify-center transition-colors"
             title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
           >
             {fadeBeats}
