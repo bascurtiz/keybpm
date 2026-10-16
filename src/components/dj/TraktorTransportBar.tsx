@@ -129,39 +129,9 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
         <DeckTransport deck={deckA} deckId="A" />
       </div>
 
-      {/* ================= CENTER: AUTO-FADE CHEVRONS + CROSSFADER (CENTERED UNDER MIXER) ================= */}
-      <div className="w-[380px] flex items-center justify-center gap-2">
-        {/* Auto-fade Left: << */}
-        <button
-          type="button"
-          onClick={() => triggerAutoFade('left')}
-          className={`h-7 px-1.5 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
-            isFading === 'left'
-              ? 'bg-[#34d399]/20 text-[#34d399] border border-[#34d399]/50 shadow-[0_0_8px_rgba(52,211,153,0.3)] animate-pulse'
-              : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
-          }`}
-          title={
-            isFading === 'left'
-              ? 'Stop auto-fade'
-              : `Auto-fade to Deck A over ${fadeBeats} beats`
-          }
-        >
-          &lt;&lt;
-        </button>
-
-        {/* Shared auto-fade length: click to cycle 4 / 8 / 16 / 32 / 64 beats */}
-        <button
-          type="button"
-          onClick={cycleFadeBeats}
-          className="h-7 shrink-0 px-2 rounded border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] flex flex-col items-center justify-center transition-colors"
-          title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
-        >
-          <span className="text-[11px] font-mono font-bold leading-none">{fadeBeats}</span>
-          <span className="text-[6.5px] font-sans font-bold uppercase tracking-widest leading-none mt-0.5">
-            BEATS
-          </span>
-        </button>
-
+      {/* ================= CENTER: CROSSFADER CENTRED, AUTO-FADE CHEVRONS BESIDE THE LENGTH CHIP ================= */}
+      <div className="w-[380px] flex flex-col items-center justify-center gap-1.5">
+        {/* Row 1 — the crossfader on its own, so it lands on the transport bar's centre line. */}
         <div className="w-[200px] flex items-center justify-between gap-1.5 px-2.5 py-1 bg-[#141414] rounded-lg border border-[#282828]">
           <button
             type="button"
@@ -200,23 +170,54 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
           </button>
         </div>
 
-        {/* Auto-fade Right: >> */}
-        <button
-          type="button"
-          onClick={() => triggerAutoFade('right')}
-          className={`h-7 px-1.5 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
-            isFading === 'right'
-              ? 'bg-[#a855f7]/20 text-[#a855f7] border border-[#a855f7]/50 shadow-[0_0_8px_rgba(168,85,247,0.3)] animate-pulse'
-              : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
-          }`}
-          title={
-            isFading === 'right'
-              ? 'Stop auto-fade'
-              : `Auto-fade to Deck B over ${fadeBeats} beats`
-          }
-        >
-          &gt;&gt;
-        </button>
+        {/* Row 2 — `<<` | fade length | `>>`. The row is exactly as wide as the crossfader and
+            carries the same side padding, so the chevrons line up under its own `<` / `>` and the
+            value stays centred between them. */}
+        <div className="w-[200px] flex items-center justify-between px-2.5">
+          <button
+            type="button"
+            onClick={() => triggerAutoFade('left')}
+            className={`h-5 px-1 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
+              isFading === 'left'
+                ? 'bg-[#34d399]/20 text-[#34d399] border border-[#34d399]/50 shadow-[0_0_8px_rgba(52,211,153,0.3)] animate-pulse'
+                : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
+            }`}
+            title={
+              isFading === 'left'
+                ? 'Stop auto-fade'
+                : `Auto-fade to Deck A over ${fadeBeats} beats`
+            }
+          >
+            &lt;&lt;
+          </button>
+
+          <button
+            type="button"
+            onClick={cycleFadeBeats}
+            aria-label={`Auto-fade length: ${fadeBeats} beats`}
+            className="h-5 min-w-[34px] px-1.5 rounded border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] font-mono text-[11px] font-bold leading-none flex items-center justify-center transition-colors"
+            title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
+          >
+            {fadeBeats}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => triggerAutoFade('right')}
+            className={`h-5 px-1 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
+              isFading === 'right'
+                ? 'bg-[#a855f7]/20 text-[#a855f7] border border-[#a855f7]/50 shadow-[0_0_8px_rgba(168,85,247,0.3)] animate-pulse'
+                : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
+            }`}
+            title={
+              isFading === 'right'
+                ? 'Stop auto-fade'
+                : `Auto-fade to Deck B over ${fadeBeats} beats`
+            }
+          >
+            &gt;&gt;
+          </button>
+        </div>
       </div>
 
       {/* ================= DECK B TRANSPORT (RIGHT) ================= */}
