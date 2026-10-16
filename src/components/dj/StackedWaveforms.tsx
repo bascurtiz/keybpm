@@ -281,11 +281,19 @@ export function StackedWaveforms({
       const w = rect.width
       const h = rect.height
 
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr
-        canvas.height = h * dpr
+      // Whole device pixels, compared against the store we set rather than the fractional
+      // target: `canvas.width` truncates, so `width !== w * dpr` is permanently true whenever
+      // the product is fractional — which is most Chrome/Edge zoom levels. That re-created and
+      // blanked this canvas on every frame, and Chromium paints a canvas it has no surface for
+      // as an opaque white box. Rounding means a resize only happens when the size really moves.
+      const bw = Math.max(1, Math.round(w * dpr))
+      const bh = Math.max(1, Math.round(h * dpr))
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw
+        canvas.height = bh
       }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      // Scale from the store we actually got, so CSS-pixel drawing fills it exactly.
+      ctx.setTransform(bw / w, 0, 0, bh / h, 0, 0)
       ctx.clearRect(0, 0, w, h)
 
       const halfH = h / 2
@@ -815,7 +823,11 @@ function renderDeckLane({
   downbeatColor: string
 }) {
   const track = deck.track
-  const w = ctx.canvas.width / (window.devicePixelRatio || 1)
+  // Lanes draw in CSS pixels, so recover the lane width from the scale the draw loop set on the
+  // context (a rounded device pixel ratio). Dividing by devicePixelRatio instead would disagree
+  // with the backing store by up to half a pixel, which the lane maths would carry into every x.
+  const scaleX = ctx.getTransform().a || 1
+  const w = ctx.canvas.width / scaleX
   const midY = topY + laneH / 2
 
   if (!track) {

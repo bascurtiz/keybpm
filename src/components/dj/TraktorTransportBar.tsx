@@ -313,6 +313,10 @@ const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
 
 function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }) {
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
+  // What the < 4 > cluster under the switch does: size/toggle a loop, or travel the active loop
+  // along the track by its own length. Kept per deck, like the size, so the two transports can be
+  // set up differently.
+  const [loopMode, setLoopMode] = useState<'loop' | 'move'>('loop')
   const currentBeats = LOOP_BEAT_SIZES[selectedLoopIdx]
   const isPlaying = deck.playing
   const isLoopActive = Boolean(deck.loop)
@@ -398,6 +402,29 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
       const doubleLen = doubleBeats * beatLen
       deck.setLoop(deck.loop.start, deck.loop.start + doubleLen)
     }
+  }
+
+  /**
+   * Where the armed loop would sit if MOVE travelled it in `direction` — the bar-snapped rule is the
+   * deck's, since only it knows the grid. Null when it cannot go there, so the arrow can be disabled
+   * rather than silently doing nothing at the ends of the track.
+   */
+  const loopMoveTarget = (direction: -1 | 1) => deck.loopMoveTarget(direction)
+
+  /**
+   * MOVE: travel the armed loop one step along the bars, keeping its length.
+   *
+   * The playhead rides with it when it was inside the loop, so what you are hearing stays at the
+   * same point of the phrase; when it was outside, only the loop moves, which is how a loop gets
+   * parked ahead of the playhead to play into.
+   */
+  const loopMove = (direction: -1 | 1) => {
+    const target = loopMoveTarget(direction)
+    const loop = deck.loop
+    if (!target || !loop) return
+    const wasInside = deck.position >= loop.start && deck.position <= loop.end
+    deck.setLoop(target.start, target.end)
+    if (wasInside) deck.seek(deck.position + (target.start - loop.start))
   }
 
   const ytState = youtubeBridge.state[deckId]
@@ -522,60 +549,100 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
         CUE
       </button>
 
-      {/* Loop / Beat Jump Section: < [ 4 BEATS ] > */}
-      <div className={`flex items-center rounded-md border overflow-hidden shadow-sm h-11 transition-colors ${
-        isLoopActive ? 'border-white bg-[#141414] shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-[#282828] bg-[#141414]'
-      }`}>
-        <button
-          type="button"
-          onClick={loopHalf}
-          disabled={!deck.track || selectedLoopIdx === 0}
-          className={`h-full px-2.5 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-r ${
-            isLoopActive ? 'border-white/30' : 'border-[#282828]'
-          }`}
-          title="Half loop length (÷2)"
-        >
-          &lt;
-        </button>
+      {/* Loop / Move Section: the LOOP | MOVE switch on top, the < 4 > cluster under it.
+          One pair of arrows with two jobs, so a bar this tight does not need a second row of
+          buttons: LOOP sizes and arms the loop, MOVE travels the armed one. */}
+      <div
+        role="group"
+        aria-label={`Deck ${deckId} loop and move`}
+        className={`flex flex-col rounded-md border overflow-hidden shadow-sm h-11 w-[94px] transition-colors ${
+          isLoopActive ? 'border-white bg-[#141414] shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-[#282828] bg-[#141414]'
+        }`}
+      >
+        <div className={`flex h-[23px] shrink-0 gap-[2px] p-[2px] border-b ${isLoopActive ? 'border-white/30' : 'border-[#282828]'}`}>
+          {(['loop', 'move'] as const).map(mode => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setLoopMode(mode)}
+              aria-pressed={loopMode === mode}
+              className={`flex-1 rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider leading-none transition-colors ${
+                loopMode === mode
+                  ? 'border-white text-white'
+                  : 'border-transparent text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title={
+                mode === 'loop'
+                  ? 'LOOP: < / > halve and double the length, the middle button sets the loop'
+                  : 'MOVE: < / > travel the armed loop, landing on bar lines'
+              }
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
 
-        <button
-          type="button"
-          onClick={toggleLoop}
-          disabled={!deck.track}
-          className={`h-full px-3 flex flex-col items-center justify-center transition-colors ${
-            isLoopActive
-              ? 'bg-[#141414] text-white'
-              : 'hover:bg-[#222222] text-[#666666] hover:text-[#d4d4d4]'
-          }`}
-          title={`Loop ${currentBeats} beats (Click to toggle)`}
-        >
-          <span
-            className={`text-xs font-mono font-bold leading-none ${
-              isLoopActive ? 'text-white' : 'text-[#777777]'
+        <div className="flex flex-1">
+          <button
+            type="button"
+            onClick={loopMode === 'loop' ? loopHalf : () => loopMove(-1)}
+            disabled={
+              loopMode === 'loop'
+                ? !deck.track || selectedLoopIdx === 0
+                : !loopMoveTarget(-1)
+            }
+            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-r ${
+              isLoopActive ? 'border-white/30' : 'border-[#282828]'
             }`}
+            title={
+              loopMode === 'loop'
+                ? 'Half loop length (÷2)'
+                : 'Move the armed loop back to the bar line before it'
+            }
+          >
+            &lt;
+          </button>
+
+          <button
+            type="button"
+            onClick={loopMode === 'loop' ? toggleLoop : undefined}
+            disabled={loopMode === 'move' || !deck.track}
+            className={`flex-1 flex items-center justify-center transition-colors text-[9px] font-mono font-bold leading-none ${
+              loopMode === 'move'
+                ? 'text-[#666666]'
+                : isLoopActive
+                  ? 'bg-[#141414] text-white'
+                  : 'hover:bg-[#222222] text-[#777777] hover:text-[#d4d4d4]'
+            }`}
+            title={
+              loopMode === 'loop'
+                ? `Loop ${currentBeats} beats (Click to toggle)`
+                : `${currentBeats}-beat size — switch to LOOP to change it`
+            }
           >
             {currentBeats}
-          </span>
-          <span
-            className={`text-[7.5px] font-sans font-bold uppercase tracking-widest leading-none mt-0.5 ${
-              isLoopActive ? 'text-white' : 'text-[#666666]'
-            }`}
-          >
-            BEATS
-          </span>
-        </button>
+          </button>
 
-        <button
-          type="button"
-          onClick={loopDouble}
-          disabled={!deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1}
-          className={`h-full px-2.5 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-l ${
-            isLoopActive ? 'border-white/30' : 'border-[#282828]'
-          }`}
-          title="Double loop length (×2)"
-        >
-          &gt;
-        </button>
+          <button
+            type="button"
+            onClick={loopMode === 'loop' ? loopDouble : () => loopMove(1)}
+            disabled={
+              loopMode === 'loop'
+                ? !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
+                : !loopMoveTarget(1)
+            }
+            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-l ${
+              isLoopActive ? 'border-white/30' : 'border-[#282828]'
+            }`}
+            title={
+              loopMode === 'loop'
+                ? 'Double loop length (×2)'
+                : 'Move the armed loop forward to the next bar line (at least one loop length)'
+            }
+          >
+            &gt;
+          </button>
+        </div>
       </div>
 
       {/* Tap Tempo Button: TAP (shows 4-tap counter: TAP, 1/4, 2/4, 3/4, 4/4) */}

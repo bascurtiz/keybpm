@@ -5,6 +5,7 @@ import {
   keyLockLatencySeconds as keyLockLatencyOf,
   keyLockTransform,
 } from './keylock-transform'
+import { loopMoveDestination } from './loop-move'
 import { HOT_CUE_COUNT, type BeatGrid, type FxType, type LoopRegion, type Track } from './types'
 import {
   barIndexAt,
@@ -16,6 +17,7 @@ import {
   beatTimeAt,
   bpmAt,
   collapseGridToConstant,
+  FALLBACK_BPM,
   isVariableGrid,
   normalizeGrid,
   reanchorBar,
@@ -2013,6 +2015,27 @@ export class DeckEngine {
     this.loop = { start, end, bars }
     this.post({ t: 'loop', loop: this.loop })
     this.emit()
+  }
+
+  /**
+   * Where the armed loop lands when MOVE travels it one step — the bar-snapped rule lives in
+   * `loop-move.ts`. Null when it cannot go there (before the first bar, or past the end), which is
+   * what the transport draws as a disabled arrow.
+   */
+  loopMoveTarget(direction: -1 | 1): { start: number; end: number } | null {
+    const track = this.track
+    if (!track) return null
+    // A track with no grid still has a tempo. Give it a constant grid at that tempo rather than
+    // letting the bar lookup fall back to `grid.ts`'s 120 BPM — a 174 BPM track's loops should snap
+    // to 174 BPM bars. Not `ensureGrid()`: that would materialise a grid on the track, and every
+    // display that draws bar stripes would start doing so the first time MOVE was pressed.
+    const grid = track.grid ?? {
+      bpm: track.bpm && track.bpm > 0 ? track.bpm : FALLBACK_BPM,
+      firstBeat: 0,
+      firstBar: 0,
+      beatsPerBar: 4,
+    }
+    return loopMoveDestination(this.loop, grid, direction, this.duration)
   }
 
   setLoop(start: number, end: number) {

@@ -52,11 +52,22 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
       const w = rect.width
       const h = rect.height
 
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr
-        canvas.height = h * dpr
+      // Size the store in whole device pixels and compare against *those*. `canvas.width`
+      // truncates whatever it is assigned, so comparing it with a fractional target — a
+      // fractional CSS width or devicePixelRatio, i.e. most Chrome/Edge zoom levels — is never
+      // equal, and the canvas would be re-created, and blanked, on every single animation frame.
+      // Chromium renders a canvas it cannot hold a surface for as an opaque white box with its
+      // broken-content glyph, which is exactly what appeared at the deck headers while zooming;
+      // Firefox keeps the previous surface, which is why it never showed there.
+      const bw = Math.max(1, Math.round(w * dpr))
+      const bh = Math.max(1, Math.round(h * dpr))
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw
+        canvas.height = bh
       }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      // Scale from the store we actually got, so drawing in CSS pixels fills it exactly —
+      // scaling by the raw dpr would leave a half-pixel of the rounded store unpainted.
+      ctx.setTransform(bw / w, 0, 0, bh / h, 0, 0)
       ctx.clearRect(0, 0, w, h)
 
       const track = deck.track
@@ -86,15 +97,25 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
         ctx.fillRect(x, mid - amp, 1, amp * 2)
       }
 
-      // Draw Cue 'C' flag
-      if (deck.duration > 0 && deck.cuePoint > 0) {
-        const cueX = (deck.cuePoint / deck.duration) * w
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(cueX - 1, 0, 2, h)
+      // Cue flags — the CUE point's 'C' and the numbered hot cues, drawn as the same 2 px white
+      // stripe the full-width lanes use. This strip spans the whole track rather than a scroll
+      // window, so a cue stays on screen as a fixed landmark while mixing instead of only while
+      // the lane happens to be showing that part of the track.
+      if (deck.duration > 0) {
+        const stripe = (seconds: number, label: string) => {
+          const x = (seconds / deck.duration) * w
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(x - 1, 0, 2, h)
+          ctx.fillStyle = '#ffffff'
+          ctx.font = 'bold 9px Inter, ui-sans-serif, sans-serif'
+          ctx.fillText(label, x + 2, 8)
+        }
 
-        ctx.fillStyle = '#ffffff'
-        ctx.font = 'bold 9px Inter, ui-sans-serif, sans-serif'
-        ctx.fillText('C', cueX + 2, 8)
+        deck.hotCues.forEach((cue, i) => {
+          if (cue === null) return
+          stripe(cue, `${i + 1}`)
+        })
+        if (deck.cuePoint > 0) stripe(deck.cuePoint, 'C')
       }
 
       // Draw current Playhead indicator needle
@@ -134,13 +155,24 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
         </svg>
       </button>
 
-      {/* Waveform Canvas */}
-      <canvas
-        ref={canvasRef}
-        onMouseDown={handleMouseDown}
-        className="h-full flex-1 cursor-pointer select-none"
-        title="Click or drag to seek in track"
-      />
+      {/*
+        Waveform Canvas. It is positioned inside a flex-1 box rather than being the flex item
+        itself, because a canvas is a replaced element and a flex item's automatic minimum size is
+        its own width/height *attributes* — which this draw loop sets from the measured CSS width.
+        Left as a flex item, that closes a loop: the attribute becomes the minimum width, the
+        wider element measures wider next frame, and the canvas multiplies by the device pixel
+        ratio every frame until it passes Chromium's maximum canvas size, where Chromium paints it
+        as an opaque white box with its broken-content glyph instead of drawing. Firefox keeps
+        whatever it last put in the canvas, which is why only Chrome and Edge showed it.
+      */}
+      <div className="relative h-full min-w-0 flex-1">
+        <canvas
+          ref={canvasRef}
+          onMouseDown={handleMouseDown}
+          className="absolute inset-0 h-full w-full cursor-pointer select-none"
+          title="Click or drag to seek in track"
+        />
+      </div>
     </div>
   )
 }

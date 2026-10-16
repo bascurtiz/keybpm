@@ -1,3 +1,4 @@
+import { readAudioLatencyHint } from './audio-latency'
 import { DeckEngine } from './deck-engine'
 import type { DeckId } from './types'
 import { getVinylWorkletUrl } from './vinyl-worklet'
@@ -23,6 +24,14 @@ export class AudioEngine {
   readonly masterAnalyserR: AnalyserNode
   readonly glowAnalyser: AnalyserNode
   readonly decks: Record<DeckId, DeckEngine>
+
+  /**
+   * Output buffer Chrome actually granted, in milliseconds.
+   *
+   * Not necessarily the size {@link readAudioLatencyHint} asked for: the device has the last word.
+   * Kept so the effective figure can be shown or logged rather than assumed.
+   */
+  readonly bufferLatencyMs: number
 
   /** Captures the performance; rendering happens afterwards, offline. */
   private recorder: MixRecorder | null = null
@@ -53,7 +62,10 @@ export class AudioEngine {
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
 
-    this.ctx = new AudioContextClass({ latencyHint: 'interactive' })
+    // The buffer is the deck's whole tolerance for a late audio callback — see
+    // `audio-latency.ts` for why the smallest one Chrome offers is not the right default here.
+    this.ctx = new AudioContextClass({ latencyHint: readAudioLatencyHint() })
+    this.bufferLatencyMs = this.ctx.baseLatency * 1000
     this.master = this.ctx.createGain()
     this.master.gain.value = 0.9
 

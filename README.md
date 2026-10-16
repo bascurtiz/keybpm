@@ -267,6 +267,21 @@ error and cancel it, but a **mixed** pair — one keylocked and pitched, one str
 so it lands on the sync as the keylocked deck sitting those few ms off. The measurement and the
 reason the shape is not modelled are in `keylock-transform.ts`.
 
+Live playback runs on a deliberately generous output buffer. The deck built its `AudioContext`
+with `latencyHint: 'interactive'`, which on this machine's real WASAPI device is a 480-frame
+block — 10 ms base / 40 ms output latency — and that 10 ms is the whole tolerance the render
+thread has for being late. Anything longer (a Windows DPC, a driver interrupt, a background app
+spiking a core, the renderer doing a heavy layout) drops samples, which is heard as the
+intermittent glitching this was chasing. The keylock voices are not the cause: measured offline,
+four high-quality Rubber Band kernels render at ~100x realtime, so under 1 % of a core each.
+
+So `src/lib/dj/audio-latency.ts` asks for 30 ms (1440 frames, 64 ms output) by default, three
+times the slack for a few ms more monitor latency, and takes `keybpm:audio-latency` in
+localStorage as either a level — `tight` (10 ms), `balanced` (30 ms), `safe` (60 ms) — or a
+number of seconds, clamped to 0.01–0.2. It is read once, when the engine builds its context, so a
+change applies on the next page load. The effective figure is on the engine as
+`bufferLatencyMs`.
+
 Recording a mix does **not** capture audio. It captures what the decks *did* — per deck:
 where the audio read from, how fast (the pitch fader's value, with any seek recorded as a
 segment break), the channel gain, three-band EQ, filter and key shift — then rebuilds the
