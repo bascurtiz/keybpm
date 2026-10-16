@@ -390,7 +390,7 @@ export function StackedWaveforms({
       {/* Global Waveform Zoom controls — centred on the seam between the two lanes, so
           the control that rescales both decks sits between them rather than in Deck A's
           corner. Translucent, because the playhead needle runs underneath it. */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-1">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-3">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -452,7 +452,10 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck A Right: SET DOWNBEAT & GRID A controls */}
-      <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
+      {/* The whole row runs on the waveform zoom pill's 12px rhythm (gap-3): the Set-Downbeat
+          anchor, the ±10ms nudge and the GRID dropdown are three different kinds of control, and
+          at 6px apart they were too close to tell apart by aim. */}
+      <div className="absolute top-1.5 right-2 z-10 flex items-center gap-3">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -522,7 +525,7 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck B Right: SET DOWNBEAT & GRID B controls */}
-      <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-1.5">
+      <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-3">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
