@@ -11,6 +11,12 @@ import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
+import {
+  KEY_LOCK_ENGINE_INFO,
+  readKeyLockEngine,
+  writeKeyLockEngine,
+} from '@/lib/dj/keyLockEnginePref'
+import type { KeyLockEngine } from '@/lib/dj/keylock-transform'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
@@ -39,10 +45,44 @@ export function MixIt() {
   const [dragOverDeck, setDragOverDeck] = useState<'A' | 'B' | null>(null)
   const [activeFxDeck, setActiveFxDeck] = useState<'A' | 'B' | null>(null)
   const [loadModalDeck, setLoadModalDeck] = useState<'A' | 'B' | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [, setEngineVer] = useState(0)
 
   // Per-deck load generation so a finishing older analysis can't clear a newer one.
   const loadGenRef = useRef({ A: 0, B: 0 })
+  const settingsRef = useRef<HTMLDivElement>(null)
+
+  // Close the settings panel on a click outside it, or on Escape.
+  useEffect(() => {
+    if (!settingsOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setSettingsOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSettingsOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [settingsOpen])
+
+  // Apply the stored keylock-engine preference. Rubber Band's voices only exist once the
+  // worklets are up, so this re-runs when they appear rather than giving up on the first pass
+  // — and `rubberBandAvailable` is a getter, so the dependency is its value, not its identity.
+  useEffect(() => {
+    const want = readKeyLockEngine()
+    if (engine.keyLockEngine === want) return
+    if (want === 'rubberband' && !engine.rubberBandAvailable) return
+    engine.setKeyLockEngine(want)
+  }, [engine, engine.keyLockEngine, engine.rubberBandAvailable])
+
+  const selectKeyLockEngine = (id: KeyLockEngine) => {
+    writeKeyLockEngine(id)
+    engine.setKeyLockEngine(id)
+  }
 
   useEffect(() => {
     document.title = 'Mix it! — KeyBPM DJ Player'
@@ -212,9 +252,107 @@ export function MixIt() {
               v{__APP_VERSION__} · {BUILD_STAMP}
             </span>
           </div>
-          <p className="text-xs text-text-muted text-right">
-            Drop two tracks onto the decks, lock the keys, and start mixing live.
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-text-muted text-right">
+              Drop two tracks onto the decks, lock the keys, and start mixing live.
+            </p>
+
+            {/* Settings */}
+            <div className="relative" ref={settingsRef}>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(o => !o)}
+                title="Settings"
+                aria-label="Settings"
+                aria-expanded={settingsOpen}
+                aria-haspopup="dialog"
+                className={`w-7 h-7 rounded-md border flex items-center justify-center transition-colors ${
+                  settingsOpen
+                    ? 'bg-white/10 text-text border-white/25'
+                    : 'bg-white/5 text-text-muted border-white/10 hover:text-text hover:border-white/25'
+                }`}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+
+              {settingsOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Settings"
+                  className="absolute right-0 top-9 z-40 w-[22rem] p-3 rounded-lg bg-[#181818]/95 border border-[#333333] shadow-xl backdrop-blur-md text-left"
+                >
+                  <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-text-muted">
+                    Keylock engine
+                  </div>
+                  <div className="mt-1 text-[11px] leading-snug text-text-muted">
+                    Holds the pitch while a deck is pitched. Both decks switch together, and it
+                    takes effect immediately — even mid-mix.
+                  </div>
+
+                  <div className="mt-2.5 flex flex-col gap-1.5">
+                    {(['soundtouch', 'rubberband'] as const).map(id => {
+                      const info = KEY_LOCK_ENGINE_INFO[id]
+                      const active = engine.keyLockEngine === id
+                      const unavailable = id === 'rubberband' && !engine.rubberBandAvailable
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          disabled={unavailable}
+                          onClick={() => selectKeyLockEngine(id)}
+                          className={`text-left rounded-md border px-2.5 py-2 transition-colors ${
+                            unavailable
+                              ? 'border-white/5 bg-white/[0.02] opacity-50 cursor-not-allowed'
+                              : active
+                                ? 'border-accent/50 bg-accent/10'
+                                : 'border-white/10 bg-white/[0.03] hover:border-white/25'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-text">{info.label}</span>
+                            {active && !unavailable && (
+                              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-accent">
+                                Active
+                              </span>
+                            )}
+                            {unavailable && (
+                              <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted">
+                                Loading…
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] font-mono uppercase tracking-wider text-text-muted">
+                            {info.tagline}
+                          </div>
+                          <div className="mt-1 text-[11px] leading-snug text-text-muted">
+                            {info.detail}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-white/10 text-[11px] leading-snug text-text-muted">
+                    Switching while a deck plays is safe — it stays on the old engine until the
+                    new one is producing audio, so there is never a gap in the music.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Error notification banner if any */}

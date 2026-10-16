@@ -525,6 +525,10 @@ export class DeckEngine {
               this.setAudibleVoice(0)
               this.wireKeyLockEngines()
               this.updateKeyLockRouting()
+              // Announce it: until now `rubberBandAvailable` was false, so a stored
+              // preference for it could not be applied and the settings panel showed it
+              // as unavailable.
+              this.emit()
             })
             .catch(err => console.warn('Rubber Band worklet not ready:', err))
         }
@@ -667,6 +671,18 @@ export class DeckEngine {
 
   get keyLockEngine(): KeyLockEngine {
     return this._keyLockEngine
+  }
+
+  /**
+   * Whether Rubber Band can be selected at all.
+   *
+   * Its voices are built from the R3 worklet, which is created asynchronously once the vinyl
+   * worklet is up — so there is a window at load time where the engine is not selectable and
+   * `setKeyLockEngine('rubberband')` is a no-op. The settings UI uses this to disable the
+   * option rather than let a click silently do nothing.
+   */
+  get rubberBandAvailable(): boolean {
+    return this.rbVoices.length > 0
   }
 
   /**

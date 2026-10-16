@@ -174,6 +174,17 @@ export class AudioEngine {
     return this.decks.A.keyLockEngine
   }
 
+  /**
+   * Whether Rubber Band can be selected.
+   *
+   * Both decks have to be ready, not just one: {@link setKeyLockEngine} moves them together,
+   * and if only one switched the mix would be half SoundTouch and half Rubber Band, which is
+   * exactly the split this single switch exists to prevent.
+   */
+  get rubberBandAvailable(): boolean {
+    return this.decks.A.rubberBandAvailable && this.decks.B.rubberBandAvailable
+  }
+
   setKeyLockEngine(engine: KeyLockEngine) {
     for (const id of ['A', 'B'] as const) this.decks[id].setKeyLockEngine(engine)
     this.emit()
