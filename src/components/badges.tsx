@@ -179,8 +179,25 @@ export function ContributorBadge({
   )
 }
 
+const CAMELOT_BLOCK_BASE =
+  'inline-flex items-center justify-center rounded-md font-mono font-semibold'
+
+/**
+ * Camelot chip, table/badge size.
+ *
+ * The chip's metrics are defined here in two sizes rather than being re-styled at the call
+ * site: Tailwind resolves two utilities for the same property by stylesheet order, not by
+ * class order, so "use the base chip but smaller" cannot be expressed safely by appending
+ * `text-[10px]` and hoping. `CAMELOT_BLOCK_SM` is that smaller size — the deck headers sit
+ * beside a 10px BPM, where the 3.25rem minimum would crowd the title row. Hue, ink and
+ * shape still come from the same two sources, so the two sizes read as one badge.
+ */
 export const CAMELOT_BLOCK =
-  'inline-flex min-w-[3.25rem] items-center justify-center rounded-md px-2 py-0.5 font-mono text-xs font-semibold leading-5'
+  `${CAMELOT_BLOCK_BASE} min-w-[3.25rem] px-2 py-0.5 text-xs leading-5`
+
+/** Dense variant: the DJ console deck headers, next to the BPM. */
+export const CAMELOT_BLOCK_SM =
+  `${CAMELOT_BLOCK_BASE} min-w-[2rem] px-1.5 py-0 text-[10px] leading-4`
 
 /** Inline style for a solid Camelot block: key-wheel color with dark ink. */
 export function camelotBlockStyle(code: string): React.CSSProperties {

@@ -44,6 +44,21 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
   const fadeBeats = FADE_BEAT_STEPS[fadeBeatsIdx]
   const cycleFadeBeats = () => setFadeBeatsIdx(i => (i + 1) % FADE_BEAT_STEPS.length)
 
+  /**
+   * AUTO arms the crossfader's own arrows: armed, they cross-fade; disarmed, they nudge 5 %.
+   * One pair of controls instead of two, because the hand reaching for the fader is already
+   * there. It is a latch, not a trigger — nothing moves until an arrow is pressed, so AUTO can
+   * be armed at leisure and only lights to say the arrows mean something else now.
+   */
+  const [autoArmed, setAutoArmed] = useState(false)
+
+  const toggleAuto = () => {
+    // Disarming is "back to rest", which has to include stopping a fade still in flight — an
+    // armed-then-disarmed bar must never leave the crossfader travelling on its own.
+    if (autoArmed) abortAutoFade()
+    setAutoArmed(v => !v)
+  }
+
   // Auto-Fade animation state
   const autoFadeRafRef = useRef<number | null>(null)
   const [isFading, setIsFading] = useState<'left' | 'right' | null>(null)
@@ -120,6 +135,15 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     engine.setCrossfade(engine.crossfade + delta)
   }
 
+  /** The crossfader's own `<` / `>` arrows: cross-fade while AUTO is armed, nudge 5 % while not. */
+  const pressCrossfadeArrow = (direction: 'left' | 'right') => {
+    if (autoArmed) {
+      triggerAutoFade(direction)
+      return
+    }
+    nudgeCrossfade(direction === 'left' ? -0.05 : 0.05)
+  }
+
   return (
     <div
       className={`w-full bg-[#161616] border-t border-[#282828] px-3 py-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-4 select-none ${className}`}
@@ -129,93 +153,98 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
         <DeckTransport deck={deckA} deckId="A" />
       </div>
 
-      {/* ================= CENTER: CROSSFADER CENTRED, AUTO-FADE CHEVRONS BESIDE THE LENGTH CHIP ================= */}
-      <div className="w-[380px] flex flex-col items-center justify-center gap-1.5">
-        {/* Row 1 — the crossfader on its own, so it lands on the transport bar's centre line. */}
-        <div className="w-[200px] flex items-center justify-between gap-1.5 px-2.5 py-1 bg-[#141414] rounded-lg border border-[#282828]">
+      {/* ================= CENTER: AUTO ARMS THE CROSSFADER, FADE LENGTH BESIDE IT ================= */}
+      <div className="w-[380px] flex items-center justify-center">
+        {/* The crossfader is the only in-flow child, so it stays on the bar's centre line whatever
+            the width of the two controls flanking it. They are absolute for exactly that reason:
+            AUTO is wider than the length chip, and in flow they would push the fader off-centre —
+            the thing the previous layout was rearranged to stop. */}
+        <div className="relative flex items-center">
           <button
             type="button"
-            onClick={() => nudgeCrossfade(-0.05)}
-            className="text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] rounded px-1 py-0.5 transition-colors select-none"
-            title="Nudge Crossfader toward Deck A"
-          >
-            &lt;
-          </button>
-
-          <Fader
-            min={-1}
-            max={1}
-            step={0.01}
-            value={engine.crossfade}
-            defaultValue={0}
-            bipolar
-            snapCenter
-            ticks={5}
-            onDragChange={v => engine.setCrossfade(v)}
-            onValueChange={v => {
-              abortAutoFade()
-              engine.setCrossfade(v)
-            }}
-            label="Crossfader"
-            className="h-6 w-[140px] max-w-[140px]"
-          />
-
-          <button
-            type="button"
-            onClick={() => nudgeCrossfade(0.05)}
-            className="text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] rounded px-1 py-0.5 transition-colors select-none"
-            title="Nudge Crossfader toward Deck B"
-          >
-            &gt;
-          </button>
-        </div>
-
-        {/* Row 2 — `<<` | fade length | `>>`. The row is exactly as wide as the crossfader and
-            carries the same side padding, so the chevrons line up under its own `<` / `>` and the
-            value stays centred between them. */}
-        <div className="w-[200px] flex items-center justify-between px-2.5">
-          <button
-            type="button"
-            onClick={() => triggerAutoFade('left')}
-            className={`h-5 px-1 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
-              isFading === 'left'
-                ? 'bg-[#34d399]/20 text-[#34d399] border border-[#34d399]/50 shadow-[0_0_8px_rgba(52,211,153,0.3)] animate-pulse'
-                : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
+            onClick={toggleAuto}
+            aria-pressed={autoArmed}
+            className={`absolute right-full mr-2 top-1/2 -translate-y-1/2 h-[22px] px-1.5 rounded border text-[8px] font-bold uppercase tracking-wider flex items-center justify-center transition-all ${
+              autoArmed
+                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={
-              isFading === 'left'
-                ? 'Stop auto-fade'
-                : `Auto-fade to Deck A over ${fadeBeats} beats`
+              autoArmed
+                ? `AUTO armed — the crossfader's < / > cross-fade over ${fadeBeats} beats. Click to disarm.`
+                : `Arm AUTO: the crossfader's < / > then cross-fade over ${fadeBeats} beats instead of nudging`
             }
           >
-            &lt;&lt;
+            AUTO
           </button>
 
+          <div className="w-[200px] flex items-center justify-between gap-1.5 px-2.5 py-1 bg-[#141414] rounded-lg border border-[#282828]">
+            <button
+              type="button"
+              onClick={() => pressCrossfadeArrow('left')}
+              className={`text-xs font-bold rounded px-1 py-0.5 transition-all select-none ${
+                isFading === 'left'
+                  ? 'bg-[#34d399]/20 text-[#34d399] shadow-[0_0_8px_rgba(52,211,153,0.3)] animate-pulse'
+                  : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
+              }`}
+              title={
+                isFading === 'left'
+                  ? 'Stop auto-fade'
+                  : autoArmed
+                    ? `Cross-fade to Deck A over ${fadeBeats} beats`
+                    : 'Nudge Crossfader toward Deck A'
+              }
+            >
+              &lt;
+            </button>
+
+            <Fader
+              min={-1}
+              max={1}
+              step={0.01}
+              value={engine.crossfade}
+              defaultValue={0}
+              bipolar
+              snapCenter
+              ticks={5}
+              onDragChange={v => engine.setCrossfade(v)}
+              onValueChange={v => {
+                abortAutoFade()
+                engine.setCrossfade(v)
+              }}
+              label="Crossfader"
+              className="h-6 w-[140px] max-w-[140px]"
+            />
+
+            <button
+              type="button"
+              onClick={() => pressCrossfadeArrow('right')}
+              className={`text-xs font-bold rounded px-1 py-0.5 transition-all select-none ${
+                isFading === 'right'
+                  ? 'bg-[#a855f7]/20 text-[#a855f7] shadow-[0_0_8px_rgba(168,85,247,0.3)] animate-pulse'
+                  : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
+              }`}
+              title={
+                isFading === 'right'
+                  ? 'Stop auto-fade'
+                  : autoArmed
+                    ? `Cross-fade to Deck B over ${fadeBeats} beats`
+                    : 'Nudge Crossfader toward Deck B'
+              }
+            >
+              &gt;
+            </button>
+          </div>
+
+          {/* Shared auto-fade length: click to cycle 4 / 8 / 16 / 32 / 64 beats. */}
           <button
             type="button"
             onClick={cycleFadeBeats}
             aria-label={`Auto-fade length: ${fadeBeats} beats`}
-            className="h-5 min-w-[34px] px-1.5 rounded border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] font-mono text-[11px] font-bold leading-none flex items-center justify-center transition-colors"
+            className="absolute left-full ml-2 top-1/2 -translate-y-1/2 h-[22px] min-w-[34px] px-1.5 rounded border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] font-mono text-[11px] font-bold leading-none flex items-center justify-center transition-colors"
             title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
           >
             {fadeBeats}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => triggerAutoFade('right')}
-            className={`h-5 px-1 rounded text-[11px] font-mono font-bold tracking-tighter flex items-center justify-center transition-all ${
-              isFading === 'right'
-                ? 'bg-[#a855f7]/20 text-[#a855f7] border border-[#a855f7]/50 shadow-[0_0_8px_rgba(168,85,247,0.3)] animate-pulse'
-                : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
-            }`}
-            title={
-              isFading === 'right'
-                ? 'Stop auto-fade'
-                : `Auto-fade to Deck B over ${fadeBeats} beats`
-            }
-          >
-            &gt;&gt;
           </button>
         </div>
       </div>

@@ -3,7 +3,8 @@ import type { AudioEngine } from '@/lib/dj/audio-engine'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { MiniWaveform } from './MiniWaveform'
 import { BeatCounter } from './BeatCounter'
-import { camelotColor, camelotToOpenKey, shiftCamelot } from '@/lib/camelot'
+import { camelotToOpenKey, shiftCamelot } from '@/lib/camelot'
+import { CAMELOT_BLOCK_SM, camelotBlockStyle } from '@/components/badges'
 import { CAMELOT_TO_KEY } from '@/types/track'
 import { shortKey } from '@/lib/format'
 import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
@@ -366,8 +367,11 @@ function DeckHeader({
             {displayArtist}
           </p>
 
-          {/* BPM & Color-coded Key Display */}
-          <div className="shrink-0 font-sans font-medium text-zinc-300 flex items-center gap-0.5">
+          {/* BPM & Color-coded Key Display. The BPM and the key chip are separated by this row's
+              own gap: a "/" used to sit between them, and the extra space is what it stood for.
+              A literal space would not work — whitespace-only text between flex items is collapsed
+              away, so the gap is the only thing that shows. */}
+          <div className="shrink-0 font-sans font-medium text-zinc-300 flex items-center gap-1.5">
             {isEditingBpm ? (
               <input
                 type="number"
@@ -410,7 +414,6 @@ function DeckHeader({
             )}
             {isLoaded ? (
               <>
-                <span className="text-zinc-500"> / </span>
                 {isEditingKey && deck.track ? (
                   <select
                     autoFocus
@@ -432,25 +435,34 @@ function DeckHeader({
                     ))}
                   </select>
                 ) : (
-                  <span
-                    onClick={() => setIsEditingKey(true)}
-                    className="font-bold cursor-pointer hover:underline"
-                    style={{
-                      color: effectiveCamelot ? camelotColor(effectiveCamelot) : undefined,
-                    }}
-                    title={
-                      effectiveCamelot
-                        ? `Click to overrule Key (${effectiveCamelot} • ${CAMELOT_TO_KEY[effectiveCamelot] ?? ''})`
-                        : 'Click to overrule Key'
-                    }
-                  >
-                    {effectiveCamelot ? formatKeyDisplay(effectiveCamelot, keyMode) : '---'}
+                  <>
+                    {/* The key is the one field a DJ reads across the console, so it wears the same
+                        Camelot chip as the tables and the key wheel at the dense size — the wheel's
+                        own hue with dark ink, rather than tinted text. The label still follows the
+                        global notation (Camelot / musical / Open Key). */}
+                    <span
+                      onClick={() => setIsEditingKey(true)}
+                      className={`${CAMELOT_BLOCK_SM} cursor-pointer hover:brightness-110 ${
+                        // A ring rather than a border: a 1px border would add 2px to the box and
+                        // make the keyless chip 18px against the keyed chip's 16px.
+                        effectiveCamelot ? '' : 'ring-1 ring-inset ring-[#333333] bg-[#1a1a1a] text-[#666666]'
+                      }`}
+                      style={effectiveCamelot ? camelotBlockStyle(effectiveCamelot) : undefined}
+                      title={
+                        effectiveCamelot
+                          ? `Click to overrule Key (${effectiveCamelot} • ${CAMELOT_TO_KEY[effectiveCamelot] ?? ''})`
+                          : 'Click to overrule Key'
+                      }
+                    >
+                      {effectiveCamelot ? formatKeyDisplay(effectiveCamelot, keyMode) : '---'}
+                    </span>
+                    {/* The shift sits outside the chip: amber on the chip's dark-on-pale ink vanishes. */}
                     {deck.keyShift !== 0 && (
-                      <span className="text-amber-400 font-semibold text-[9px] ml-1">
+                      <span className="text-amber-400 font-semibold text-[9px]">
                         {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
                       </span>
                     )}
-                  </span>
+                  </>
                 )}
               </>
             ) : null}
