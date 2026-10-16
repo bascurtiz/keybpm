@@ -249,13 +249,34 @@ export function TraktorDeck({
       >
         {/* Key Transpose Section */}
         <div className="flex flex-col items-center" title="Key Transpose (-6 to +6 semitones)">
-          <span
-            className={`text-[7.5px] font-bold uppercase tracking-wider mb-1 transition-colors ${
-              isKeySynced ? 'text-amber-400' : 'text-[#888888]'
+          {/*
+            Keylock on/off. Until now the engine defaulted keylock on and no UI
+            anywhere in the app could turn it off. This label is the natural
+            home for it: it already sat above the key knob looking like a
+            control, and it was a plain span that did nothing when clicked.
+            A real button so it is reachable by keyboard too.
+
+            Lit amber when engaged, which is the default — so amber is the
+            resting state here and grey means keylock is off. Independent of the
+            other deck, so unlike SYNC below it needs no second track loaded.
+          */}
+          <button
+            type="button"
+            onClick={() => deck.toggleKeyLock()}
+            disabled={!deck.track}
+            className={`text-[7.5px] font-bold uppercase tracking-wider mb-1 leading-none bg-transparent border-0 p-0 transition-colors ${
+              deck.keyLock
+                ? 'text-amber-400 hover:text-amber-300'
+                : 'text-[#888888] hover:text-white disabled:opacity-30'
             }`}
+            title={
+              deck.keyLock
+                ? 'Keylock ON — click to turn off. Off lets the pitch fader change the key, like vinyl. (Ignored while a key shift is dialled in.)'
+                : 'Keylock OFF — click to turn on, holding the key steady while you move the pitch fader.'
+            }
           >
             KEY
-          </span>
+          </button>
           <Knob
             size={40}
             min={-6}
