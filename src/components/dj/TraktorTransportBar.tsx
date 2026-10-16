@@ -19,6 +19,18 @@ interface TraktorTransportBarProps {
  */
 const FADE_BEAT_STEPS = [4, 8, 16, 32, 64]
 
+/**
+ * How far the autopilot cuts the incoming deck's low while it fades in, in dB on the mixer's Low
+ * knob. That knob sweeps 270°: −12 dB sits at 7:30, 0 at 12:00, so 9 o'clock — 90° of the 135°
+ * negative half — is exactly −8 dB.
+ *
+ * This is the classic bass swap. Two kick drums at full low depth stack into a boom, so the
+ * incoming one is cut before it is heard and the two hand over at the midpoint of the fade.
+ */
+const BASS_SWAP_CUT_DB = -8
+/** Flat — the Low knob's 12 o'clock, where a band is neither cut nor boosted. */
+const BASS_SWAP_FLAT_DB = 0
+
 export function TraktorTransportBar({ engine, className = '' }: TraktorTransportBarProps) {
   const deckA = engine.decks.A
   const deckB = engine.decks.B
@@ -40,10 +52,9 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     }
   }, [engine, deckA, deckB])
 
-  // Default 16 beats — four bars, i.e. a phrase-length fade. Opening on the shortest step
-  // (4) made the chip a warning light rather than a setting: almost every real fade got
-  // cycled up first.
-  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(2)
+  // Default 32 beats — eight bars, i.e. two phrases. Opening on the shortest step (4) made the
+  // chip a warning light rather than a setting: almost every real fade got cycled up first.
+  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(3)
   const fadeBeats = FADE_BEAT_STEPS[fadeBeatsIdx]
   const cycleFadeBeats = () => setFadeBeatsIdx(i => (i + 1) % FADE_BEAT_STEPS.length)
 
@@ -105,6 +116,13 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     const beatSec = 60 / bpm
     const durationMs = Math.max(500, fadeBeats * beatSec * 1000)
 
+    // The autopilot moves the low as well as the fader. `relevantDeck` is the deck being faded
+    // *to* and `otherDeck` the one being faded out; their lows swap over the second half below.
+    // The incoming low is cut straight away rather than ramped: every fade worth automating
+    // starts from one end of the fader, where that deck is silent and the cut cannot be heard.
+    const outgoingLowStart = otherDeck.eqLowGain
+    relevantDeck.setEqLow(BASS_SWAP_CUT_DB)
+
     const startTime = performance.now()
     setIsFading(targetDirection)
 
@@ -114,6 +132,17 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       // Smooth linear or slightly eased progress
       const currentVal = startVal + (targetVal - startVal) * progress
       engine.setCrossfade(currentVal)
+
+      // Bass swap, second half only. The first half needs no EQ work: the outgoing deck is still
+      // carrying the mix, so pulling its low down early would gut it. At the midpoint the two
+      // cross over — incoming rises to flat while the outgoing falls to the same cut, both across
+      // this same window — so exactly one low is ever at full depth and the hand-over is symmetric.
+      // Note it starts from wherever the outgoing low actually was, not from a forced flat.
+      if (progress >= 0.5) {
+        const swap = (progress - 0.5) * 2
+        relevantDeck.setEqLow(BASS_SWAP_CUT_DB + (BASS_SWAP_FLAT_DB - BASS_SWAP_CUT_DB) * swap)
+        otherDeck.setEqLow(outgoingLowStart + (BASS_SWAP_CUT_DB - outgoingLowStart) * swap)
+      }
 
       if (progress < 1) {
         autoFadeRafRef.current = requestAnimationFrame(step)
@@ -174,8 +203,8 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             }`}
             title={
               autoArmed
-                ? `AUTO armed — the crossfader's < / > cross-fade over ${fadeBeats} beats. Click to disarm.`
-                : `Arm AUTO: the crossfader's < / > then cross-fade over ${fadeBeats} beats instead of nudging`
+                ? `AUTO armed — the crossfader's < / > cross-fade over ${fadeBeats} beats, swapping the lows at the midpoint. Click to disarm.`
+                : `Arm AUTO: the crossfader's < / > then cross-fade over ${fadeBeats} beats with a bass swap instead of nudging`
             }
           >
             AUTO

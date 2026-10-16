@@ -29,14 +29,12 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const [gainA, setGainA] = useState(1)
   const [eqHighA, setEqHighA] = useState(0)
   const [eqMidA, setEqMidA] = useState(0)
-  const [eqLowA, setEqLowA] = useState(0)
   const [filterA, setFilterA] = useState(0)
   const [volumeA, setVolumeA] = useState(1)
 
   const [gainB, setGainB] = useState(1)
   const [eqHighB, setEqHighB] = useState(0)
   const [eqMidB, setEqMidB] = useState(0)
-  const [eqLowB, setEqLowB] = useState(0)
   const [filterB, setFilterB] = useState(0)
   const [volumeB, setVolumeB] = useState(1)
 
@@ -282,11 +280,11 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={12}
               defaultValue={0}
               bipolar
-              value={eqLowA}
-              onValueChange={v => {
-                setEqLowA(v)
-                deckA.setEqLow(v)
-              }}
+              // Read from the engine rather than local state: the AUTO autopilot drives the Low
+              // of both decks during a fade, and a knob that mirrors only its own pointer would
+              // show a still knob while the mix underneath it is moving.
+              value={deckA.eqLowGain}
+              onValueChange={v => deckA.setEqLow(v)}
               accentColor="#34d399"
             />
           }
@@ -549,11 +547,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={12}
               defaultValue={0}
               bipolar
-              value={eqLowB}
-              onValueChange={v => {
-                setEqLowB(v)
-                deckB.setEqLow(v)
-              }}
+              // Mirrors the engine — see the Deck A LOW knob above.
+              value={deckB.eqLowGain}
+              onValueChange={v => deckB.setEqLow(v)}
               accentColor="#a855f7"
             />
           }
