@@ -25,11 +25,20 @@ const FADE_BEAT_STEPS = [4, 8, 16, 32, 64]
  * negative half — is exactly −8 dB.
  *
  * This is the classic bass swap. Two kick drums at full low depth stack into a boom, so the
- * incoming one is cut before it is heard and the two hand over at the midpoint of the fade.
+ * incoming one is cut before it is heard and the two hand over across the middle of the fade.
  */
 const BASS_SWAP_CUT_DB = -8
 /** Flat — the Low knob's 12 o'clock, where a band is neither cut nor boosted. */
 const BASS_SWAP_FLAT_DB = 0
+
+/**
+ * When the low hand-over happens, as a fraction of the fade's travel: from the midpoint to three
+ * quarters. Finishing early is the point — the incoming deck is already carrying full low while
+ * the last quarter of the fader move is still running, rather than the bass arriving at the same
+ * instant the fader parks, which leaves a mix of two half-lows for the whole second half.
+ */
+const BASS_SWAP_FROM = 0.5
+const BASS_SWAP_TO = 0.75
 
 export function TraktorTransportBar({ engine, className = '' }: TraktorTransportBarProps) {
   const deckA = engine.decks.A
@@ -117,7 +126,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     const durationMs = Math.max(500, fadeBeats * beatSec * 1000)
 
     // The autopilot moves the low as well as the fader. `relevantDeck` is the deck being faded
-    // *to* and `otherDeck` the one being faded out; their lows swap over the second half below.
+    // *to* and `otherDeck` the one being faded out; their lows swap across the middle below.
     // The incoming low is cut straight away rather than ramped: every fade worth automating
     // starts from one end of the fader, where that deck is silent and the cut cannot be heard.
     const outgoingLowStart = otherDeck.eqLowGain
@@ -126,6 +135,11 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     const startTime = performance.now()
     setIsFading(targetDirection)
 
+    // Once the hand-over has landed there is nothing left to write: the last quarter of the fade
+    // is the fader arriving. Stopping here also means a DJ who grabs the Low knob in that last
+    // quarter is not fighting the autopilot for it every frame.
+    let lowSwapComplete = false
+
     const step = (now: number) => {
       const elapsed = now - startTime
       const progress = Math.min(1, elapsed / durationMs)
@@ -133,15 +147,16 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       const currentVal = startVal + (targetVal - startVal) * progress
       engine.setCrossfade(currentVal)
 
-      // Bass swap, second half only. The first half needs no EQ work: the outgoing deck is still
-      // carrying the mix, so pulling its low down early would gut it. At the midpoint the two
-      // cross over — incoming rises to flat while the outgoing falls to the same cut, both across
-      // this same window — so exactly one low is ever at full depth and the hand-over is symmetric.
-      // Note it starts from wherever the outgoing low actually was, not from a forced flat.
-      if (progress >= 0.5) {
-        const swap = (progress - 0.5) * 2
+      // Bass swap across the middle of the move. The first half needs no EQ work: the outgoing deck
+      // is still carrying the mix, so pulling its low down early would gut it. From the midpoint the
+      // two cross over — incoming rises to flat while the outgoing falls to the same cut, over one
+      // window — so exactly one low is ever at full depth and the hand-over is symmetric. It starts
+      // from wherever the outgoing low actually was, not from a forced flat.
+      if (progress >= BASS_SWAP_FROM && !lowSwapComplete) {
+        const swap = Math.min(1, (progress - BASS_SWAP_FROM) / (BASS_SWAP_TO - BASS_SWAP_FROM))
         relevantDeck.setEqLow(BASS_SWAP_CUT_DB + (BASS_SWAP_FLAT_DB - BASS_SWAP_CUT_DB) * swap)
         otherDeck.setEqLow(outgoingLowStart + (BASS_SWAP_CUT_DB - outgoingLowStart) * swap)
+        if (swap === 1) lowSwapComplete = true
       }
 
       if (progress < 1) {
