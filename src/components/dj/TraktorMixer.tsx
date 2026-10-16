@@ -348,7 +348,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
                   ? 'bg-[#161616] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.45)]'
                   : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
-              title="Assign FX to Master (Both Decks)"
+              title="Assign FX to Master — echo/reverb apply to both decks; one-shot FX (SCR / BRK) fire on the deck the crossfader favours"
             >
               MST
             </button>
