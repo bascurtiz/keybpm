@@ -311,6 +311,31 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
 const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
 
+/**
+ * Press feedback for the loop cluster's `<` / `>` chevrons, the same idea as the − / + under the
+ * pitch fader: while the button is held it gains a white outline.
+ *
+ * The outline *is* the cell's own border rather than a box painted inside it. At rest a chevron
+ * carries one border — the seam it shares with the middle cell (`border-r` / `border-l`) — so
+ * `active:border` gives the other three sides their 1px, and `active:border-white` recolours the
+ * seam to match; the four edges then join up into a single outline on the cell's own border box,
+ * with nothing drawn inside it. This is also why nothing moves: the cell is `w-6` under
+ * border-box sizing, so the added edges eat into its padding rather than its width, and the glyph
+ * stays centred in the smaller content box. An inset ring, the earlier approach, sat 1px inside
+ * the seam and so read as a second line rather than as the button's own edge.
+ *
+ * The background lift and the brightened glyph come along because a bare 1px line is easy to miss
+ * at 11px tall; both are press-only, like the outline itself.
+ *
+ * `active:transition-none` is load-bearing, not tidiness. The cell's `transition-colors` covers
+ * border-color, background-color and color, so without this the outline would *fade in* over the
+ * 150 ms default — longer than a click, which means a quick tap would never reach full white and a
+ * held press would look mushy. Killing the transition for the duration of the press makes the
+ * white appear in the same frame the button goes down, while the release still fades out.
+ */
+const CHEVRON_PRESS =
+  'active:border active:border-white active:bg-[#2b2b2b] active:text-white active:transition-none'
+
 function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }) {
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
   // What the < 4 > cluster under the switch does: size/toggle a loop, or travel the active loop
@@ -591,7 +616,7 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
                 ? !deck.track || selectedLoopIdx === 0
                 : !loopMoveTarget(-1)
             }
-            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-r ${
+            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-r ${CHEVRON_PRESS} ${
               isLoopActive ? 'border-white/30' : 'border-[#282828]'
             }`}
             title={
@@ -631,7 +656,7 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
                 ? !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
                 : !loopMoveTarget(1)
             }
-            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-l ${
+            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-l ${CHEVRON_PRESS} ${
               isLoopActive ? 'border-white/30' : 'border-[#282828]'
             }`}
             title={
