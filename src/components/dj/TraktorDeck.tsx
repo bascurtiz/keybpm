@@ -271,7 +271,7 @@ export function TraktorDeck({
             }`}
             title={
               deck.keyLock
-                ? 'Keylock ON — click to turn off. Off lets the pitch fader change the key, like vinyl. (Ignored while a key shift is dialled in.)'
+                ? 'Keylock ON — click to turn off. Off lets the pitch fader change the key, like vinyl. (No audible effect at 0% pitch — there is nothing to hold steady — or while a key shift is dialled in.)'
                 : 'Keylock OFF — click to turn on, holding the key steady while you move the pitch fader.'
             }
           >

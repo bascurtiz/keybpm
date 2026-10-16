@@ -9,6 +9,7 @@ import {
   localTempoRange,
   phraseBoundaries,
 } from '@/lib/dj/grid'
+import { laneSecPerPx, laneTimebase, laneX } from '@/lib/dj/waveform-timebase'
 import type { Track } from '@/lib/dj/types'
 
 interface StackedWaveformsProps {
@@ -160,7 +161,9 @@ export function StackedWaveforms({
     const rect = canvas.getBoundingClientRect()
     const w = rect.width
     if (w <= 0) return
-    const secPerPx = windowSeconds / w
+    // Source seconds per pixel, matching the lane's own axis. Without the rate term a
+    // drag would scrub faster or slower than the waveform moves under it.
+    const secPerPx = laneSecPerPx(windowSeconds / w, s.deck.rate)
 
     s.lastX = e.clientX
     s.lastTime = performance.now()
@@ -283,9 +286,11 @@ export function StackedWaveforms({
         downbeatColor: '#f4f4f5',
       })
 
-      // Virtual FLUX Mode Playhead Needles (Green)
+      // Virtual FLUX Mode Playhead Needles (Green). The offset is measured from the same
+      // position the lane is centred on — `audiblePosition`, not the read head — or the
+      // ghost would sit a keylock-latency away from the red needle it is drawn against.
       if (deckA.fluxMode) {
-        const ghostXA = Math.round(centerPlayheadX + (deckA.fluxPosition - deckA.position) / secPerPx)
+        const ghostXA = Math.round(centerPlayheadX + (deckA.fluxPosition - deckA.audiblePosition) / laneSecPerPx(secPerPx, deckA.rate))
         if (ghostXA >= 0 && ghostXA <= w) {
           ctx.fillStyle = '#22c55e'
           ctx.shadowColor = '#22c55e'
@@ -298,7 +303,7 @@ export function StackedWaveforms({
       }
 
       if (deckB.fluxMode) {
-        const ghostXB = Math.round(centerPlayheadX + (deckB.fluxPosition - deckB.position) / secPerPx)
+        const ghostXB = Math.round(centerPlayheadX + (deckB.fluxPosition - deckB.audiblePosition) / laneSecPerPx(secPerPx, deckB.rate))
         if (ghostXB >= 0 && ghostXB <= w) {
           ctx.fillStyle = '#22c55e'
           ctx.shadowColor = '#22c55e'
@@ -664,7 +669,10 @@ function renderDeckLane({
   deckLetter: 'A' | 'B'
   topY: number
   laneH: number
+  /** Width of the lane in playback seconds. */
   windowSeconds: number
+  /** Playback seconds per pixel, `windowSeconds / laneWidth`. The lane's own source
+   *  axis is this scaled by the deck's rate; see {@link laneTimebase}. */
   secPerPx: number
   waveColor: string
   beatColor: string
@@ -716,18 +724,24 @@ function renderDeckLane({
   }
 
   const peaks = getZoomPeaks(track)
-  const pos = deck.position
-  const tStart = pos - windowSeconds / 2
+  // Centre the lane on what is being *heard*, not on the read head. With keylock engaged
+  // the engine holds the audio back ~133 ms, so centring on `position` would put the
+  // playhead a quarter of a beat ahead of the beat you can hear — and, with the decks on
+  // different rates, would line the two grids up differently. See `audiblePosition`.
+  const pos = deck.audiblePosition
+  // The lane is drawn on a playback-time axis, not on this track's own source axis, so
+  // that a beat-synced pair lines up across both lanes. See waveform-timebase.ts.
+  const tb = laneTimebase(pos, windowSeconds, secPerPx, deck.rate)
+  const windowEnd = tb.tStart + w * tb.secPerPx
 
   // 1. Beatgrid Ticks
   const grid = track.grid
   if (grid) {
     const bpb = grid.beatsPerBar || 4
     const anchorBeat = downbeatIndex(grid)
-    const windowEnd = tStart + windowSeconds
 
     const drawTick = (t: number, isDownbeat: boolean) => {
-      const x = (t - tStart) / secPerPx
+      const x = laneX(t, tb)
       ctx.fillStyle = isDownbeat ? downbeatColor : beatColor
       ctx.globalAlpha = isDownbeat ? 0.85 : 0.45
       ctx.fillRect(x - (isDownbeat ? 1 : 0.5), topY, isDownbeat ? 2 : 1, laneH)
@@ -737,7 +751,7 @@ function renderDeckLane({
       // Variable tempo: draw the analyser's measured beat positions so the ticks
       // stay on the audio instead of sliding away as the track drifts.
       const beats = grid.beats as number[]
-      const firstIndex = Math.max(0, Math.floor(beatIndexAt(grid, tStart)))
+      const firstIndex = Math.max(0, Math.floor(beatIndexAt(grid, tb.tStart)))
       for (let i = firstIndex; i < beats.length; i++) {
         const t = beats[i]
         if (t > windowEnd) break
@@ -746,7 +760,7 @@ function renderDeckLane({
       }
     } else {
       const beatLen = 60 / grid.bpm
-      const firstVisibleBeat = Math.ceil((tStart - grid.firstBeat) / beatLen)
+      const firstVisibleBeat = Math.ceil((tb.tStart - grid.firstBeat) / beatLen)
       for (let k = firstVisibleBeat; ; k++) {
         const t = grid.firstBeat + k * beatLen
         if (t > windowEnd) break
@@ -762,12 +776,11 @@ function renderDeckLane({
     // boundaries are only drawn when the analyzer measured a phrase length: an
     // 8-bar line on a track whose phrases were never measured would be a guess
     // drawn as a fact.
-    const windowEndForMarkers = tStart + windowSeconds
     if (grid.barStructure?.phraseSource === 'drops') {
       ctx.fillStyle = MARKER_PHRASE
       ctx.globalAlpha = 0.9
-      for (const t of phraseBoundaries(grid, tStart, windowEndForMarkers)) {
-        const x = (t - tStart) / secPerPx
+      for (const t of phraseBoundaries(grid, tb.tStart, windowEnd)) {
+        const x = laneX(t, tb)
         if (x < -4 || x > w + 4) continue
         // A cap on the top edge of the lane, not a full-height line: a phrase
         // boundary always lands on a downbeat, so a full-height grey line would
@@ -776,7 +789,7 @@ function renderDeckLane({
       }
     }
     for (const drop of dropMarkers(grid)) {
-      const x = (drop.time - tStart) / secPerPx
+      const x = laneX(drop.time, tb)
       if (x < -4 || x > w + 4) continue
       ctx.fillStyle = MARKER_DROP
       ctx.globalAlpha = 0.95
@@ -793,8 +806,8 @@ function renderDeckLane({
 
   // 2. Loop Region highlight (Traktor Emerald Green with center handle)
   if (deck.loop) {
-    const x1 = (deck.loop.start - tStart) / secPerPx
-    const x2 = (deck.loop.end - tStart) / secPerPx
+    const x1 = laneX(deck.loop.start, tb)
+    const x2 = laneX(deck.loop.end, tb)
     if (x2 > 0 && x1 < w) {
       const startX = Math.max(x1, 0)
       const endX = Math.min(x2, w)
@@ -838,7 +851,7 @@ function renderDeckLane({
 
   // 3. Multi-layer Waveform Envelope (Beatport DJ style outer body + solid core)
   for (let x = 0; x < w; x++) {
-    const t = tStart + x * secPerPx
+    const t = tb.tStart + x * tb.secPerPx
     if (t < 0 || t >= track.duration) continue
     const idx = Math.floor((t / track.duration) * peaks.length)
     const val = peaks[idx] ?? 0
@@ -860,7 +873,7 @@ function renderDeckLane({
   // 4. Hot Cues flags
   deck.hotCues.forEach((cue, i) => {
     if (cue === null) return
-    const x = (cue - tStart) / secPerPx
+    const x = laneX(cue, tb)
     if (x < 0 || x > w) return
 
     ctx.fillStyle = '#ffffff'

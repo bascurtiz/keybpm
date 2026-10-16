@@ -15,3 +15,6 @@ workers/api/.dev.vars
 
 # Local research and reverse-engineered reference files — never upload or commit.
 research/
+
+# Scratch output from analysis runs (audio A/B renders, reports) — never commit.
+outputs/

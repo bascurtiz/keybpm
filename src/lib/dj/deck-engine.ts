@@ -1,6 +1,12 @@
 import { SoundTouchNode } from '@soundtouchjs/audio-worklet'
 import { createRubberBandNode, type RubberBandNode } from './rubberband-node'
 import { measureLevel, TARGET_RMS } from './autogain'
+import {
+  audiblePosition as audiblePositionOf,
+  keyLockLatencySeconds as keyLockLatencyOf,
+  keyLockTransform,
+  type KeyLockEngine,
+} from './keylock-transform'
 import { HOT_CUE_COUNT, type BeatGrid, type FxType, type LoopRegion, type Track } from './types'
 import {
   barLengthAt,
@@ -19,8 +25,11 @@ import {
   snapToBeat as snapToGridBeat,
 } from './grid'
 
-/** Which realtime engine holds the key. See {@link DeckEngine.setKeyLockEngine}. */
-export type KeyLockEngine = 'rubberband' | 'soundtouch'
+/**
+ * Which realtime engine holds the key. Defined with the keylock maths so that module can
+ * name the engine it is reasoning about; re-exported here, where callers look for it.
+ */
+export type { KeyLockEngine }
 
 /**
  * How long a deck will play dry while a newly selected Rubber Band engine settles.
@@ -260,6 +269,8 @@ export class DeckEngine {
   /** True while the deck plays dry, waiting for a newly selected engine to wake. */
   private keyLockAwaitingKernel = false
   private keyLockKernelTimer: number | null = null
+  /** True while the wet keylock path is actually carrying the audio. */
+  private _keyLockActive = false
 
   // Continuous Zero-Drift Sync Lock (PLL)
   private _syncLocked = false
@@ -606,6 +617,38 @@ export class DeckEngine {
     this.setKeyLock(!this._keyLock)
   }
 
+  /**
+   * Seconds the active keylock path holds the audio back. 0 when the deck plays dry.
+   *
+   * See `keylock-transform.ts` for the measurement. Displays that show "where the track is
+   * right now" want {@link audiblePosition} instead of {@link position}, or they will lead
+   * the sound by this much whenever keylock is engaged.
+   */
+  get keyLockLatencySeconds(): number {
+    return keyLockLatencyOf(this._keyLockEngine, this._keyLockActive, this.ctx.sampleRate)
+  }
+
+  /**
+   * The source position being heard right now, as opposed to the one being read.
+   *
+   * `position` is the vinyl worklet's read head, which runs ahead of the audio whenever
+   * the keylock engine is in the path. Anything drawn against "what you hear" — waveform
+   * lanes, playheads, beat counters — should use this, or it will sit a fraction of a beat
+   * early with keylock on and be correct with it off, which reads as the grids not lining
+   * up between decks.
+   *
+   * Deliberately *not* folded into `position`: seeking, scrubbing and sync all want the
+   * read head, and correcting those would make them 133 ms wrong instead.
+   *
+   * Note that this only fixes the *display*. `alignPhaseTo` bar-aligns read heads, so a
+   * synced pair where exactly one deck holds the key is genuinely ~133 ms apart in the
+   * audio — a flam on the kick — and drawing the lanes against this getter will show that
+   * honestly rather than hiding it. Compensating it is a change to sync, not to this.
+   */
+  get audiblePosition(): number {
+    return audiblePositionOf(this.posSeconds, this._rate, this.keyLockLatencySeconds)
+  }
+
   private _keyShift = 0
 
   get keyShift(): number {
@@ -823,15 +866,28 @@ export class DeckEngine {
 
   private updateKeyLockRouting() {
     const t = this.ctx.currentTime
-    const effectiveRate = this._rate * this._nudgeFactor * this._pllCorrection
     const needsKeyLock = this._keyLock || this._keyShift !== 0
     const engine = this.activeKeyLockEngine()
-    const active = needsKeyLock && !this._scratching && engine !== null && !this.keyLockAwaitingKernel
 
-    // Both engines are fed the vinyl worklet's output, which is already resampled
-    // to the pitch-fader rate, so keylock here is a pitch shift of (1 / rate) plus
-    // the key shift — the stream's length stays untouched.
-    const pitch = (this._keyLock ? 1 / effectiveRate : 1) * Math.pow(2, this._keyShift / 12)
+    // `pitch` is the ratio the engine would apply, and `identity` says whether applying
+    // it would do anything. At a centred fader with no key shift it would not: the
+    // engine would only re-time windows and warp the track. Play dry instead — the
+    // engine keeps running and keeps being fed, and the params below are still written,
+    // so the wet path is already correct and primed for the moment the fader leaves the
+    // detent. See {@link keyLockTransform} for the measurement behind this.
+    const { pitch, ratePitch, identity } = keyLockTransform(
+      this._rate,
+      this._nudgeFactor,
+      this._pllCorrection,
+      this._keyLock,
+      this._keyShift,
+    )
+
+    const active =
+      needsKeyLock && !identity && !this._scratching && engine !== null && !this.keyLockAwaitingKernel
+
+    this._keyLockActive = active
+
     if (this.rbVoices.length > 0) {
       // Never applied directly: this is a request, and `requestKeyLockPitch` decides
       // whether the audible voice is close enough already or a handover is needed.
@@ -840,12 +896,12 @@ export class DeckEngine {
     if (engine === this.stNode && this.stNode) {
       // SoundTouch:
       // pipe.pitch = pitch * Math.pow(2, pitchSemitones / 12) / playbackRate
-      // playbackRate is kept at 1.0 (vinyl worklet resamples at effectiveRate).
-      const targetPitch = this._keyLock ? 1 / effectiveRate : 1.0
+      // playbackRate is kept at 1.0 (vinyl worklet resamples at effectiveRate), and the
+      // key shift goes in through pitchSemitones, so `pitch` here is the rate part only.
       this.stNode.playbackRate.value = 1.0
       this.stNode.playbackRate.setValueAtTime(1.0, t)
-      this.stNode.pitch.value = targetPitch
-      this.stNode.pitch.setValueAtTime(targetPitch, t)
+      this.stNode.pitch.value = ratePitch
+      this.stNode.pitch.setValueAtTime(ratePitch, t)
       this.stNode.pitchSemitones.value = this._keyShift
       this.stNode.pitchSemitones.setValueAtTime(this._keyShift, t)
     }
@@ -1440,6 +1496,15 @@ export class DeckEngine {
 
   /**
    * Align this deck's bar phase to another deck (used by SYNC and deferred sync-on-play).
+   *
+   * Phase is compared at each deck's *audible* position, not its read head. A keylocked
+   * deck's read head runs up to 133 ms ahead of the sound it is making (see
+   * {@link audiblePosition}), so aligning read heads lines up the two decks on screen while
+   * leaving their audio a quarter of a beat apart — a flam on the kick. Both decks report
+   * zero latency when they play dry, so this is a no-op unless one of them holds the key.
+   *
+   * The correction is a source-time shift, and subtracting a constant latency commutes with
+   * it, so shifting the read head by `shift` moves the audible position by `shift` too.
    */
   alignPhaseTo(other: DeckEngine): boolean {
     const ownGrid = this.track?.grid ?? null
@@ -1447,14 +1512,16 @@ export class DeckEngine {
     if (!ownGrid || !otherGrid || this._scratching) return false
     if (!(ownGrid.bpm > 0) || !(otherGrid.bpm > 0)) return false
 
-    const phiSelf = barPhaseAt(ownGrid, this.position)
-    const phiOther = barPhaseAt(otherGrid, other.position)
+    const ownAt = this.audiblePosition
+    const otherAt = other.audiblePosition
+    const phiSelf = barPhaseAt(ownGrid, ownAt)
+    const phiOther = barPhaseAt(otherGrid, otherAt)
     let dPhi = phiOther - phiSelf
     if (dPhi > 0.5) dPhi -= 1.0
     if (dPhi < -0.5) dPhi += 1.0
     // Shift by a fraction of the *local* bar so the correction is right even
     // where a variable grid is running slower or faster than its average.
-    const shift = dPhi * barLengthAt(ownGrid, this.position)
+    const shift = dPhi * barLengthAt(ownGrid, ownAt)
     this.post({ t: 'shift', s: shift })
     this.posSeconds = Math.min(Math.max(this.posSeconds + shift, 0), this.duration)
     return true

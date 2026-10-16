@@ -91,10 +91,15 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
         }
       }
 
-      // 4-beat bar counter based on track beat grid
+      // 4-beat bar counter based on track beat grid.
+      //
+      // Driven by the *audible* position, not the read head. The window here is 0.04 of a
+      // beat, and a keylocked deck's sound runs ~0.27 of a beat behind its read head, so
+      // counting off the read head would light the next beat about a quarter beat before
+      // you hear it. See DeckEngine.audiblePosition.
       const gridA = deckA.track?.grid
       if (gridA && deckA.track) {
-        const activeIdxA = beatInBarAt(gridA, deckA.position, 0.04)
+        const activeIdxA = beatInBarAt(gridA, deckA.audiblePosition, 0.04)
 
         for (let i = 0; i < 4; i++) {
           const el = beatAEls.current[i]
@@ -118,7 +123,7 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
 
       const gridB = deckB.track?.grid
       if (gridB && deckB.track) {
-        const activeIdxB = beatInBarAt(gridB, deckB.position, 0.04)
+        const activeIdxB = beatInBarAt(gridB, deckB.audiblePosition, 0.04)
 
         for (let i = 0; i < 4; i++) {
           const el = beatBEls.current[i]
