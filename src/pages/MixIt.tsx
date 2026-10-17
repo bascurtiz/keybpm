@@ -11,8 +11,24 @@ import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
+import { Link } from 'react-router-dom'
+import { useMediaQuery } from '@/lib/useMediaQuery'
+import { useConsoleFit, CONSOLE_WIDTH, type ConsoleFit } from '@/lib/dj/use-console-fit'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
+
+/**
+ * Pages worth reaching from the console on a phone, where the site header is hidden.
+ * Kept short on purpose: this is a way out and back, not a second navigation system.
+ */
+const KIOSK_LINKS = [
+  { to: '/', label: 'Home' },
+  { to: '/browse', label: 'Browse tracks' },
+  { to: '/mix', label: 'Mix Finder' },
+  { to: '/key', label: 'Key Wheel' },
+  { to: '/tool', label: 'Key Tool' },
+  { to: '/about', label: 'About' },
+]
 
 /**
  * Build fingerprint rendered next to the BETA chip.
@@ -40,6 +56,39 @@ export function MixIt() {
   const [activeFxDeck, setActiveFxDeck] = useState<'A' | 'B' | null>(null)
   const [loadModalDeck, setLoadModalDeck] = useState<'A' | 'B' | null>(null)
   const [, setEngineVer] = useState(0)
+
+  // Phones and tablets get the console instead of the site: the header, the page title
+  // and the 24 px page padding were taking a third of a 360 px-tall landscape viewport.
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const kiosk = !isDesktop
+  // A phone held upright is the wrong shape for a two-deck console: at fit size the
+  // controls are too small to hit, and at 1:1 you see one of the three panels at a
+  // time and have to pan between the decks and the mixer. So portrait opens on a
+  // rotate prompt instead, with 1:1 behind it for anyone who cannot turn the phone.
+  // Landscape fits the whole console (the mock-up's mode); a portrait tablet is wide
+  // enough that fitting only costs a little type size and needs no prompt.
+  const portraitPhone = useMediaQuery('(orientation: portrait) and (max-width: 639px)')
+  const [fitChoice, setFitChoice] = useState<ConsoleFit | null>(null)
+  const fitMode: ConsoleFit = fitChoice ?? (portraitPhone ? 'actual' : 'fit')
+  // "Continue anyway" is per-rotation, not permanent: coming back from landscape
+  // re-arms the prompt, so the next upright visit starts from the right advice.
+  const [portraitOptOut, setPortraitOptOut] = useState(false)
+  const showRotatePrompt = kiosk && portraitPhone && !portraitOptOut
+  useEffect(() => {
+    if (!portraitPhone) setPortraitOptOut(false)
+  }, [portraitPhone])
+  const { setBoxRef, setChassisRef, scale } = useConsoleFit(fitMode)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  // Esc closes the console menu, matching the site drawer's behaviour.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen])
 
   // Per-deck load generation so a finishing older analysis can't clear a newer one.
   const loadGenRef = useRef({ A: 0, B: 0 })
@@ -182,11 +231,88 @@ export function MixIt() {
 
   const spinnerColor = analyzingDeck === 'A' ? '#34d399' : '#a855f7'
 
+  // Kiosk layout: the chassis is measured against the box it is put in, then either
+  // scaled to fit both axes (landscape — the whole console visible) or left at 1:1
+  // and panned (portrait — the console's height nearly matches the screen's).
+  const boxClass = !kiosk
+    ? 'mt-4 w-full overflow-x-auto pb-2 flex justify-center'
+    : fitMode === 'fit'
+      ? 'relative w-full flex-1 min-h-0 overflow-hidden'
+      : 'relative w-full flex-1 min-h-0 overflow-auto overscroll-contain'
+
+  const chassisClass = !kiosk
+    ? 'w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0'
+    : fitMode === 'fit'
+      ? 'absolute left-1/2 top-1/2 shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col'
+      : 'mx-auto shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col'
+
+  const chassisStyle = !kiosk
+    ? undefined
+    : fitMode === 'fit'
+      ? { width: CONSOLE_WIDTH, transform: `translate(-50%, -50%) scale(${scale})` }
+      : { width: CONSOLE_WIDTH }
+
   return (
-    <div className="flex flex-col min-h-[calc(100vh-var(--header-h,64px))] bg-bg select-none text-text">
+    <div
+      className={
+        kiosk
+          ? 'fixed inset-x-0 top-0 z-30 flex h-[100dvh] flex-col overflow-hidden bg-bg select-none text-text'
+          : 'flex flex-col min-h-[calc(100vh-var(--header-h,64px))] bg-bg select-none text-text'
+      }
+    >
+      {/* Kiosk chrome. The site header is hidden here (see `Header`), so the console
+          carries its own slim bar: the zoom toggle, because a fitted console is small
+          to tap, and a way back into the database without unloading the decks. A bar
+          rather than floating buttons — every corner of the console is a control. */}
+      {kiosk && (
+        <div
+          className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-[#141414] px-2 py-1"
+          style={{
+            paddingTop: 'max(0.25rem, env(safe-area-inset-top))',
+            paddingLeft: 'max(0.5rem, env(safe-area-inset-left))',
+            paddingRight: 'max(0.5rem, env(safe-area-inset-right))',
+          }}
+        >
+          <div className="flex min-w-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open KeyBPM menu"
+              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
+            <span className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              Mix it!
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFitChoice(fitMode === 'fit' ? 'actual' : 'fit')}
+            aria-label={
+              fitMode === 'fit' ? 'Show the console at full size' : 'Fit the whole console on screen'
+            }
+            title={fitMode === 'fit' ? 'Fit to screen (tap for 1:1)' : 'Full size (tap to fit)'}
+            className="flex h-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 px-3 font-mono text-[11px] font-semibold text-white/70 transition-colors active:text-white"
+          >
+            {fitMode === 'fit' ? '1:1' : 'FIT'}
+          </button>
+        </div>
+      )}
+
       {/* Main DJ Console Workspace - Compact hardware layout matching real DJ controllers */}
-      <main className="flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-6">
-        {/* Page Title Row */}
+      <main
+        className={
+          kiosk
+            ? 'flex-1 flex flex-col min-h-0 w-full'
+            : 'flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-6'
+        }
+      >
+        {/* Page Title Row — desktop only: in kiosk mode every row above the console
+            costs transport space, which is the scarcest thing on a phone. */}
+        {!kiosk && (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold text-white tracking-wide">Mix it!</h1>
@@ -216,10 +342,15 @@ export function MixIt() {
             Drop two tracks onto the decks, lock the keys, and start mixing live.
           </p>
         </div>
+        )}
 
         {/* Error notification banner if any */}
         {errorMsg && (
-          <div className="mt-4 p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between">
+          <div
+            className={`${
+              kiosk ? 'absolute inset-x-2 top-10 z-30' : 'mt-4'
+            } p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between backdrop-blur-sm`}
+          >
             <span>{errorMsg}</span>
             <button
               type="button"
@@ -231,9 +362,10 @@ export function MixIt() {
           </div>
         )}
 
-        {/* Single Seamless Traktor DJ Hardware Chassis */}
-        <div className="mt-4 w-full overflow-x-auto pb-2 flex justify-center">
-          <div className="w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0">
+        {/* Single Seamless Traktor DJ Hardware Chassis. In kiosk mode the console is
+            the page: it is measured against the viewport and scaled or panned to fit. */}
+        <div ref={kiosk ? setBoxRef : undefined} className={boxClass}>
+          <div ref={kiosk ? setChassisRef : undefined} className={chassisClass} style={chassisStyle}>
             {/* YouTube VJ decks - hidden for now */}
             {/* <YouTubeVideoOverlay
               crossfade={engine.crossfade}
@@ -263,8 +395,15 @@ export function MixIt() {
               />
             )}
 
-            {/* 3. FULL-WIDTH STACKED SCROLLING WAVEFORMS */}
-            <div className="w-full h-[290px] border-b border-[#282828] bg-[#161616]">
+            {/* 3. FULL-WIDTH STACKED SCROLLING WAVEFORMS. In a fitted console the lane
+                gives up height on purpose: scaling a 290 px waveform to half size spends
+                that space on the waveform while shrinking every fader to nothing, and the
+                lane is the one block whose job survives being smaller. */}
+            <div
+              className={`w-full ${
+                kiosk && fitMode === 'fit' ? 'h-[130px]' : 'h-[290px]'
+              } border-b border-[#282828] bg-[#161616]`}
+            >
               <StackedWaveforms
                 deckA={deckA}
                 deckB={deckB}
@@ -326,6 +465,60 @@ export function MixIt() {
         </div>
       </main>
 
+      {/* Menu sheet. Sits above the console so the decks stay mounted (and playing)
+          while the user looks something up. */}
+      {kiosk && (
+        <>
+          {menuOpen && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="KeyBPM menu"
+              className="fixed inset-0 z-50 flex flex-col bg-bg/95 p-4 backdrop-blur-sm"
+              style={{
+                paddingTop: 'max(1rem, env(safe-area-inset-top))',
+                paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold tracking-wide">
+                  Key<span className="text-accent">BPM</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-bg-card text-text-muted"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+              </div>
+              <nav aria-label="Primary" className="mt-3">
+                <ul className="flex flex-col gap-0.5">
+                  {KIOSK_LINKS.map(link => (
+                    <li key={link.to}>
+                      <Link
+                        to={link.to}
+                        onClick={() => setMenuOpen(false)}
+                        className="flex min-h-12 items-center rounded-lg px-3 text-[15px] text-text transition-colors hover:bg-bg-hover active:bg-bg-hover"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <p className="mt-auto pt-4 text-[11px] leading-relaxed text-text-dim">
+                The decks keep their tracks and keep playing while you browse. Come back here
+                to mix.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Analysis Progress Modal */}
       {analyzingDeck && analysisProgress && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
@@ -368,6 +561,55 @@ export function MixIt() {
         onClose={() => setLoadModalDeck(null)}
         onLoadLocalFile={handleFileSelected}
       />
+
+      {/* Portrait phone: the console is built for landscape, so say so instead of
+          opening on a third of a mixer. The decks stay mounted underneath — loading a
+          track, or an analysis already running, is not interrupted by this prompt. */}
+      {showRotatePrompt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rotate-prompt-title"
+          className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-5 bg-bg px-6 text-center"
+          style={{
+            paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+          }}
+        >
+          <svg
+            width="56"
+            height="56"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+            className="animate-pulse text-accent motion-reduce:animate-none"
+          >
+            <rect x="9" y="4.5" width="8" height="15" rx="2" />
+            <path d="M12.2 17h1.6" />
+            <path d="M6.4 9.2A6.8 6.8 0 0 1 16.4 3.3" />
+            <path d="M5.6 6.2l0.8 3 2.9-0.8" />
+          </svg>
+          <div className="space-y-1.5">
+            <p id="rotate-prompt-title" className="text-base font-semibold text-text">
+              Turn your screen
+            </p>
+            <p className="mx-auto max-w-[17rem] text-sm leading-relaxed text-text-muted">
+              The two-deck console needs landscape. Rotate your phone for the optimal view.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPortraitOptOut(true)}
+            className="text-[11px] font-mono uppercase tracking-wider text-text-dim underline underline-offset-4 transition-colors hover:text-text-muted"
+          >
+            Continue anyway
+          </button>
+        </div>
+      )}
     </div>
   )
 }

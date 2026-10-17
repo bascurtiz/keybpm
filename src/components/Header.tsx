@@ -155,6 +155,13 @@ export function Header() {
   // contribution saved, or the approved-queue overlay landing after Approve).
   useCatalog()
 
+  // The DJ console owns the whole screen on phones: a brand row, a nav drawer and a
+  // search box would cost ~56 px of a 360 px-tall landscape viewport, which is a
+  // sixth of the space the transport bar needs. The console brings its own compact
+  // menu instead (see `MixIt`), so the site chrome is only shown on desktop.
+  const onMixer = location.pathname === '/mix-it' || location.pathname === '/mixit'
+  if (onMixer && !isDesktop) return null
+
   return (
     <header ref={headerRef} className="sticky top-0 z-40 border-b border-line bg-bg">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 lg:flex-nowrap lg:py-3 lg:px-6">
