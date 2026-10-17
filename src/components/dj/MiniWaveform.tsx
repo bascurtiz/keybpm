@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
+import { canvasPixelRatio } from '@/lib/canvas-dpr'
 
 interface MiniWaveformProps {
   deck: DeckEngine
@@ -44,11 +45,17 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
     if (!ctx) return
 
     let raf = 0
+    let frame = 0
+    let rect = { width: 0, height: 0 }
     const tick = () => {
       raf = requestAnimationFrame(tick)
-      const rect = canvas.getBoundingClientRect()
+      // A layout read, not a paint: the box only changes when the viewport does, and the
+      // chassis this canvas sits in is scaled by a transform, so the measured width is
+      // re-read once every eight frames (a tenth of a second) rather than sixty times a
+      // second — time a phone would rather spend on the audio thread.
+      if (frame++ % 8 === 0) rect = canvas.getBoundingClientRect()
       if (rect.width === 0) return
-      const dpr = window.devicePixelRatio || 1
+      const dpr = canvasPixelRatio()
       const w = rect.width
       const h = rect.height
 
@@ -87,15 +94,27 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
       const mid = h / 2
 
       // Draw peaks
+      //
+      // Two paths rather than two `fillRect`s per column. This strip is only a couple of hundred
+      // columns wide, so it is the cheaper of the two waveform surfaces, but it is redrawn twice
+      // as often as the lanes are (once per deck) and paid the same per-column `fillStyle`
+      // change. Filling a path is the same picture with four canvas calls.
       const step = peaks.length / w
-      for (let x = 0; x < w; x++) {
-        const peakIdx = Math.floor(x * step)
-        const amp = Math.max((peaks[peakIdx] ?? 0) * (mid - 2), 0.5)
-        const isPlayed = x / w <= posRatio
-
-        ctx.fillStyle = isPlayed ? waveColor : '#444444'
-        ctx.fillRect(x, mid - amp, 1, amp * 2)
+      const playedColumns = Math.min(w, Math.max(0, Math.floor(posRatio * w) + 1))
+      const columnPath = (from: number, to: number) => {
+        ctx.beginPath()
+        for (let x = from; x < to; x++) {
+          const peakIdx = Math.floor(x * step)
+          const amp = Math.max((peaks[peakIdx] ?? 0) * (mid - 2), 0.5)
+          ctx.rect(x, mid - amp, 1, amp * 2)
+        }
+        ctx.fill()
       }
+
+      ctx.fillStyle = '#444444'
+      columnPath(playedColumns, w)
+      ctx.fillStyle = waveColor
+      columnPath(0, playedColumns)
 
       // Cue flags — the CUE point's 'C' and the numbered hot cues, drawn as the same 2 px white
       // stripe the full-width lanes use. This strip spans the whole track rather than a scroll

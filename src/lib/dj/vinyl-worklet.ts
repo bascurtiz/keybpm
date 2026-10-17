@@ -5,6 +5,13 @@
  * interpolation, so the platter can drag the audio backward (scratching),
  * hold it still (silence), and release back to normal speed with a short
  * motor-like ramp.
+ *
+ * Positions are reported over the message port at display rate rather than at
+ * render rate. The UI redraws at 60 Hz, so the old cadence of one report per
+ * second render quantum — 187/s per deck at 48 kHz — was posting three times more
+ * often than anything can use, and every one of those messages crosses the thread
+ * boundary and runs a callback on the main thread, on the device least able to
+ * spare either.
  */
 
 let url: string | null = null
@@ -35,6 +42,11 @@ class VinylPlayer extends AudioWorkletProcessor {
     this.ghost = 0;           // slip ghost playhead (buffer frames)
     this.endedSent = false;
     this.postCounter = 0;
+    // Reports per second, from the render quantum (128 frames, fixed by spec) and the
+    // context's rate: ~60 Hz at 44.1 or 48 kHz.
+    this.postEvery = Math.max(2, Math.round(sampleRate / (128 * 60)));
+    this.lastPostS = -1;
+    this.lastPostG = -1;
     this.port.onmessage = (e) => this.onMessage(e.data);
   }
 
@@ -135,12 +147,17 @@ class VinylPlayer extends AudioWorkletProcessor {
   }
 
   postPosition() {
-    if (++this.postCounter >= 2) {
-      this.postCounter = 0;
-      const s = Math.max(0, Math.min(this.pos, this.length - 1)) / this.bufferRate;
-      const g = Math.max(0, Math.min(this.ghost, this.length - 1)) / this.bufferRate;
-      this.port.postMessage({ t: "pos", s, g, f: currentFrame });
-    }
+    if (++this.postCounter < this.postEvery) return;
+    this.postCounter = 0;
+    const s = Math.max(0, Math.min(this.pos, this.length - 1)) / this.bufferRate;
+    const g = Math.max(0, Math.min(this.ghost, this.length - 1)) / this.bufferRate;
+    // A stopped platter reports the same position every time. Waking the main thread
+    // 60 times a second to say "still 42.5" is pure battery; a seek moves pos, and so
+    // still gets through.
+    if (s === this.lastPostS && g === this.lastPostG) return;
+    this.lastPostS = s;
+    this.lastPostG = g;
+    this.port.postMessage({ t: "pos", s, g, f: currentFrame });
   }
 
   process(inputs, outputs) {

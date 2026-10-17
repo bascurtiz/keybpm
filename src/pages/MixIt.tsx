@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom'
 import { useViewportMode } from '@/lib/use-viewport'
 import { useConsoleFit, CONSOLE_WIDTH } from '@/lib/dj/use-console-fit'
 import { useFullscreen, enterFullscreen } from '@/lib/fullscreen'
+import { useKeepScreenAwake } from '@/lib/wake-lock'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
@@ -126,6 +127,26 @@ export function MixIt() {
       unsub()
     }
   }, [engine])
+
+  // Whether anything is actually coming out of the console. Used for the screen wake lock
+  // below; deck-level rather than engine-level, because the engine does not emit for play and
+  // pause. `setPlaying` with an unchanged value does not re-render.
+  const [playing, setPlaying] = useState(false)
+  useEffect(() => {
+    const sync = () => setPlaying(deckA.playing || deckB.playing)
+    const unsubA = deckA.subscribe(sync)
+    const unsubB = deckB.subscribe(sync)
+    sync()
+    return () => {
+      unsubA()
+      unsubB()
+    }
+  }, [deckA, deckB])
+
+  // A phone that dims mid-set is a phone that also starts throttling; see `wake-lock.ts`.
+  // Only in kiosk (touch) layout: a desktop browser has no such problem and no reason to
+  // hold someone's screen on.
+  useKeepScreenAwake(kiosk && playing)
 
   const handleFileSelected = async (
     targetDeckId: 'A' | 'B',

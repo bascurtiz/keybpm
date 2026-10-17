@@ -282,6 +282,23 @@ number of seconds, clamped to 0.01–0.2. It is read once, when the engine build
 change applies on the next page load. The effective figure is on the engine as
 `bufferLatencyMs`.
 
+Phones and tablets get `safe` (60 ms) rather than `balanced`, because that is where the deadline
+is both slower and shrinking: the same graph renders on a few watts, the SoC throttles its clocks
+over the first minutes of sustained playback, and the main thread is meanwhile repainting a 60 Hz
+canvas console. The stored override still wins, so `keybpm:audio-latency = balanced` puts a phone
+back on the desktop default.
+
+That main thread was doing more work than it needed to, which is the other half of the same
+problem. Two waveform lanes were filled one `fillRect` at a time — around 3,000 canvas calls per
+frame at landscape-phone widths — the vinyl worklet reported its position 187 times a second per
+deck (three times what a display can show, each report a callback on the main thread), and the canvases
+asked for 3x device pixels for a console that is drawn scaled *down*. `StackedWaveforms` and
+`MiniWaveform` now fill four paths instead of three thousand rectangles, the worklet reports at
+~60 Hz and stays quiet while a deck is stopped, and `canvas-dpr.ts` stops the backing store at
+2x. The kiosk console also holds a screen wake lock while something is playing
+(`wake-lock.ts`): Web Audio does not get the "this is playback" treatment a media element does,
+and a phone that dims mid-set is a phone that starts dropping clocks.
+
 Recording a mix does **not** capture audio. It captures what the decks *did* — per deck:
 where the audio read from, how fast (the pitch fader's value, with any seek recorded as a
 segment break), the channel gain, three-band EQ, filter and key shift — then rebuilds the
