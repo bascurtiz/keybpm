@@ -13,8 +13,9 @@ import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 import { BrowserNotice } from '@/components/BrowserNotice'
 import { Link } from 'react-router-dom'
-import { useMediaQuery } from '@/lib/useMediaQuery'
+import { useViewportMode } from '@/lib/use-viewport'
 import { useConsoleFit, CONSOLE_WIDTH, type ConsoleFit } from '@/lib/dj/use-console-fit'
+import { useFullscreen } from '@/lib/fullscreen'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
@@ -60,15 +61,15 @@ export function MixIt() {
 
   // Phones and tablets get the console instead of the site: the header, the page title
   // and the 24 px page padding were taking a third of a 360 px-tall landscape viewport.
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
-  const kiosk = !isDesktop
+  // Read from resize events, not media-query events, so the address bar sliding away
+  // (or the keyboard opening) re-fits the console immediately — see `use-viewport.ts`.
+  const { kiosk, portraitPhone } = useViewportMode()
   // A phone held upright is the wrong shape for a two-deck console: at fit size the
   // controls are too small to hit, and at 1:1 you see one of the three panels at a
   // time and have to pan between the decks and the mixer. So portrait opens on a
   // rotate prompt instead, with 1:1 behind it for anyone who cannot turn the phone.
   // Landscape fits the whole console (the mock-up's mode); a portrait tablet is wide
   // enough that fitting only costs a little type size and needs no prompt.
-  const portraitPhone = useMediaQuery('(orientation: portrait) and (max-width: 639px)')
   const [fitChoice, setFitChoice] = useState<ConsoleFit | null>(null)
   const fitMode: ConsoleFit = fitChoice ?? (portraitPhone ? 'actual' : 'fit')
   // "Continue anyway" is per-rotation, not permanent: coming back from landscape
@@ -80,6 +81,9 @@ export function MixIt() {
   }, [portraitPhone])
   const { setBoxRef, setChassisRef, scale } = useConsoleFit(fitMode)
   const [menuOpen, setMenuOpen] = useState(false)
+  // Fullscreen is how the console gets the address bar back: a fixed viewport never
+  // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
+  const fullscreen = useFullscreen()
 
   // Esc closes the console menu, matching the site drawer's behaviour.
   useEffect(() => {
@@ -289,6 +293,24 @@ export function MixIt() {
               Mix it!
             </span>
           </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+          {fullscreen.supported && (
+            <button
+              type="button"
+              onClick={fullscreen.toggle}
+              aria-label={fullscreen.active ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={fullscreen.active ? 'Exit fullscreen' : 'Fullscreen (hides the address bar)'}
+              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {fullscreen.active ? (
+                  <path d="M9 4v5H4M15 20v-5h5M20 9h-5V4M4 15h5v5" />
+                ) : (
+                  <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
+                )}
+              </svg>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setFitChoice(fitMode === 'fit' ? 'actual' : 'fit')}
@@ -300,6 +322,7 @@ export function MixIt() {
           >
             {fitMode === 'fit' ? '1:1' : 'FIT'}
           </button>
+          </div>
         </div>
       )}
 
