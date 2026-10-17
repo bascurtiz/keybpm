@@ -360,6 +360,14 @@ desktop and phone arrangements:
   mode, so desktop is untouched.
 - The **FX drawer floats over the metadata strip** on a phone instead of taking a row of its
   own, because the rows are already at their floors.
+- **Fullscreen is re-asked while a dialog is up.** The browser owns the exit: on Android the
+  file picker is a separate activity and the keyboard takes the bottom of the screen, so
+  opening the load dialog can drop the console out of fullscreen and bring the address bar
+  back. The page cannot refuse that, but it can ask again inside a gesture — so while the load
+  dialog, the analysis dialog or the FX drawer is open, a lost fullscreen re-arms one request
+  on the next tap (plus an immediate attempt, which catches the tap that opened the dialog
+  itself), and for three seconds after they close. Outside that window a deliberate exit via
+  Android's system popup is left alone. See `useFullscreenKeeper` in `src/lib/fullscreen.ts`.
 
 A phone held upright still opens on the rotate prompt; a portrait tablet fits the same console
 into the screen it has, capped at `KIOSK_MAX_CONSOLE_H` so a tall box cannot stretch the deck

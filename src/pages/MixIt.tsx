@@ -14,7 +14,7 @@ import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 import { BrowserNotice } from '@/components/BrowserNotice'
 import { useViewportMode } from '@/lib/use-viewport'
 import { useConsoleFit, CONSOLE_WIDTH } from '@/lib/dj/use-console-fit'
-import { useFullscreen, enterFullscreen } from '@/lib/fullscreen'
+import { useFullscreen, useFullscreenKeeper, enterFullscreen } from '@/lib/fullscreen'
 import { useKeepScreenAwake } from '@/lib/wake-lock'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
@@ -116,6 +116,12 @@ export function MixIt() {
   // toggle in the console would cost a whole row (see the note by the chassis height).
   // Only the portrait prompt asks, because asking is a gesture and rotating is not.
   const fullscreen = useFullscreen()
+
+  // Opening the load dialog (or the analysis one, or the FX drawer) is when Android's
+  // file picker and keyboard take the screen away from fullscreen, which is what brought
+  // the address bar back over the console. While any of them is up, the console asks for
+  // fullscreen again on the next tap — see `useFullscreenKeeper`.
+  useFullscreenKeeper(kiosk && (loadModalDeck !== null || analyzingDeck !== null || activeFxDeck !== null))
 
   /**
    * Rotating a phone is not a user gesture, so the browser will usually refuse a
