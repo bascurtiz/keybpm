@@ -452,18 +452,23 @@ export function StackedWaveforms({
           the control that rescales both decks sits between them rather than in Deck A's
           corner. Translucent, because the playhead needle runs underneath it.
 
-          The 24px between − and + is deliberately twice anything else in the row: the needle
-          crosses this pill, and the gap is the only part of it that stays clear of a control,
-          so it is where the playhead is meant to be read. */}
+          The 112px between − and + is the whole point of this row: the needle crosses the
+          pill at its centre, and the gap is the only part of it that stays clear of a
+          control, so it is both where the playhead is read and the space that keeps a
+          thumb off the wrong end. At the phone fit the pair lands ~75 CSS px apart — the
+          two zoom steps are the one pair of controls on the console a slip between is
+          most annoying, and there is nothing else on the seam to crowd. The buttons
+          themselves stay 24px and carry a wider invisible tap pad, so the visible pair
+          does not grow into the waveform while the hit areas do. */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-6"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-28"
       >
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomOut}
           disabled={windowSeconds >= WINDOW_MAX_S}
-          className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
+          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[12px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
           title="Zoom out (or scroll down over the waveforms)"
         >
           −
@@ -473,7 +478,7 @@ export function StackedWaveforms({
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomIn}
           disabled={windowSeconds <= WINDOW_MIN_S}
-          className="w-5 h-5 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[11px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm"
+          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[12px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
           title="Zoom in (or scroll up over the waveforms)"
         >
           +

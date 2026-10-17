@@ -345,19 +345,29 @@ desktop and phone arrangements:
   (two 48 px lanes) instead of the desktop's 290 px, which on a phone would be more than half
   the screen. The mixer therefore still shows its filters and FX block, the decks keep their
   EQ, and sync stays where it is.
-- The console keeps **no chrome of its own**: no bar above it, no rails beside it. The site
-  header is hidden on this route below 1024 px, and the console fills the viewport from the
-  top edge, which is what a 19.5:9 phone wants — an 844×390 box asks for 518 design px, so
-  the fit is width-bound at 0.754 and the deck row gets 276 px instead of the floor.
-  Leaving the console is the browser's back gesture; leaving fullscreen is Android's own
-  system popup, so a toggle for it would only cost a row. The portrait rotate prompt still
-  offers fullscreen, because asking is a gesture and rotating is not.
+- The console's only chrome is a **side rail**: a menu button and a fullscreen toggle,
+  40 design px square — the deck load button's artwork size — level with it, and sitting in
+  the band kept clear on each side, *outside* the chassis. Outside is the point: on a phone
+  the corners are rounded and the cutout is on one flank, so a control drawn in the corner
+  of the chassis would be clipped. The band is `max(env(safe-area-inset-*), 5.2vw)` per
+  side, which is why the console fills roughly 90% of a phone's width rather than all of
+  it. The site header stays hidden on this route below 1024 px, so no bar is needed and the
+  rail costs the fit nothing vertically. The menu opens the site's navigation in a left
+  sheet drawn in real CSS pixels — a menu does not need to shrink with the chassis, and 44
+  px rows stay 44 px rows.
+- **Fullscreen has a button now**, so the Android system popup is no longer the only way
+  in or out. The portrait rotate prompt still offers it too, because asking is a gesture
+  and rotating is not.
 - The **lane controls keep their drawn size but take a bigger tap**: at the phone fit they
   are 15–17 CSS px, so each one covers itself with a transparent pseudo-element that adds
   9 px above and below (`TAP_PAD` in `StackedWaveforms.tsx`), and a couple more sideways
   where the row has room. The ±10 ms pill's label is part of that target too — its left half
   nudges earlier, its right half later. All of it is `max-lg`, the same breakpoint as kiosk
-  mode, so desktop is untouched.
+  mode, so desktop is untouched. The **waveform zoom − / +** pair on the seam is the one
+  control spaced for the thumb rather than for the mock-up: 24 px buttons 112 px apart,
+  which is the widest gap on the console. The playhead runs through the middle of it, so
+  the space is where the needle is read — and at the phone fit it is ~75 CSS px of it,
+  which is what keeps a thumb off the wrong zoom step.
 - The **FX drawer floats over the metadata strip** on a phone instead of taking a row of its
   own, because the rows are already at their floors.
 - **Fullscreen is re-asked while a dialog is up.** The browser owns the exit: on Android the

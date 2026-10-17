@@ -10,6 +10,7 @@ import { TraktorDeck } from '@/components/dj/TraktorDeck'
 import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
+import { ConsoleChrome, RAIL } from '@/components/dj/ConsoleChrome'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 import { BrowserNotice } from '@/components/BrowserNotice'
 import { useViewportMode } from '@/lib/use-viewport'
@@ -63,6 +64,23 @@ const KIOSK_LANE_BAND_H = 96
 const KIOSK_MIN_DECK_ROW_H = 243
 
 /**
+ * Side band kept clear of the console, per side, in kiosk mode.
+ *
+ * The menu and fullscreen buttons sit *outside* the chassis (see `ConsoleChrome`),
+ * level with the deck load buttons — where the phone's rounded corners and the display
+ * cutout cannot clip them. They need `RAIL.gap + RAIL.size` = 52 design px of room each
+ * side, which is 4.6% of the chassis width; a band of 5.2vw leaves a few real pixels to
+ * spare once the console has taken the rest of the width. On a notched phone the
+ * safe-area inset is usually the larger number, and `max()` picks it — the band is
+ * never narrower than the notch.
+ *
+ * This is a deliberate trade: the console gives up about 10% of the screen width on a
+ * phone with no inset at all, and almost nothing where the browser already reserved an
+ * inset (where the mock-up's black bands come from).
+ */
+const KIOSK_SIDE_BAND = 'max(env(safe-area-inset-left), env(safe-area-inset-right), 5.2vw)'
+
+/**
  * Build fingerprint rendered next to the BETA chip.
  *
  * Formatted in UTC on purpose: `__BUILD_DATE__` is baked in at build time, so
@@ -112,9 +130,9 @@ export function MixIt() {
   const { setBoxRef, setChassisRef, box, scale } = useConsoleFit()
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
   // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
-  // The console draws no button for it: Android's system popup is the way out, and a
-  // toggle in the console would cost a whole row (see the note by the chassis height).
-  // Only the portrait prompt asks, because asking is a gesture and rotating is not.
+  // The toggle lives on the side rail rather than in the console — outside the chassis it
+  // costs no row and no column, which is why it can exist at all (see `ConsoleChrome`).
+  // The portrait prompt asks too, because asking is a gesture and rotating is not.
   const fullscreen = useFullscreen()
 
   // Opening the load dialog (or the analysis one, or the FX drawer) is when Android's
@@ -299,9 +317,11 @@ export function MixIt() {
 
   // Kiosk layout: the chassis is measured against the box it is put in and scaled to
   // fit both axes, so the whole console is visible at its own proportions.
+  // No clipping in kiosk: the rail buttons hang outside the box, into the side band.
+  // Nothing else can overflow — the chassis fits the box exactly and clips itself.
   const boxClass = !kiosk
     ? 'mt-4 w-full overflow-x-auto pb-2 flex justify-center'
-    : 'relative min-w-0 flex-1 min-h-0 overflow-hidden'
+    : 'relative min-w-0 flex-1 min-h-0'
 
   const chassisClass = !kiosk
     ? 'w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0'
@@ -342,18 +362,27 @@ export function MixIt() {
         transform: `translate(-50%, -50%) scale(${scale})`,
       }
 
+  // Rail placement: the chassis is centred in the box and scaled, so a button's offset is
+  // the chassis half-width plus the rail gap, all in *scaled* design px. Negative on the
+  // left when the console fills the box — that is the side band it draws into.
+  const chassisHalf = (CONSOLE_WIDTH * scale) / 2
+  const railTop = (box.h - (kioskDesignH ?? 0) * scale) / 2 + RAIL.top * scale
+  const hamburgerLeft = box.w / 2 - chassisHalf - (RAIL.gap + RAIL.size) * scale
+  const fullscreenLeft = box.w / 2 + chassisHalf + RAIL.gap * scale
+
   /**
-   * Room kept clear of a display cutout, in real CSS px.
+   * Room kept clear on each side, in real CSS px: the display cutout, and the band the
+   * rail buttons live in.
    *
    * The console is drawn edge to edge, so on a landscape phone with the camera in the
    * corner its outermost column — the pitch fader, which is exactly the control a thumb
    * reaches for — would sit under the cutout. Both sides get the *larger* of the two
    * insets so the console stays centred on the screen: padding each side with its own
    * inset would shift it by half the difference, which is the leaning jogs the old side
-   * rails were fixed for. Zero on a device that reports none, so this only ever costs
-   * the inset itself.
+   * rails were fixed for. The same `max()` also guarantees the band the menu and
+   * fullscreen buttons hang in, so they are never under the notch or the rounded corner.
    */
-  const safeEdge = 'max(env(safe-area-inset-left), env(safe-area-inset-right))'
+  const safeEdge = KIOSK_SIDE_BAND
 
   return (
     <div
@@ -369,9 +398,9 @@ export function MixIt() {
               paddingRight: safeEdge,
               // Only a real cutout at the top costs space: in landscape the notch is on
               // the side (handled above) and this resolves to 0, so the whole height
-              // goes to the console. The kiosk has no chrome of its own — Android's own
-              // fullscreen popup covers the way out, and leaving the console is the
-              // browser's back gesture, so no bar above it is worth ~38 px of fit.
+              // goes to the console. There is no bar above it either: the two controls
+              // the console does draw (menu, fullscreen) sit on the side rail, where
+              // they cost the fit nothing, rather than in a row worth ~38 px of it.
               paddingTop: 'env(safe-area-inset-top)',
             }
           : undefined
@@ -561,6 +590,19 @@ export function MixIt() {
             {/* 5. BOTTOM TRANSPORT BAR: PLAY / CUE / LOOP < 4 BEATS > | CROSSFADER */}
             <TraktorTransportBar engine={engine} className={kiosk ? 'shrink-0' : undefined} />
           </div>
+
+          {/* The console's only chrome: menu and fullscreen, outside the chassis, level
+              with the load buttons. Desktop has the site header for both, so this is
+              kiosk-only. */}
+          {kiosk && box.w > 0 && (
+            <ConsoleChrome
+              scale={scale}
+              top={railTop}
+              menuLeft={hamburgerLeft}
+              fullscreenLeft={fullscreenLeft}
+              fullscreen={fullscreen}
+            />
+          )}
         </div>
       </main>
 
