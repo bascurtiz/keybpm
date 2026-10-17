@@ -157,8 +157,9 @@ export function Header() {
 
   // The DJ console owns the whole screen on phones: a brand row, a nav drawer and a
   // search box would cost ~56 px of a 360 px-tall landscape viewport, which is a
-  // sixth of the space the transport bar needs. The console brings its own compact
-  // menu instead (see `MixIt`), so the site chrome is only shown on desktop.
+  // sixth of the space the transport bar needs. The console draws no chrome of its
+  // own either (see `MixIt`) — the browser's back gesture is the way out — so the site
+  // header is only shown on desktop.
   const onMixer = location.pathname === '/mix-it' || location.pathname === '/mixit'
   if (onMixer && !isDesktop) return null
 

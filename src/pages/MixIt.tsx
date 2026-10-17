@@ -12,7 +12,6 @@ import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 import { BrowserNotice } from '@/components/BrowserNotice'
-import { Link } from 'react-router-dom'
 import { useViewportMode } from '@/lib/use-viewport'
 import { useConsoleFit, CONSOLE_WIDTH } from '@/lib/dj/use-console-fit'
 import { useFullscreen, enterFullscreen } from '@/lib/fullscreen'
@@ -26,8 +25,10 @@ import { youtubeBridge } from '@/lib/dj/youtube-bridge'
  * rows of the console, none of them clipped. See `kioskDesignH`.
  *
  * The strip and the transport are content-sized (roughly 81 px and 65 px at the
- * sizes they render), which is where the rest of this number comes from. It only
- * binds on a phone, where filling the width asks for less height than the rows need.
+ * sizes they render), which is where the rest of this number comes from. It binds only
+ * on a screen wider than 19.5:9 (or a short one), where filling the width asks for
+ * less height than the rows need: a 19.5:9 phone fits at ~520 design px, so the floor
+ * is headroom there rather than the active constraint.
  */
 const KIOSK_MIN_CONSOLE_H = 485
 
@@ -48,7 +49,7 @@ const KIOSK_MAX_CONSOLE_H = 560
  * Two lanes of 48 px: tall enough for a lane's own controls (rewind, downbeat,
  * ±10 ms, GRID) to sit in the corner above the wave without eating it, and thin
  * enough that the deck row below — the jogs, EQ and faders — still gets the bulk of
- * the ~485 design px a phone's chassis has to spend. The desktop band is 290 px,
+ * the ~520 design px a 19.5:9 phone's chassis has to spend. The desktop band is 290 px,
  * which on a landscape phone would be most of the screen.
  */
 const KIOSK_LANE_BAND_H = 96
@@ -60,19 +61,6 @@ const KIOSK_LANE_BAND_H = 96
  * squeezed — the rest (band, strip, transport) is what gives way instead.
  */
 const KIOSK_MIN_DECK_ROW_H = 243
-
-/**
- * Pages worth reaching from the console on a phone, where the site header is hidden.
- * Kept short on purpose: this is a way out and back, not a second navigation system.
- */
-const KIOSK_LINKS = [
-  { to: '/', label: 'Home' },
-  { to: '/browse', label: 'Browse tracks' },
-  { to: '/mix', label: 'Mix Finder' },
-  { to: '/key', label: 'Key Wheel' },
-  { to: '/tool', label: 'Key Tool' },
-  { to: '/about', label: 'About' },
-]
 
 /**
  * Build fingerprint rendered next to the BETA chip.
@@ -106,7 +94,6 @@ export function MixIt() {
   // Read from resize events, not media-query events, so the address bar sliding away
   // (or the keyboard opening) re-fits the console immediately — see `use-viewport.ts`.
   const { kiosk, portraitPhone } = useViewportMode()
-  const [menuOpen, setMenuOpen] = useState(false)
   // A phone held upright is the wrong shape for a two-deck console: fitted, the
   // controls are too small to hit. So portrait opens on a rotate prompt instead.
   // Landscape fits the whole console (the mock-up's mode); a portrait tablet is wide
@@ -115,21 +102,19 @@ export function MixIt() {
   // re-arms the prompt, so the next upright visit starts from the right advice.
   const [portraitOptOut, setPortraitOptOut] = useState(false)
   // The prompt stays out of the way while one of the console's own dialogs is open:
-  // rotating mid-task (picking a file, reading the analysis bar, browsing the menu)
-  // should not throw a full-screen prompt over the thing being used.
+  // rotating mid-task (picking a file, reading the analysis bar) should not throw a
+  // full-screen prompt over the thing being used.
   const showRotatePrompt =
-    kiosk &&
-    portraitPhone &&
-    !portraitOptOut &&
-    loadModalDeck === null &&
-    !menuOpen &&
-    analyzingDeck === null
+    kiosk && portraitPhone && !portraitOptOut && loadModalDeck === null && analyzingDeck === null
   useEffect(() => {
     if (!portraitPhone) setPortraitOptOut(false)
   }, [portraitPhone])
   const { setBoxRef, setChassisRef, box, scale } = useConsoleFit()
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
   // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
+  // The console draws no button for it: Android's system popup is the way out, and a
+  // toggle in the console would cost a whole row (see the note by the chassis height).
+  // Only the portrait prompt asks, because asking is a gesture and rotating is not.
   const fullscreen = useFullscreen()
 
   /**
@@ -144,16 +129,6 @@ export function MixIt() {
     if (wasPortrait.current && !portraitPhone && kiosk) void enterFullscreen()
     wasPortrait.current = portraitPhone
   }, [portraitPhone, kiosk])
-
-  // Esc closes the console menu, matching the site drawer's behaviour.
-  useEffect(() => {
-    if (!menuOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [menuOpen])
 
   // Per-deck load generation so a finishing older analysis can't clear a newer one.
   const loadGenRef = useRef({ A: 0, B: 0 })
@@ -338,10 +313,12 @@ export function MixIt() {
    * band and the transport bar do not.
    *
    * That height is floored at `KIOSK_MIN_CONSOLE_H`, because the rows are not all
-   * squeezable: the jog wheel is a fixed 196 px. An 844×390 phone asks to fill at 467
-   * and gets 485, which costs it ~15 CSS px of margin on each side and keeps the
-   * deck row's wheel whole. Above `KIOSK_MAX_CONSOLE_H` the console stops
-   * growing and the leftover height is left to the page.
+   * squeezable: the jog wheel is a fixed 196 px. An 844×390 phone (19.5:9) asks to
+   * fill at 518 and gets it, so the fit is width-bound at 0.754 and the deck row gets
+   * 276 design px instead of the 243 floor. A shorter screen — or a wider one — hits
+   * the floor instead, which costs margin rather than clipping the wheel. Above
+   * `KIOSK_MAX_CONSOLE_H` the console stops growing and the leftover height is left to
+   * the page.
    */
   const kioskDesignH =
     kiosk && box.w > 0 && box.h > 0
@@ -379,58 +356,21 @@ export function MixIt() {
           ? 'fixed inset-x-0 top-0 z-30 flex h-[100dvh] flex-col overflow-hidden bg-bg select-none text-text'
           : 'flex flex-col min-h-[calc(100vh-var(--header-h,64px))] bg-bg select-none text-text'
       }
-      style={kiosk ? { paddingLeft: safeEdge, paddingRight: safeEdge } : undefined}
+      style={
+        kiosk
+          ? {
+              paddingLeft: safeEdge,
+              paddingRight: safeEdge,
+              // Only a real cutout at the top costs space: in landscape the notch is on
+              // the side (handled above) and this resolves to 0, so the whole height
+              // goes to the console. The kiosk has no chrome of its own — Android's own
+              // fullscreen popup covers the way out, and leaving the console is the
+              // browser's back gesture, so no bar above it is worth ~38 px of fit.
+              paddingTop: 'env(safe-area-inset-top)',
+            }
+          : undefined
+      }
     >
-      {/* Kiosk chrome. The site header is hidden here (see `Header`), so the console
-          carries its own controls: the way back into the database without unloading the
-          decks, and fullscreen for the address bar. They sit in a slim bar *above* the
-          console rather than in rails beside it. Rails cost 8–19 % of the screen width —
-          every knob, label and lane scaled down by that much — and the console does not
-          need them: it is width-bound, so height bought on the sides would not have
-          raised the scale anyway. The bar is measured in real CSS px, not design px, so
-          these two taps stay 32 px however small the console is drawn. */}
-      {kiosk && (
-        <div
-          className="flex shrink-0 items-center justify-between px-2"
-          style={{
-            paddingTop: 'max(0.1875rem, env(safe-area-inset-top))',
-            paddingBottom: '0.1875rem',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open KeyBPM menu"
-            className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </svg>
-          </button>
-          {fullscreen.supported ? (
-            <button
-              type="button"
-              onClick={fullscreen.toggle}
-              aria-label={fullscreen.active ? 'Exit fullscreen' : 'Enter fullscreen'}
-              title={fullscreen.active ? 'Exit fullscreen' : 'Fullscreen (hides the address bar)'}
-              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                {fullscreen.active ? (
-                  <path d="M9 4v5H4M15 20v-5h5M20 9h-5V4M4 15h5v5" />
-                ) : (
-                  <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
-                )}
-              </svg>
-            </button>
-          ) : (
-            // Safari has no element fullscreen. The empty box keeps the menu button on
-            // the left instead of letting `justify-between` centre it.
-            <span aria-hidden className="h-8 w-8" />
-          )}
-        </div>
-      )}
-
       {/* Main DJ Console Workspace - Compact hardware layout matching real DJ controllers */}
       <main
         className={
@@ -480,7 +420,7 @@ export function MixIt() {
         {errorMsg && (
           <div
             className={`${
-              kiosk ? 'absolute left-12 right-2 top-2 z-30' : 'mt-4'
+              kiosk ? 'absolute left-2 right-2 top-2 z-30' : 'mt-4'
             } p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between backdrop-blur-sm`}
           >
             <span>{errorMsg}</span>
@@ -617,60 +557,6 @@ export function MixIt() {
           </div>
         </div>
       </main>
-
-      {/* Menu sheet. Sits above the console so the decks stay mounted (and playing)
-          while the user looks something up. */}
-      {kiosk && (
-        <>
-          {menuOpen && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="KeyBPM menu"
-              className="fixed inset-0 z-50 flex flex-col bg-bg/95 p-4 backdrop-blur-sm"
-              style={{
-                paddingTop: 'max(1rem, env(safe-area-inset-top))',
-                paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold tracking-wide">
-                  Key<span className="text-accent">BPM</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen(false)}
-                  aria-label="Close menu"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-bg-card text-text-muted"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                    <path d="M6 6l12 12M18 6L6 18" />
-                  </svg>
-                </button>
-              </div>
-              <nav aria-label="Primary" className="mt-3">
-                <ul className="flex flex-col gap-0.5">
-                  {KIOSK_LINKS.map(link => (
-                    <li key={link.to}>
-                      <Link
-                        to={link.to}
-                        onClick={() => setMenuOpen(false)}
-                        className="flex min-h-12 items-center rounded-lg px-3 text-[15px] text-text transition-colors hover:bg-bg-hover active:bg-bg-hover"
-                      >
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-              <p className="mt-auto pt-4 text-[11px] leading-relaxed text-text-dim">
-                The decks keep their tracks and keep playing while you browse. Come back here
-                to mix.
-              </p>
-            </div>
-          )}
-        </>
-      )}
 
       {/* Analysis Progress Modal */}
       {analyzingDeck && analysisProgress && (

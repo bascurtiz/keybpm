@@ -333,26 +333,25 @@ The stretch/build/render logic is `src/lib/dj/mix-timeline.ts`, `offline-stretch
 
 Below 1024 px the console replaces the page and is fitted to the viewport by
 `use-console-fit.ts`: the chassis keeps its 1120 px hardware geometry and a transform scales
-it, because reflowing a two-deck controller for a 360 px phone shrinks every control below a
-tappable size. The layout is then arranged so that scale is as large as the screen allows.On a landscape phone the fit is **width-bound**, so the console is given the height that
-makes 1120 design px fill the box, and the deck row (the only flexible row) takes what the
-metadata strip, the waveform band and the transport bar do not. Only one thing changes
-between the desktop and phone arrangements:
+it, because reflowing a two-deck controller for a 360 px phone shrinks every control below
+a tappable size. The layout is then arranged so that scale is as large as the screen allows.
+On a landscape phone the fit is **width-bound**, so the console is given the height that makes
+1120 design px fill the box, and the deck row (the only flexible row) takes what the metadata
+strip, the waveform band and the transport bar do not. A few things differ between the
+desktop and phone arrangements:
 
 - The **waveform band is thinner**. It keeps the full width and every control — rewind to
   start, set downbeat, ±10 ms nudge and the GRID dropdowns — but at `KIOSK_LANE_BAND_H`
   (two 48 px lanes) instead of the desktop's 290 px, which on a phone would be more than half
   the screen. The mixer therefore still shows its filters and FX block, the decks keep their
   EQ, and sync stays where it is.
-
-The rows are not all squeezable: the jog wheel is a fixed 196 px. So the chassis height is
-floored at `KIOSK_MIN_CONSOLE_H` — strip + band + `KIOSK_MIN_DECK_ROW_H` + transport — which
-on an 844×390 phone asks for 485 design px instead of the 467 that would exactly fill the
-width. The result is ~15 px of margin each side rather than a clipped jog.
-
-- The menu and fullscreen buttons sit in a **slim bar above the console** rather than in rails
-  beside it, in real CSS px so the two taps do not shrink with the fit. At 8–19 % of screen
-  *width* each, rails cost more than the height they save.
+- The console keeps **no chrome of its own**: no bar above it, no rails beside it. The site
+  header is hidden on this route below 1024 px, and the console fills the viewport from the
+  top edge, which is what a 19.5:9 phone wants — an 844×390 box asks for 518 design px, so
+  the fit is width-bound at 0.754 and the deck row gets 276 px instead of the floor.
+  Leaving the console is the browser's back gesture; leaving fullscreen is Android's own
+  system popup, so a toggle for it would only cost a row. The portrait rotate prompt still
+  offers fullscreen, because asking is a gesture and rotating is not.
 - The **lane controls keep their drawn size but take a bigger tap**: at the phone fit they
   are 15–17 CSS px, so each one covers itself with a transparent pseudo-element that adds
   9 px above and below (`TAP_PAD` in `StackedWaveforms.tsx`), and a couple more sideways
