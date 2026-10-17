@@ -351,7 +351,7 @@ export function MixIt() {
         </div>
       )}
 
-      {/* Load Track / YouTube Video Modal */}
+      {/* Load Track modal — local file, catalogue, or hand off a YouTube link */}
       <LoadTrackModal
         isOpen={loadModalDeck !== null}
         deckId={loadModalDeck || 'A'}
@@ -367,11 +367,6 @@ export function MixIt() {
         }
         onClose={() => setLoadModalDeck(null)}
         onLoadLocalFile={handleFileSelected}
-        onLoadYouTube={deckId => {
-          // YouTube replaces any local Web Audio track on this deck.
-          if (deckId === 'A') deckA.ejectTrack()
-          else deckB.ejectTrack()
-        }}
       />
     </div>
   )

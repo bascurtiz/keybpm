@@ -1,10 +1,8 @@
 import { useState, useMemo } from 'react'
 import { tracks, useCatalog } from '@/lib/data'
 import { youtubeId, youtubeThumbUrl } from '@/lib/youtube'
-import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 import { camelotColor, areKeysCompatible } from '@/lib/camelot'
-import { shortKey } from '@/lib/format'
-import { CAMELOT_TO_KEY } from '@/types/track'
+import { DOWNLOADER_PRIMARY, DOWNLOADER_FALLBACKS, copyText } from '@/lib/downloader'
 import type { Track } from '@/types/track'
 
 interface LoadTrackModalProps {
@@ -14,12 +12,23 @@ interface LoadTrackModalProps {
   otherDeckCamelot?: string | null
   onClose: () => void
   onLoadLocalFile: (deckId: 'A' | 'B', file: File) => void
-  /** Called after a YouTube video is successfully queued so the parent can eject local audio. */
-  onLoadYouTube?: (deckId: 'A' | 'B') => void
 }
 
-type TabType = 'youtube' | 'catalog' | 'file'
+type TabType = 'download' | 'catalog' | 'file'
 
+/**
+ * Load a track onto a deck.
+ *
+ * There are three ways in, and they all end at the same place: a decoded
+ * `AudioBuffer` handed to `analyzeTrackFile`. That is deliberate. The deck
+ * needs samples in this process to build a beat grid, a waveform and a keylock
+ * stage, and only a file the user actually has can provide them.
+ *
+ * The "From YouTube" tab is therefore not a player. It is a two-step errand:
+ * get the link into an external downloader, then drop the resulting file back
+ * in. The old YouTube IFrame path could not do any of this — its audio lives on
+ * another origin, so it could never be analysed, keylocked or scratched.
+ */
 export function LoadTrackModal({
   isOpen,
   deckId,
@@ -27,14 +36,12 @@ export function LoadTrackModal({
   otherDeckCamelot,
   onClose,
   onLoadLocalFile,
-  onLoadYouTube,
 }: LoadTrackModalProps) {
   useCatalog()
   const [activeTab, setActiveTab] = useState<TabType>('file')
   const [ytUrl, setYtUrl] = useState('')
-  const [customTitle, setCustomTitle] = useState('')
-  const [customBpm, setCustomBpm] = useState('128')
-  const [customCamelot, setCustomCamelot] = useState('8A')
+  const [copied, setCopied] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCompatible, setFilterCompatible] = useState(false)
   const [filterOnlyVideo, setFilterOnlyVideo] = useState(true)
@@ -68,42 +75,29 @@ export function LoadTrackModal({
 
   const accentColor = deckId === 'A' ? '#34d399' : '#a855f7'
 
-  const handleLoadYouTube = async () => {
-    if (!detectedVideoId) return
-    const bpmNum = parseFloat(customBpm) || 128
-    const ok = await youtubeBridge.loadVideo(deckId, detectedVideoId, {
-      title: customTitle.trim() || `YouTube Track (${detectedVideoId})`,
-      bpm: bpmNum,
-      camelot: customCamelot,
-      key: CAMELOT_TO_KEY[customCamelot] || undefined,
-    })
-    if (ok) onLoadYouTube?.(deckId)
+  const handleCopyLink = async () => {
+    const ok = await copyText(ytUrl.trim())
+    setCopied(ok)
+  }
+
+  /** Take the file the user just downloaded and send it down the local-file path. */
+  const handleDownloadedFile = (file: File | undefined) => {
+    if (!file) return
+    onLoadLocalFile(deckId, file)
     onClose()
   }
 
-  const handleSelectCatalogTrack = async (track: Track) => {
-    if (track.youtube) {
-      const vid = youtubeId(track.youtube)
-      if (vid) {
-        const ok = await youtubeBridge.loadVideo(deckId, vid, {
-          title: `${track.artist} - ${track.title}`,
-          artist: track.artist,
-          bpm: track.bpm || 128,
-          camelot: track.camelot || undefined,
-          key: track.key || undefined,
-          duration: track.duration || 0,
-        })
-        if (ok) onLoadYouTube?.(deckId)
-        onClose()
-        return
-      }
-    }
-
-    // If no direct YouTube link, switch to YouTube tab with track metadata pre-filled
-    setActiveTab('youtube')
-    setCustomTitle(`${track.artist} - ${track.title}`)
-    if (track.bpm) setCustomBpm(track.bpm.toString())
-    if (track.camelot) setCustomCamelot(track.camelot)
+  /**
+   * A catalog row is metadata only — the dataset carries no audio. So the
+   * useful thing a row can do is hand over the video link and switch the user
+   * to the tab where they can act on it.
+   */
+  const handleSelectCatalogTrack = (track: Track) => {
+    if (!track.youtube) return
+    setYtUrl(track.youtube)
+    setCopied(false)
+    setActiveTab('download')
+    void copyText(track.youtube).then(ok => setCopied(ok))
   }
 
   return (
@@ -148,14 +142,14 @@ export function LoadTrackModal({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('youtube')}
+            onClick={() => setActiveTab('download')}
             className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
-              activeTab === 'youtube'
-                ? 'border-red-500 text-white font-bold'
+              activeTab === 'download'
+                ? 'border-accent text-white font-bold'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <span>▶</span> YouTube
+            <span>⬇</span> From YouTube
           </button>
           <button
             type="button"
@@ -172,10 +166,20 @@ export function LoadTrackModal({
 
         {/* Tab Body */}
         <div className="p-5 flex-1 overflow-y-auto">
-          {/* 1. YOUTUBE TAB */}
-          {activeTab === 'youtube' && (
+          {/* 1. FROM YOUTUBE TAB */}
+          {activeTab === 'download' && (
             <div className="flex flex-col gap-4">
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                KeyBPM downloads nothing — it has no server and hands out no audio. Fetch the file
+                with an external tool, then drop it below. You get a beat grid, key and keylock,
+                exactly like a local file.
+              </p>
+
+              {/* Step 1 — get the link out */}
               <div>
+                <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider block mb-1.5">
+                  Step 1 — the link
+                </span>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                   YouTube Video URL or Video ID:
                 </label>
@@ -183,8 +187,11 @@ export function LoadTrackModal({
                   type="text"
                   placeholder="https://www.youtube.com/watch?v=... or youtu.be/..."
                   value={ytUrl}
-                  onChange={e => setYtUrl(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#222] border border-[#333] text-sm text-white focus:outline-none focus:border-red-500 font-mono transition"
+                  onChange={e => {
+                    setYtUrl(e.target.value)
+                    setCopied(false)
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-[#222] border border-[#333] text-sm text-white focus:outline-none focus:border-accent font-mono transition"
                 />
               </div>
 
@@ -200,108 +207,118 @@ export function LoadTrackModal({
                     <span className="text-[10px] text-red-400 font-mono font-bold uppercase tracking-wider block">
                       Video Detected
                     </span>
-                    <p className="text-xs text-white font-semibold truncate">
-                      {customTitle || `YouTube ID: ${detectedVideoId}`}
+                    <p className="text-xs text-white font-semibold truncate font-mono">
+                      {detectedVideoId}
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="p-3 rounded-lg bg-[#1c1c1c] border border-dashed border-[#2a2a2a] text-center text-zinc-500 text-xs">
-                  Paste any YouTube music video, set, or remix to mix live with DJ controller faders.
+                  Paste a YouTube link, copy it, then fetch the file with one of the tools below.
                 </div>
               )}
 
-              {/* Title & Metadata inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-1">
-                  <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                    Track Title (optional):
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Bicep - Glue"
-                    value={customTitle}
-                    onChange={e => setCustomTitle(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded bg-[#222] border border-[#333] text-xs text-white focus:outline-none focus:border-zinc-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                    BPM:
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={customBpm}
-                    onChange={e => setCustomBpm(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded bg-[#222] border border-[#333] text-xs text-white focus:outline-none focus:border-zinc-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                    Camelot Key:
-                  </label>
-                  <select
-                    value={customCamelot}
-                    onChange={e => setCustomCamelot(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded bg-[#222] border border-[#333] text-xs text-white focus:outline-none focus:border-zinc-500 font-mono"
-                  >
-                    {[
-                      '1A', '2A', '3A', '4A', '5A', '6A', '7A', '8A', '9A', '10A', '11A', '12A',
-                      '1B', '2B', '3B', '4B', '5B', '6B', '7B', '8B', '9B', '10B', '11B', '12B',
-                    ].map(k => (
-                      <option key={k} value={k}>
-                        {k} ({CAMELOT_TO_KEY[k] ? shortKey(CAMELOT_TO_KEY[k]) : ''})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled={!detectedVideoId}
+                  onClick={handleCopyLink}
+                  className="self-start px-3 py-2 rounded-lg bg-[#252525] hover:bg-[#303030] disabled:opacity-40 disabled:hover:bg-[#252525] text-xs font-semibold text-zinc-200 transition"
+                >
+                  {copied ? '✓ Link copied' : '📋 Copy link'}
+                </button>
 
-              {/* Popular DJ presets */}
-              <div className="mt-1">
-                <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block mb-1.5">
-                  Or load a demo electronic music track:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { title: '100 gecs - geccraft', url: 'https://www.youtube.com/watch?v=JMab0ub1Ds4', bpm: 84.5, cam: '8A' },
-                    { title: '2 Mello - BREAK DOWN BREAK UP', url: 'https://www.youtube.com/watch?v=XbaMLd7cJeM', bpm: 144, cam: '8A' },
-                    { title: 'Alien Ant Farm - Smooth Criminal', url: 'https://www.youtube.com/watch?v=CDl9ZMfj6aE', bpm: 126, cam: '8A' },
-                    { title: 'Fisher - Losing It', url: 'https://www.youtube.com/watch?v=vV_f8p_d34U', bpm: 125, cam: '11A' },
-                  ].map(demo => (
-                    <button
-                      key={demo.title}
-                      type="button"
+                {/*
+                  One obvious action, then quiet fallbacks. Each link stages the URL
+                  on the clipboard before it navigates, so the user's next move inside
+                  the tool is a paste. The anchor does the navigating — calling
+                  window.open here too would open two tabs.
+                */}
+                <a
+                  href={DOWNLOADER_PRIMARY.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    if (detectedVideoId) void handleCopyLink()
+                  }}
+                  className="flex flex-col gap-0.5 px-4 py-2.5 rounded-lg bg-accent-solid hover:brightness-110 shadow-lg transition"
+                >
+                  <span className="text-sm font-bold">⬇ Open {DOWNLOADER_PRIMARY.name}</span>
+                  <span className="text-[11px] leading-snug opacity-75">
+                    {DOWNLOADER_PRIMARY.note}
+                  </span>
+                </a>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">
+                    If that doesn&apos;t work
+                  </span>
+                  {DOWNLOADER_FALLBACKS.map(opt => (
+                    <a
+                      key={opt.name}
+                      href={opt.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       onClick={() => {
-                        setYtUrl(demo.url)
-                        setCustomTitle(demo.title)
-                        setCustomBpm(demo.bpm.toString())
-                        setCustomCamelot(demo.cam)
+                        if (detectedVideoId) void handleCopyLink()
                       }}
-                      className="px-2.5 py-1 rounded bg-[#222] hover:bg-[#2c2c2c] text-[11px] text-zinc-300 border border-[#333] transition"
+                      className="flex flex-col gap-0.5 px-3 py-1.5 rounded-lg bg-[#1c1c1c] border border-[#282828] hover:border-accent/40 hover:bg-[#222] transition"
                     >
-                      {demo.title} ({demo.bpm} BPM / {demo.cam})
-                    </button>
+                      <span className="text-[11px] font-semibold text-zinc-300">↗ {opt.name}</span>
+                      <span className="text-[10px] leading-snug text-zinc-500">{opt.note}</span>
+                    </a>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-3 flex justify-end gap-2">
+              {/* Step 2 — bring the file back */}
+              <div>
+                <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider block mb-1.5">
+                  Step 2 — the file
+                </span>
+                <div
+                  onDragOver={e => {
+                    e.preventDefault()
+                    setDragOver(true)
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => {
+                    e.preventDefault()
+                    setDragOver(false)
+                    handleDownloadedFile(e.dataTransfer.files?.[0])
+                  }}
+                  className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed transition ${
+                    dragOver
+                      ? 'border-accent bg-accent/5'
+                      : 'border-[#333] bg-[#1c1c1c] hover:border-accent/60'
+                  }`}
+                >
+                  <span className="text-2xl mb-2">⬇</span>
+                  <p className="text-xs font-semibold text-white mb-1">
+                    Drop the downloaded audio file here
+                  </p>
+                  <p className="text-[11px] text-zinc-400 mb-3 text-center max-w-xs">
+                    MP3, M4A, WAV, FLAC, OGG or OPUS — anything the browser can decode.
+                  </p>
+                  <label className="cursor-pointer px-4 py-2 rounded-lg bg-[#2e2e2e] hover:bg-emerald-600 text-white font-bold text-xs transition">
+                    Browse File
+                    <input
+                      type="file"
+                      accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff,.webm"
+                      onChange={e => handleDownloadedFile(e.target.files?.[0])}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={onClose}
                   className="px-4 py-2 rounded-lg bg-[#252525] hover:bg-[#303030] text-xs font-semibold text-zinc-300 transition"
                 >
                   Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={!detectedVideoId}
-                  onClick={handleLoadYouTube}
-                  className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600 text-xs font-bold text-white shadow-lg transition flex items-center gap-1.5"
-                >
-                  <span>▶</span> Load into Deck {deckId}
                 </button>
               </div>
             </div>
@@ -326,9 +343,9 @@ export function LoadTrackModal({
                       ? 'bg-red-500/20 border-red-500/50 text-red-400'
                       : 'bg-[#222] border-[#333] text-zinc-400 hover:text-white'
                   }`}
-                  title="Filter tracks with YouTube video links"
+                  title="Filter tracks that have a YouTube link to hand to the downloader"
                 >
-                  <span className="text-red-400">▶</span> Video Only
+                  <span className="text-red-400">▶</span> Has Video
                 </button>
                 {otherDeckCamelot && (
                   <button
@@ -392,10 +409,16 @@ export function LoadTrackModal({
                         )}
                         <button
                           type="button"
+                          disabled={!t.youtube}
                           onClick={() => handleSelectCatalogTrack(t)}
-                          className="px-2.5 py-1 rounded bg-[#2e2e2e] hover:bg-accent hover:text-black text-[11px] font-semibold text-zinc-200 transition flex items-center gap-1"
+                          title={
+                            t.youtube
+                              ? "Copy this track's link and switch to the download tab"
+                              : 'No video link on this record'
+                          }
+                          className="px-2.5 py-1 rounded bg-[#2e2e2e] hover:bg-emerald-600 disabled:opacity-30 disabled:hover:bg-[#2e2e2e] text-[11px] font-semibold text-zinc-200 disabled:text-zinc-500 transition flex items-center gap-1"
                         >
-                          {t.youtube ? '▶ Load' : 'Load'}
+                          {t.youtube ? '⬇ Get file' : 'No link'}
                         </button>
                       </div>
                     </div>
