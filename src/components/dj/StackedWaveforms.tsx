@@ -20,22 +20,13 @@ interface StackedWaveformsProps {
   onDropFile?: (deckId: 'A' | 'B', file: File) => void
   onLoadClick?: (deckId: 'A' | 'B') => void
   /**
-   * Which floating clusters to draw over the lanes.
-   *
-   * - `full` (default): everything — zoom, rewind to start, set downbeat, ±10 ms nudge
-   *   and the GRID dropdowns.
-   * - `grid`: rewind, set downbeat and ±10 ms nudge, one set per lane, drawn 25 % larger.
-   *   This is the phone console, where the lanes live in the mixer's centre column: 132
-   *   design px is not wide enough for the GRID dropdown — the panel it opens wants the
-   *   width of a whole lane — and the zoom pill would sit under the rewind button. The
-   *   three that stay are one tap each and belong beside the lane they edit, and at ~0.75
-   *   of a phone's fit they need the extra 25 % to be tappable at all.
-   * - `none`: no overlays.
+   * Draw the floating clusters over the lanes — zoom, rewind to start, set downbeat,
+   * ±10 ms nudge and the GRID dropdowns. Off leaves the canvas alone.
    *
    * The canvas itself (both lanes, beatgrid, playhead, drag or tap to seek, drop a file)
-   * works the same in all three.
+   * works the same either way.
    */
-  chrome?: 'full' | 'grid' | 'none'
+  chrome?: boolean
 }
 
 const zoomPeaksCache = new WeakMap<Track, Float32Array>()
@@ -59,6 +50,26 @@ const MARKER_PHRASE = '#9ca3af'
  * whites that merely look alike.
  */
 const DOWNBEAT_STRIPE = '#f4f4f5'
+
+/**
+ * Invisible tap padding for the lane's controls on the fitted (phone) console.
+ *
+ * `max-lg` is the same 1024 px breakpoint `useViewportMode` calls kiosk, so this only
+ * ever applies where the chassis is scaled down: a landscape phone fits it at about
+ * 0.73, which draws these buttons at 14–17 CSS px — under half the 44 px a thumb wants
+ * and below the 24 px a mouse comfortably hits. Redrawing them larger would change the
+ * lane's proportions, so the drawn box stays exactly as it is and a transparent
+ * pseudo-element around it takes the taps instead. Being a child of the button, a tap
+ * anywhere on it *is* a tap on the button: no JS, no extra nodes, no state.
+ *
+ * The padding is 9 px a side vertically — there is nothing above or below these
+ * controls but waveform — which turns a 20 px control into a 38 px one (15 → 28 CSS px
+ * at the phone fit). Horizontally it is only 2 px: the controls sit 6 px apart in a
+ * single row, and overlap there would let a near-miss pick the neighbouring beatgrid
+ * tool. Callers add whatever horizontal padding they have room for.
+ */
+const TAP_PAD =
+  "max-lg:relative max-lg:after:absolute max-lg:after:content-[''] max-lg:after:-top-[9px] max-lg:after:-bottom-[9px]"
 
 /**
  * Visible span of the waveform, in playback seconds.
@@ -90,7 +101,7 @@ export function StackedWaveforms({
   className = '',
   onDropFile,
   onLoadClick,
-  chrome = 'full',
+  chrome = true,
 }: StackedWaveformsProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [windowSeconds, setWindowSeconds] = useState(8)
@@ -405,20 +416,6 @@ export function StackedWaveforms({
     return () => cancelAnimationFrame(raf)
   }, [deckA, deckB, windowSeconds])
 
-  /**
-   * The GRID dropdown button, or nothing on the phone console.
-   *
-   * `chrome="grid"` keeps the downbeat anchor and the ±10 ms nudge — one tap each, and
-   * they belong beside the lane they edit — but not this: the panel the dropdown opens
-   * wants the width of a whole lane, so in a 132 px centre column it would cover the
-   * waveform it was opened on. The layout stays in the class string so a hidden button
-   * and a shown one are the same control.
-   */
-  const gridMenuClass =
-    chrome === 'grid'
-      ? 'hidden'
-      : 'ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1'
-
   return (
     <div
       onDragOver={handleDragOver}
@@ -449,9 +446,8 @@ export function StackedWaveforms({
           place themselves against this component's own `relative` root (`top-1/2`,
           `right-2`, …), and a wrapper that generated a box would become their containing
           block and move all of them. `display: none` in its place takes the whole layer
-          out (`chrome="none"`). What `chrome="grid"` keeps and drops is per cluster —
-          see the notes on each one. */}
-      <div className={chrome === 'none' ? 'hidden' : 'contents'}>
+          out (`chrome={false}`). */}
+      <div className={chrome ? 'contents' : 'hidden'}>
       {/* Global Waveform Zoom controls — centred on the seam between the two lanes, so
           the control that rescales both decks sits between them rather than in Deck A's
           corner. Translucent, because the playhead needle runs underneath it.
@@ -460,11 +456,7 @@ export function StackedWaveforms({
           crosses this pill, and the gap is the only part of it that stays clear of a control,
           so it is where the playhead is meant to be read. */}
       <div
-        className={
-          chrome === 'grid'
-            ? 'hidden'
-            : 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-6'
-        }
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-6"
       >
         <button
           type="button"
@@ -488,15 +480,8 @@ export function StackedWaveforms({
         </button>
       </div>
 
-      {/* Deck A Left: Rewind to start (|◀) - vertically centered on Deck A lane.
-          Kept in the phone console's `grid` chrome: it is the one overlay that is safe to
-          reach for mid-mix, and it sits at the lane's left edge, clear of the tools in the
-          right-hand corner. `origin-left` grows it rightward, off its own edge. */}
-      <div
-        className={`absolute top-[25%] -translate-y-1/2 left-2 z-10${
-          chrome === 'grid' ? ' scale-125 origin-left' : ''
-        }`}
-      >
+      {/* Deck A Left: Rewind to start (|◀) - vertically centered on Deck A lane */}
+      <div className="absolute top-[25%] -translate-y-1/2 left-2 z-10">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -505,7 +490,7 @@ export function StackedWaveforms({
             deckA.seek(0)
           }}
           disabled={!deckA.track}
-          className="w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
+          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
           title="Rewind to start of Deck A (|◀)"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
@@ -515,11 +500,7 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck B Left: Rewind to start (|◀) - vertically centered on Deck B lane */}
-      <div
-        className={`absolute top-[75%] -translate-y-1/2 left-2 z-10${
-          chrome === 'grid' ? ' scale-125 origin-left' : ''
-        }`}
-      >
+      <div className="absolute top-[75%] -translate-y-1/2 left-2 z-10">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -528,7 +509,7 @@ export function StackedWaveforms({
             deckB.seek(0)
           }}
           disabled={!deckB.track}
-          className="w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none"
+          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
           title="Rewind to start of Deck B (|◀)"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
@@ -538,19 +519,10 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck A Right: SET DOWNBEAT & GRID A controls */}
-      {/* The downbeat anchor and the ±10ms nudge belong together — the anchor is what the nudge
+      {/*          The downbeat anchor and the ±10ms nudge belong together — the anchor is what the nudge
           fine-tunes — so they keep the row's 6px. GRID is a different kind of control again and
-          takes one extra step on top of it (ml-1.5, 12px total).
-
-          In the phone console's `grid` chrome the row is scaled 25 % off its right edge: the
-          pair is what a phone gets, and at the fit a landscape phone manages it lands at
-          roughly two thirds of a comfortable tap. `origin-right` keeps the row in the lane's
-          corner instead of letting it grow past the edge. */}
-      <div
-        className={`absolute top-1.5 right-2 z-10 flex items-center gap-1.5${
-          chrome === 'grid' ? ' scale-125 origin-right' : ''
-        }`}
-      >
+          takes one extra step on top of it (ml-1.5, 12px total). */}
+      <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -559,7 +531,7 @@ export function StackedWaveforms({
             deckA.setBeat1AtPosition()
           }}
           disabled={!deckA.track}
-          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
         >
           {/* The marker wears the exact white the canvas paints its downbeat stripes, and the numeral
@@ -583,7 +555,10 @@ export function StackedWaveforms({
             routing every one of those taps through the Grid dropdown was the complaint —
             so the ±10 ms step lives here, beside the downbeat button that anchors it.
             Shift-click still gives the 2 ms fine step the dropdown offers. */}
-        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm overflow-hidden shadow-sm">
+        {/* No clipping: the arrows' invisible tap padding reaches outside this box
+            (see `TAP_PAD`), and the outer rounding below keeps their hover fill inside
+            the pill's corners. */}
+        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm shadow-sm">
           <button
             type="button"
             onPointerDown={e => e.stopPropagation()}
@@ -592,12 +567,12 @@ export function StackedWaveforms({
               deckA.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
             }}
             disabled={!deckA.track}
-            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            className={`${TAP_PAD} max-lg:after:left-0 max-lg:after:-right-[11px] h-full px-1 rounded-l-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
             title="Shift Deck A beatgrid 10 ms earlier (Shift-click for 2 ms)"
           >
             ◀
           </button>
-          <span className="text-[8px] leading-none font-mono text-[#666666] select-none">10ms</span>
+          <span className="text-[8px] leading-none font-mono text-[#666666] select-none pointer-events-none">10ms</span>
           <button
             type="button"
             onPointerDown={e => e.stopPropagation()}
@@ -606,7 +581,7 @@ export function StackedWaveforms({
               deckA.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
             }}
             disabled={!deckA.track}
-            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            className={`${TAP_PAD} max-lg:after:right-0 max-lg:after:-left-[11px] h-full px-1 rounded-r-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
             title="Shift Deck A beatgrid 10 ms later (Shift-click for 2 ms)"
           >
             ▶
@@ -617,7 +592,7 @@ export function StackedWaveforms({
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'A' ? null : 'A'))}
-          className={`${gridMenuClass} ${
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
             activeGridDeckId === 'A'
               ? 'bg-[#222222] border-emerald-500/70 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
               : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -630,11 +605,7 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck B Right: SET DOWNBEAT & GRID B controls */}
-      <div
-        className={`absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-1.5${
-          chrome === 'grid' ? ' scale-125 origin-right' : ''
-        }`}
-      >
+      <div className="absolute top-[calc(50%+6px)] right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
@@ -643,7 +614,7 @@ export function StackedWaveforms({
             deckB.setBeat1AtPosition()
           }}
           disabled={!deckB.track}
-          className="h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none"
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
         >
           {/* Marker and numeral styled as on Deck A — see the note there. */}
@@ -662,7 +633,10 @@ export function StackedWaveforms({
         </button>
 
         {/* Inline grid nudge — see the Deck A copy above. */}
-        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm overflow-hidden shadow-sm">
+        {/* No clipping: the arrows' invisible tap padding reaches outside this box
+            (see `TAP_PAD`), and the outer rounding below keeps their hover fill inside
+            the pill's corners. */}
+        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm shadow-sm">
           <button
             type="button"
             onPointerDown={e => e.stopPropagation()}
@@ -671,12 +645,12 @@ export function StackedWaveforms({
               deckB.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
             }}
             disabled={!deckB.track}
-            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            className={`${TAP_PAD} max-lg:after:left-0 max-lg:after:-right-[11px] h-full px-1 rounded-l-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
             title="Shift Deck B beatgrid 10 ms earlier (Shift-click for 2 ms)"
           >
             ◀
           </button>
-          <span className="text-[8px] leading-none font-mono text-[#666666] select-none">10ms</span>
+          <span className="text-[8px] leading-none font-mono text-[#666666] select-none pointer-events-none">10ms</span>
           <button
             type="button"
             onPointerDown={e => e.stopPropagation()}
@@ -685,7 +659,7 @@ export function StackedWaveforms({
               deckB.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
             }}
             disabled={!deckB.track}
-            className="h-full px-1 text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none"
+            className={`${TAP_PAD} max-lg:after:right-0 max-lg:after:-left-[11px] h-full px-1 rounded-r-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
             title="Shift Deck B beatgrid 10 ms later (Shift-click for 2 ms)"
           >
             ▶
@@ -696,7 +670,7 @@ export function StackedWaveforms({
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'B' ? null : 'B'))}
-          className={`${gridMenuClass} ${
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
             activeGridDeckId === 'B'
               ? 'bg-[#222222] border-purple-500/70 text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
               : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'

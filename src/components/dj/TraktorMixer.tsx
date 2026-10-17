@@ -8,29 +8,9 @@ import { shiftCamelot, findKeySyncShift } from '@/lib/camelot'
 interface TraktorMixerProps {
   engine: AudioEngine
   className?: string
-  /**
-   * The phone console's centre column.
-   *
-   * A landscape phone cannot show the filters, the FX block and the decks at a legible
-   * size, so the mock-up puts the stacked waveforms where the FX panel sits and keeps
-   * the GAIN/HI/MID/LOW columns either side. Passing a slot does exactly that: the
-   * centre column stretches, the filters and FX block step aside, and tempo/key sync
-   * stays, because those are mix-critical and four small buttons wide.
-   */
-  centerSlot?: React.ReactNode
-  /** Show the filter knobs in the centre column. Off when `centerSlot` is used. */
-  showFilters?: boolean
-  /** Show the FX assign/effects block in the centre column. Off when `centerSlot` is used. */
-  showFx?: boolean
 }
 
-export function TraktorMixer({
-  engine,
-  className = '',
-  centerSlot,
-  showFilters = true,
-  showFx = true,
-}: TraktorMixerProps) {
+export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const deckA = engine.decks.A
   const deckB = engine.decks.B
 
@@ -312,27 +292,9 @@ export function TraktorMixer({
       </div>
 
       {/* ================= 3. CENTER PANEL (FILTERS + FX + SYNC/KEY) ================= */}
-      <div
-        className={`flex flex-col justify-between items-center py-1 px-2 bg-[#161616] rounded-lg border border-[#282828] ${
-          centerSlot ? 'flex-1 min-w-0 min-h-0' : 'w-[132px] shrink-0'
-        }`}
-      >
-        {/* Waveform slot (phone console) — takes the room the filters and FX block give up.
-            The lane is absolutely positioned inside it, not laid out in it: a canvas sizes
-            its own backing store from its rect, which also gives the element an intrinsic
-            height. In this column that intrinsic height is what the flex/grid row would
-            measure, so a lane laid out normally would grow the row past the phone screen
-            and paint over it. Out of flow, the column's height comes from the row and the
-            canvas follows it — the direction the measuring loop needs. */}
-        {centerSlot && (
-          <div className="relative flex-1 min-h-0 w-full mb-1">
-            <div className="absolute inset-0">{centerSlot}</div>
-          </div>
-        )}
-
+      <div className="flex flex-col justify-between items-center py-1 px-2 bg-[#161616] rounded-lg border border-[#282828] w-[132px] shrink-0">
         {/* Top: Filter Knobs A & B */}
-        {showFilters && (
-          <div className="flex items-center justify-center gap-4 w-full pt-1">
+        <div className="flex items-center justify-center gap-4 w-full pt-1">
             <div className="flex flex-col items-center">
               <FilterKnob
                 size={40}
@@ -357,10 +319,8 @@ export function TraktorMixer({
               />
             </div>
           </div>
-        )}
 
         {/* FX Target Assignment Header & Buttons */}
-        {showFx && (
         <div className="flex flex-col items-center w-full max-w-[104px] mt-0.5">
           <span className="text-[7px] font-semibold text-[#888888] uppercase tracking-widest mb-1.5">
             FX
@@ -420,10 +380,8 @@ export function TraktorMixer({
             <line x1="52" y1="1" x2="52" y2="12" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
           </svg>
         </div>
-        )}
 
         {/* Middle: 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SPIN] */}
-        {showFx && (
         <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] -mt-2 mb-0.5">
           <button
             type="button"
@@ -466,8 +424,6 @@ export function TraktorMixer({
             SCR
           </button>
         </div>
-
-        )}
 
         {/* Bottom: 2x2 SYNC & KEY Buttons. Stays in the phone console: a mix without
             tempo sync is a different instrument, and four buttons is all it costs. */}

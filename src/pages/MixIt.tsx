@@ -21,10 +21,15 @@ import { useKeepScreenAwake } from '@/lib/wake-lock'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 /**
- * Floor for the kiosk chassis height (design px): the strip, one row of decks at a
- * usable size, and the transport bar. See `kioskDesignH`.
+ * Floor for the kiosk chassis height (design px): the metadata strip, the waveform
+ * band, a deck row tall enough for the jog wheel, and the transport bar — the four
+ * rows of the console, none of them clipped. See `kioskDesignH`.
+ *
+ * The strip and the transport are content-sized (roughly 81 px and 65 px at the
+ * sizes they render), which is where the rest of this number comes from. It only
+ * binds on a phone, where filling the width asks for less height than the rows need.
  */
-const KIOSK_MIN_CONSOLE_H = 430
+const KIOSK_MIN_CONSOLE_H = 485
 
 /**
  * Ceiling for the same height (design px), about a 2:1 chassis.
@@ -36,6 +41,25 @@ const KIOSK_MIN_CONSOLE_H = 430
  * the page instead.
  */
 const KIOSK_MAX_CONSOLE_H = 560
+
+/**
+ * Height of the stacked waveform band in kiosk mode, in design px.
+ *
+ * Two lanes of 48 px: tall enough for a lane's own controls (rewind, downbeat,
+ * ±10 ms, GRID) to sit in the corner above the wave without eating it, and thin
+ * enough that the deck row below — the jogs, EQ and faders — still gets the bulk of
+ * the ~485 design px a phone's chassis has to spend. The desktop band is 290 px,
+ * which on a landscape phone would be most of the screen.
+ */
+const KIOSK_LANE_BAND_H = 96
+
+/**
+ * Smallest deck row that holds the deck's own parts, in design px: the jog wheel is a
+ * fixed 196 px, plus the deck's and the row's vertical padding. Below this the wheel
+ * is clipped by the chassis, which is the one row on the console that cannot be
+ * squeezed — the rest (band, strip, transport) is what gives way instead.
+ */
+const KIOSK_MIN_DECK_ROW_H = 243
 
 /**
  * Pages worth reaching from the console on a phone, where the site header is hidden.
@@ -309,14 +333,14 @@ export function MixIt() {
    * of screen, so the fit can never be larger than ~0.75 whatever the height. The old
    * kiosk then letterboxed: a 556 px-tall chassis at 0.75 leaves ~55 px of the screen
    * empty, and every row above the decks was paid for out of a fixed budget. So instead
-   * of a fixed height, the chassis is given exactly the height that makes 1120 wide fill
-   * the box, and the deck row (the only flexible row) takes what the strip and the
-   * transport bar do not. The result is a console that fills the phone edge to edge at
-   * the largest scale the width allows, with the extra height going to the waveforms.
+   * of a fixed height, the chassis is given the height that makes 1120 wide fill the
+   * box, and the deck row (the only flexible row) takes what the strip, the waveform
+   * band and the transport bar do not.
    *
-   * Below `KIOSK_MIN_CONSOLE_H` the console is taller than the screen and the fit falls
-   * back to scaling by height, so a short window shrinks the console rather than
-   * squashing its rows into each other; above `KIOSK_MAX_CONSOLE_H` the console stops
+   * That height is floored at `KIOSK_MIN_CONSOLE_H`, because the rows are not all
+   * squeezable: the jog wheel is a fixed 196 px. An 844×390 phone asks to fill at 467
+   * and gets 485, which costs it ~15 CSS px of margin on each side and keeps the
+   * deck row's wheel whole. Above `KIOSK_MAX_CONSOLE_H` the console stops
    * growing and the leftover height is left to the page.
    */
   const kioskDesignH =
@@ -360,12 +384,11 @@ export function MixIt() {
       {/* Kiosk chrome. The site header is hidden here (see `Header`), so the console
           carries its own controls: the way back into the database without unloading the
           decks, and fullscreen for the address bar. They sit in a slim bar *above* the
-          console rather than in rails beside it. The rails were there to buy height when
-          the console was height-bound; once the waveform lane moved between the decks
-          the console is width-bound instead, and the rails were costing 8–19 % of the
-          screen width — every knob, label and lane scaled down by that much — to save
-          height that the reflow now has spare. The bar is measured in real CSS px, not
-          design px, so these two taps stay 32 px however small the console is drawn. */}
+          console rather than in rails beside it. Rails cost 8–19 % of the screen width —
+          every knob, label and lane scaled down by that much — and the console does not
+          need them: it is width-bound, so height bought on the sides would not have
+          raised the scale anyway. The bar is measured in real CSS px, not design px, so
+          these two taps stay 32 px however small the console is drawn. */}
       {kiosk && (
         <div
           className="flex shrink-0 items-center justify-between px-2"
@@ -492,43 +515,57 @@ export function MixIt() {
                 setActiveFxDeck(current => (current === deckId ? null : deckId))
               }}
               activeFxDeck={activeFxDeck}
-              showFx={!kiosk}
             />
 
-            {/* 2. OPTIONAL FX DRAWER. Desktop only: the phone console has no FX at all,
-                which is what buys the waveforms their room in the mixer's centre. */}
-            {!kiosk && activeFxDeck && (
-              <TraktorFxDrawer
-                deck={activeFxDeck === 'A' ? deckA : deckB}
-                deckId={activeFxDeck}
-                accentColor={activeFxDeck === 'A' ? '#34d399' : '#a855f7'}
-                onClose={() => setActiveFxDeck(null)}
-              />
-            )}
-
-            {/* 3. FULL-WIDTH STACKED SCROLLING WAVEFORMS — desktop only. On a phone the
-                lanes move into the mixer's centre column (see `centerSlot` below): a
-                130 px-tall full-width band spends a quarter of a landscape screen on two
-                stripes, and moving it between the decks is what lets the deck row be tall
-                enough to read. Where they move to, the lane keeps its rewind, downbeat
-                and ±10 ms controls (`chrome="grid"`) — see `StackedWaveforms`. */}
-            {!kiosk && (
-              <div className="w-full h-[290px] border-b border-[#282828] bg-[#161616]">
-                <StackedWaveforms
-                  deckA={deckA}
-                  deckB={deckB}
-                  onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
-                  onLoadClick={deckId => setLoadModalDeck(deckId)}
-                  className="h-full w-full rounded-none border-none"
+            {/* 2. OPTIONAL FX DRAWER. Desktop gives it a row of its own. In kiosk it
+                floats over the metadata strip instead: the rows there are already at
+                their floors, and a drawer that took a row would clip the jog wheel. */}
+            {activeFxDeck && (
+              <div
+                className={
+                  kiosk
+                    ? 'absolute inset-x-0 top-0 z-40 shadow-[0_10px_20px_rgba(0,0,0,0.55)]'
+                    : undefined
+                }
+              >
+                <TraktorFxDrawer
+                  deck={activeFxDeck === 'A' ? deckA : deckB}
+                  deckId={activeFxDeck}
+                  accentColor={activeFxDeck === 'A' ? '#34d399' : '#a855f7'}
+                  onClose={() => setActiveFxDeck(null)}
                 />
               </div>
             )}
+
+            {/* 3. FULL-WIDTH STACKED SCROLLING WAVEFORMS.
+
+                Same arrangement on both sides of the breakpoint — the lanes are the
+                instrument's horizon line, and a phone that buried them in the mixer
+                column had to bend one deck's controls around the other's. What changes
+                in kiosk is only the height: 290 design px is a comfortable band on a
+                desktop and more than half of a landscape phone's screen, so the kiosk
+                band is `KIOSK_LANE_BAND_H`, and the deck row takes what is left. */}
+            <div
+              className={`w-full shrink-0 border-b border-[#282828] bg-[#161616] ${
+                kiosk ? '' : 'h-[290px]'
+              }`}
+              style={kiosk ? { height: KIOSK_LANE_BAND_H } : undefined}
+            >
+              <StackedWaveforms
+                deckA={deckA}
+                deckB={deckB}
+                onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
+                onLoadClick={deckId => setLoadModalDeck(deckId)}
+                className="h-full w-full rounded-none border-none"
+              />
+            </div>
 
             {/* 4. MAIN CONSOLE SURFACE: DECK A (GREEN) | 2-COLUMN MIXER | DECK B (PURPLE) */}
             <div
               className={`grid grid-cols-[1fr_auto_1fr] items-stretch justify-center px-3 py-2 bg-[#1C1C1C] gap-4 ${
                 kiosk ? 'flex-1 min-h-0' : 'h-[280px]'
               }`}
+              style={kiosk ? { minHeight: KIOSK_MIN_DECK_ROW_H } : undefined}
             >
               {/* Deck A Control Section (Green) */}
               <div
@@ -549,31 +586,10 @@ export function MixIt() {
                 />
               </div>
 
-              {/* Central 5-Column Traktor Mixer matching mockup. On a phone the centre
-                  column is the waveform lane and the outer columns are the EQ and faders;
-                  filters and FX step aside (see `TraktorMixer`). */}
-              <div
-                className={`flex items-stretch h-full justify-center ${
-                  kiosk ? 'w-[400px]' : 'w-[380px]'
-                }`}
-              >
-                <TraktorMixer
-                  engine={engine}
-                  className="w-full"
-                  showFilters={!kiosk}
-                  showFx={!kiosk}
-                  centerSlot={
-                    kiosk ? (
-                      <StackedWaveforms
-                        deckA={deckA}
-                        deckB={deckB}
-                        chrome="grid"
-                        onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
-                        className="h-full w-full"
-                      />
-                    ) : undefined
-                  }
-                />
+              {/* Central 5-Column Traktor Mixer: filters over the FX block, both decks' EQ
+                  and faders either side. Same columns at every size — see `TraktorMixer`. */}
+              <div className="flex items-stretch h-full justify-center w-[380px]">
+                <TraktorMixer engine={engine} className="w-full" />
               </div>
 
               {/* Deck B Control Section (Purple) */}
