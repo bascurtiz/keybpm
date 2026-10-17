@@ -268,6 +268,21 @@ export function MixIt() {
     ? undefined
     : { width: CONSOLE_WIDTH, transform: `translate(-50%, -50%) scale(${scale})` }
 
+  // Kiosk rails. Both are given the *same* width, computed from the widest safe-area
+  // inset on either side — a phone in landscape puts its cutout on one edge only, so
+  // `env(safe-area-inset-left)` can be ~47 px while the right side is 0. Padding each
+  // rail with its own inset made the left rail ~43 px wider than the right one, and the
+  // console (centred between the rails) leaned right by half that difference. Using the
+  // larger of the two on both sides keeps the buttons equally far from their edge and
+  // the rails identical in width, whatever the device reports.
+  const railEdge = 'max(0.25rem, env(safe-area-inset-left), env(safe-area-inset-right))'
+  // 32 px button + 4 px inner padding + 1 px border, then the safe-area edge.
+  const railStyle = {
+    width: `calc(2.3125rem + ${railEdge})`,
+    paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
+    paddingBottom: '0.25rem',
+  }
+
   return (
     <div
       className={
@@ -289,14 +304,13 @@ export function MixIt() {
           console is centred in what is left of the viewport, so a rail on the left
           alone pushed the mixer off-centre by half its width — the jog wheels visibly
           leaned right. The right rail is rendered even where fullscreen is unsupported
-          (Safari has no element fullscreen) purely so the frame stays symmetric. */}
+          (Safari has no element fullscreen) purely so the frame stays symmetric. Both
+          rails share one width (see `railStyle`), so a device with a cutout on the left
+          cannot make one side of the frame wider than the other. */}
       {kiosk && (
         <div
-          className="flex min-w-[41px] shrink-0 flex-col items-center gap-1.5 border-r border-white/10 bg-[#141414] px-1 pb-1"
-          style={{
-            paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
-            paddingLeft: 'max(0.25rem, env(safe-area-inset-left))',
-          }}
+          className="flex shrink-0 flex-col items-center gap-1.5 border-r border-white/10 bg-[#141414]"
+          style={{ ...railStyle, paddingLeft: railEdge, paddingRight: '0.25rem' }}
         >
           <button
             type="button"
@@ -478,14 +492,12 @@ export function MixIt() {
       </main>
 
       {/* Right-hand rail: fullscreen sits opposite the menu, so the console in between
-          is centred on the screen rather than shifted right by the left rail. */}
+          is centred on the screen rather than shifted right by the left rail. Same width
+          and padding as its counterpart, mirrored. */}
       {kiosk && (
         <div
-          className="flex min-w-[41px] shrink-0 flex-col items-center gap-1.5 border-l border-white/10 bg-[#141414] px-1 pb-1"
-          style={{
-            paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
-            paddingRight: 'max(0.25rem, env(safe-area-inset-right))',
-          }}
+          className="flex shrink-0 flex-col items-center gap-1.5 border-l border-white/10 bg-[#141414]"
+          style={{ ...railStyle, paddingLeft: '0.25rem', paddingRight: railEdge }}
         >
           {fullscreen.supported && (
             <button
