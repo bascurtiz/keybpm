@@ -1,64 +1,58 @@
-// `.ts` on the specifier so `scripts/test-loop-move.mjs` can import this module in plain node, the way
-// the other tested dj modules do.
-import { barIndexAt, barTimeAt } from './grid.ts'
-import type { BeatGrid, LoopRegion } from './types'
+import type { LoopRegion } from './types'
+
+/** Where an armed loop and the playhead sit after MOVE has jumped them. */
+export interface LoopTravel {
+  /** Start of the loop after the jump. */
+  start: number
+  /** End of the loop after the jump. The loop keeps the length it was armed with. */
+  end: number
+  /**
+   * Where the playhead lands: the same offset inside the loop it had before, so the part
+   * of the phrase being heard is still the part being heard.
+   */
+  playhead: number
+}
 
 /**
- * Comparison slack for "is this bar line at or past the reach", in seconds. A bar line that lands
- * exactly on the reach is one loop length away, which is allowed, so the test has to be against a
- * tolerance rather than a strict `>=` — the grid's beat times are floats.
- */
-const BAR_EPSILON = 1e-6
-
-/**
- * Where a loop lands when MOVE travels it one step in `direction`.
+ * Where a loop and the playhead land when MOVE jumps `delta` seconds.
  *
- * The loop keeps its own length and lands on a **bar line**, always at least one loop length away in
- * the direction pressed. Two rules in one, and both matter:
+ * MOVE is a playhead jump, but a loop that is already running is the thing the jump is
+ * for: `seek` would release it the moment the playhead landed outside it (which is right
+ * for a scrub or a hot cue — jumping out of a loop means leaving it), so MOVE relocates
+ * the loop by the distance the playhead actually travels instead.
  *
- * - Bar lines, because a loop that travels by its own size alone drifts off the phrase. A four-beat
- *   loop moves bar to bar, an eight-beat loop two bars at a time, and a two-beat or one-beat loop —
- *   which has no whole-bar step of its own length — moves a bar rather than a fraction of one.
- * - At least a length, because a loop need not be sitting on a bar line to begin with (SNAP off, or
- *   a loop dragged in from a grid edit). Snapping that loop to the *nearest* bar line would move it
- *   backwards while the forward arrow was pressed; taking the first line at or past the reach always
- *   moves it forwards, and the first press also squares it up onto the grid.
+ * Both move by the same amount, which is what keeps the playhead's *offset* inside the
+ * loop intact. Snapping the loop's start onto the playhead would instead drop the part of
+ * the loop before the playhead and knock the window off the beat, because a running loop's
+ * playhead is almost never on a beat when the button is pressed.
  *
- * On a variable-tempo grid the destination comes from the grid's own bar index and time, so it lands
- * where that track's bars actually are rather than where a fixed bar length would put them. The grid
- * is required rather than optional on purpose: a track that was never analysed has no grid, and
- * letting the lookup fall back to `grid.ts`'s 120 BPM default would snap a 174 BPM track's loops to
- * 120 BPM bar lines. The deck gives such a track a constant grid at its own tempo instead — see
- * `DeckEngine.loopMoveTarget`.
+ * The travel is clamped, not refused, at both ends of the track: the loop lands as far as
+ * it can go and the playhead rides along the same distance. Null means there is nothing
+ * that can travel — no loop, a degenerate one, or one already pressed against the end it
+ * was asked to move towards.
  *
  * @param loop - The armed loop, or null.
- * @param grid - The track's grid at its own tempo.
- * @param direction - -1 for the previous bar line, 1 for the next.
- * @param duration - Track length in seconds; a destination past the end is not offered.
- * @returns The destination window, or null when the loop cannot travel that way — before the first
- *   bar, or past the end of the track. Null is what a transport renders as a disabled arrow.
+ * @param playhead - Current playhead, which is inside the loop whenever one is armed.
+ * @param delta - Seconds to jump, positive forward.
+ * @param duration - Track length in seconds; the loop may not run past it.
  */
-export function loopMoveDestination(
+export function travelLoop(
   loop: LoopRegion | null | undefined,
-  grid: BeatGrid,
-  direction: -1 | 1,
+  playhead: number,
+  delta: number,
   duration: number
-): { start: number; end: number } | null {
+): LoopTravel | null {
   if (!loop) return null
   const length = loop.end - loop.start
-  if (!(length > 0)) return null
+  if (!(length > 0) || length > duration) return null
 
-  // One loop length, in the direction pressed: the nearest bar line the loop may land on.
-  const reach = loop.start + direction * length
+  const start = Math.min(Math.max(loop.start + delta, 0), duration - length)
+  if (start === loop.start) return null
 
-  const index = barIndexAt(grid, reach)
-  let start = barTimeAt(grid, index)
-  // Going forward the bar *containing* the reach sits behind it whenever the reach is not itself on a
-  // bar line, so step onto the next one. Going back that bar is at or before the reach already, which
-  // is one length or more away by construction — no step needed.
-  if (direction > 0 && start < reach - BAR_EPSILON) start = barTimeAt(grid, index + 1)
-
-  const end = start + length
-  if (start < 0 || end > duration) return null
-  return { start, end }
+  const shift = start - loop.start
+  return {
+    start,
+    end: start + length,
+    playhead: Math.min(Math.max(playhead + shift, 0), duration),
+  }
 }

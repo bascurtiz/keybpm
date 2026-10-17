@@ -185,13 +185,18 @@ export function Knob({
         style={{ width: size, height: size }}
       >
         <svg viewBox="0 0 100 100" className="h-full w-full overflow-visible">
-          {/* Subtle background track ring matching FilterKnob 270-degree range */}
+          {/* Strokes below are in CSS pixels, not viewBox units — every stroked
+              element sets vectorEffect="non-scaling-stroke". The SVG draws in a
+              100-unit space and is rendered at `size` (20–40px), so a width of 1.8
+              became 0.72px on screen: thinner than one device pixel, which is what
+              made the body edge and the track ring read as soft. */}
           <path
             d="M 23.84 76.16 A 37 37 0 1 1 76.16 76.16"
             fill="none"
-            stroke={variant === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.08)'}
-            strokeWidth={variant === 'dark' ? 4.5 : 4}
+            stroke={variant === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.1)'}
+            strokeWidth={2}
             strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
           />
 
           {/* Active colored arc matching deck color (Deck A green, Deck B purple) */}
@@ -200,8 +205,9 @@ export function Knob({
               d={arcPath}
               fill="none"
               stroke={accentColor}
-              strokeWidth={variant === 'dark' ? 5.5 : 6}
+              strokeWidth={2.5}
               strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
             />
           )}
 
@@ -212,8 +218,9 @@ export function Knob({
             x2={c}
             y2={9}
             stroke={variant === 'dark' ? (!isTurned ? accentColor : '#64748b') : '#ffffff'}
-            strokeWidth={2.5}
+            strokeWidth={1.5}
             strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
             opacity={variant === 'dark' ? 1 : 0.75}
           />
 
@@ -224,7 +231,8 @@ export function Knob({
             r={27}
             fill={variant === 'dark' ? '#1e2025' : '#58585a'}
             stroke={variant === 'dark' ? (isTurned ? '#474a56' : '#363842') : '#3c3d42'}
-            strokeWidth={1.8}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
           />
 
           {/* Subtle inner bevel circle for dark variant */}
@@ -245,8 +253,9 @@ export function Knob({
             x2={c}
             y2={c - 22}
             stroke="#ffffff"
-            strokeWidth={variant === 'dark' ? 4.5 : 5}
+            strokeWidth={2.5}
             strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
             transform={`rotate(${angle} ${c} ${c})`}
           />
         </svg>

@@ -5,7 +5,7 @@ import {
   keyLockLatencySeconds as keyLockLatencyOf,
   keyLockTransform,
 } from './keylock-transform'
-import { loopMoveDestination } from './loop-move'
+import { travelLoop } from './loop-move'
 import { HOT_CUE_COUNT, type BeatGrid, type FxType, type LoopRegion, type Track } from './types'
 import {
   barIndexAt,
@@ -17,7 +17,6 @@ import {
   beatTimeAt,
   bpmAt,
   collapseGridToConstant,
-  FALLBACK_BPM,
   isVariableGrid,
   normalizeGrid,
   reanchorBar,
@@ -2018,24 +2017,35 @@ export class DeckEngine {
   }
 
   /**
-   * Where the armed loop lands when MOVE travels it one step — the bar-snapped rule lives in
-   * `loop-move.ts`. Null when it cannot go there (before the first bar, or past the end), which is
-   * what the transport draws as a disabled arrow.
+   * MOVE on the transport: jump the playhead `delta` seconds (clamped to the track) and take an
+   * armed loop with it.
+   *
+   * The loop is what the jump is for while it is running, so it is never dropped: `seek` would
+   * release it as soon as the playhead landed outside the window — correct for a scrub or a hot
+   * cue, where jumping out of a loop means leaving it, and wrong here. The loop keeps its length
+   * and the playhead keeps its offset inside it; the rule lives in `loop-move.ts`.
+   *
+   * The destination is armed *before* the playhead moves, so the new window already contains the
+   * new position and the loop does not blink off between the two calls. No grid is involved: the
+   * caller's step is already an integer number of beats, so shifting both by the same amount
+   * leaves an off-beat playhead exactly as off-beat as it was.
    */
-  loopMoveTarget(direction: -1 | 1): { start: number; end: number } | null {
-    const track = this.track
-    if (!track) return null
-    // A track with no grid still has a tempo. Give it a constant grid at that tempo rather than
-    // letting the bar lookup fall back to `grid.ts`'s 120 BPM — a 174 BPM track's loops should snap
-    // to 174 BPM bars. Not `ensureGrid()`: that would materialise a grid on the track, and every
-    // display that draws bar stripes would start doing so the first time MOVE was pressed.
-    const grid = track.grid ?? {
-      bpm: track.bpm && track.bpm > 0 ? track.bpm : FALLBACK_BPM,
-      firstBeat: 0,
-      firstBar: 0,
-      beatsPerBar: 4,
+  movePlayhead(delta: number) {
+    if (!this.track) return
+    const loop = this.loop
+    if (!loop) {
+      this.seek(this.position + delta)
+      return
     }
-    return loopMoveDestination(this.loop, grid, direction, this.duration)
+    const travel = travelLoop(loop, this.position, delta, this.duration)
+    // No room left in that direction: the transport's arrow has nothing to do.
+    if (!travel) return
+    // Written straight rather than through `setLoop`: there is nothing here to snap — the window
+    // already sits wherever the loop was armed, moved by a whole number of beats — and snapping a
+    // loop that was armed off the grid would shift it by up to half a beat against the playhead.
+    this.loop = { start: travel.start, end: travel.end, bars: loop.bars }
+    this.post({ t: 'loop', loop: this.loop })
+    this.seek(travel.playhead)
   }
 
   setLoop(start: number, end: number) {

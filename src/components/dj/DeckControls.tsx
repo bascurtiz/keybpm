@@ -18,6 +18,20 @@ const LOOP_OPTIONS = [0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32]
 const PITCH_RANGES = [6, 10, 16, 100] as const
 const TICK_COUNT = 21 // 0 to 20; 10 is center 0.0%
 
+/**
+ * Labels for the deck's FX status chip.
+ *
+ * A Record keyed by FxType rather than a ternary chain, so adding a new effect is a
+ * type error until it gets a label here. Kept to four characters because the chip is
+ * one grid cell wide.
+ */
+const FX_LABEL: Record<FxType, string> = {
+  off: 'FX',
+  echo: 'ECHO',
+  reverb: 'RVRB',
+  flanger: 'FLNG',
+}
+
 export function DeckControls({
   deck,
   otherDeck,
@@ -28,7 +42,6 @@ export function DeckControls({
 }: DeckControlsProps) {
   const [, setVer] = useState(0)
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(6) // default to 8 bars matching mockup < 8 >
-  const [showFxMenu, setShowFxMenu] = useState(false)
   const [pitchRangeIdx, setPitchRangeIdx] = useState(1) // default ±10%
   const [pitchBendActive, setPitchBendActive] = useState<'slow' | 'fast' | null>(null)
 
@@ -672,41 +685,26 @@ export function DeckControls({
               </button>
             </div>
 
-            {/* FX button: col-span-1 */}
-            <div className="col-span-1 relative h-full">
-              <button
-                type="button"
-                onClick={() => setShowFxMenu(o => !o)}
-                className={`w-full h-full rounded-[2px] text-[8px] font-bold border transition-colors flex items-center justify-center ${
+            {/* FX status: what this deck is actually running, not a menu. Read-only on
+                purpose — the effect is chosen in the mixer's FX section, and this chip
+                stays legible while the A / MST / B assign switch is looking at another
+                channel, so a deck left with ECHO up cannot go unnoticed. */}
+            <div className="col-span-1 h-full">
+              <div
+                className={`w-full h-full rounded-[2px] text-[8px] font-bold border flex items-center justify-center select-none ${
                   deck.fxType !== 'off'
                     ? 'font-extrabold'
-                    : 'border-[#2a2d33] bg-[#161616] text-zinc-400 hover:text-white hover:border-zinc-500 hover:bg-[#252830]'
+                    : 'border-[#2a2d33] bg-[#161616] text-zinc-400'
                 }`}
                 style={getLedButtonStyle(deck.fxType !== 'off')}
-                title={`Master FX: ${deck.fxType.toUpperCase()}`}
+                title={
+                  deck.fxType === 'off'
+                    ? `Deck ${deckId}: no FX running`
+                    : `Deck ${deckId}: ${deck.fxType.toUpperCase()} running`
+                }
               >
-                FX
-              </button>
-
-              {showFxMenu && (
-                <div className="absolute bottom-full left-0 mb-1 z-30 w-24 bg-[#1C1C1C] border border-[#2a2d33] rounded shadow-xl p-1 flex flex-col gap-0.5">
-                  {(['off', 'echo', 'reverb', 'flanger'] as FxType[]).map(fx => (
-                    <button
-                      key={fx}
-                      type="button"
-                      onClick={() => {
-                        deck.setFx(fx)
-                        setShowFxMenu(false)
-                      }}
-                      className={`px-2 py-1 text-left text-[10px] uppercase font-bold rounded ${
-                        deck.fxType === fx ? 'bg-[#252830] text-white' : 'text-[#8e929b] hover:bg-[#161616] hover:text-white'
-                      }`}
-                    >
-                      {fx}
-                    </button>
-                  ))}
-                </div>
-              )}
+                {FX_LABEL[deck.fxType]}
+              </div>
             </div>
 
             {/* Loop activate button [ ↺ 8 ▲▼ ]: col-span-1 */}

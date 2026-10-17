@@ -336,12 +336,25 @@ const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
 const CHEVRON_PRESS =
   'active:border active:border-white active:bg-[#2b2b2b] active:text-white active:transition-none'
 
+/**
+ * The LOOP and MOVE switches are the same control with a different bit of state
+ * behind them, so they share one look outright rather than two class strings that
+ * happen to match. The on branch carries its own hover: a switch that is already
+ * white would otherwise go dead under the cursor while its neighbour lit up.
+ */
+const SWITCH_BASE =
+  'flex-1 rounded-[3px] border text-[8px] font-bold uppercase tracking-wider leading-none transition-colors disabled:opacity-40'
+const SWITCH_ON = 'border-white text-white hover:bg-white/10'
+const SWITCH_OFF =
+  'border-transparent text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+
 function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }) {
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
-  // What the < 4 > cluster under the switch does: size/toggle a loop, or travel the active loop
-  // along the track by its own length. Kept per deck, like the size, so the two transports can be
-  // set up differently.
-  const [loopMode, setLoopMode] = useState<'loop' | 'move'>('loop')
+  // What the < number > cluster under the switch does: size and toggle a loop, or beat-jump the
+  // playhead. Kept per deck, like the size, so the two transports can be set up differently.
+  // MOVE is a toggle of its own rather than a mode: on makes the arrows jump the playhead, off
+  // makes them resize the loop.
+  const [moveOn, setMoveOn] = useState(false)
   const currentBeats = LOOP_BEAT_SIZES[selectedLoopIdx]
   const isPlaying = deck.playing
   const isLoopActive = Boolean(deck.loop)
@@ -407,6 +420,21 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
     }
   }
 
+  /**
+   * MOVE on/off. Switching it off also releases any loop, so leaving jump mode hands the cluster
+   * back with nothing running. Now that MOVE jumps the playhead instead of travelling the loop,
+   * that coupling is no longer load-bearing — it is kept because it was asked for explicitly, and
+   * dropping it is a one-line change.
+   */
+  const toggleMove = () => {
+    if (moveOn) {
+      setMoveOn(false)
+      if (deck.loop) deck.exitLoop()
+    } else {
+      setMoveOn(true)
+    }
+  }
+
   const loopHalf = () => {
     const nextIdx = Math.max(0, selectedLoopIdx - 1)
     setSelectedLoopIdx(nextIdx)
@@ -430,27 +458,25 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
   }
 
   /**
-   * Where the armed loop would sit if MOVE travelled it in `direction` — the bar-snapped rule is the
-   * deck's, since only it knows the grid. Null when it cannot go there, so the arrow can be disabled
-   * rather than silently doing nothing at the ends of the track.
+   * MOVE: jump the playhead by the selected beat value.
+   *
+   * Not a loop action — pressing MOVE and then an arrow no longer arms a loop the user had not
+   * asked for. A loop that is *already* running keeps running and travels with the jump (see
+   * `DeckEngine.movePlayhead`): the window keeps its length and the playhead keeps its place
+   * inside it, so a four-beat loop stays the four beats you were hearing, one step along. With
+   * no loop armed this is a plain beat jump, clamped rather than refused at the ends so the
+   * arrows stay usable.
    */
-  const loopMoveTarget = (direction: -1 | 1) => deck.loopMoveTarget(direction)
+  const beatJump = (direction: -1 | 1) => {
+    if (!deck.track) return
+    deck.movePlayhead(direction * currentBeats * deck.beatLengthAt(deck.position))
+  }
 
   /**
-   * MOVE: travel the armed loop one step along the bars, keeping its length.
-   *
-   * The playhead rides with it when it was inside the loop, so what you are hearing stays at the
-   * same point of the phrase; when it was outside, only the loop moves, which is how a loop gets
-   * parked ahead of the playhead to play into.
+   * MOVE's value control cycles the jump step instead of toggling the loop — same button, a
+   * different job depending on which switch is lit.
    */
-  const loopMove = (direction: -1 | 1) => {
-    const target = loopMoveTarget(direction)
-    const loop = deck.loop
-    if (!target || !loop) return
-    const wasInside = deck.position >= loop.start && deck.position <= loop.end
-    deck.setLoop(target.start, target.end)
-    if (wasInside) deck.seek(deck.position + (target.start - loop.start))
-  }
+  const cycleBeats = () => setSelectedLoopIdx(i => (i + 1) % LOOP_BEAT_SIZES.length)
 
   const ytState = youtubeBridge.state[deckId]
   const hasYt = ytState.hasVideo && !deck.track
@@ -574,55 +600,56 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
         CUE
       </button>
 
-      {/* Loop / Move Section: the LOOP | MOVE switch on top, the < 4 > cluster under it.
+      {/* Loop / Move Section: the LOOP | MOVE switches on top, the < number > cluster under it.
           One pair of arrows with two jobs, so a bar this tight does not need a second row of
-          buttons: LOOP sizes and arms the loop, MOVE travels the armed one. */}
+          buttons: LOOP sizes and arms a loop, MOVE beat-jumps the playhead. The number is that
+          job's control too — it toggles the loop under LOOP and cycles the step under MOVE. No
+          frame around the cluster: the switches carry their own state, and a border only ate the
+          room the two labels needed. */}
       <div
         role="group"
         aria-label={`Deck ${deckId} loop and move`}
-        className={`flex flex-col rounded-md border overflow-hidden shadow-sm h-11 w-[94px] transition-colors ${
-          isLoopActive ? 'border-white bg-[#141414] shadow-[0_0_8px_rgba(255,255,255,0.25)]' : 'border-[#282828] bg-[#141414]'
-        }`}
+        className="flex flex-col overflow-hidden h-11 w-[94px] rounded-md bg-[#141414]"
       >
-        <div className={`flex h-[23px] shrink-0 gap-[2px] p-[2px] border-b ${isLoopActive ? 'border-white/30' : 'border-[#282828]'}`}>
-          {(['loop', 'move'] as const).map(mode => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setLoopMode(mode)}
-              aria-pressed={loopMode === mode}
-              className={`flex-1 rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider leading-none transition-colors ${
-                loopMode === mode
-                  ? 'border-white text-white'
-                  : 'border-transparent text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
-              }`}
-              title={
-                mode === 'loop'
-                  ? 'LOOP: < / > halve and double the length, the middle button sets the loop'
-                  : 'MOVE: < / > travel the armed loop, landing on bar lines'
-              }
-            >
-              {mode}
-            </button>
-          ))}
+        <div className="flex h-[22px] shrink-0 gap-[2px] p-[2px]">
+          <button
+            type="button"
+            onClick={toggleLoop}
+            aria-pressed={isLoopActive}
+            className={`${SWITCH_BASE} ${isLoopActive ? SWITCH_ON : SWITCH_OFF}`}
+            title={
+              isLoopActive
+                ? `LOOP running (${currentBeats} beats) — click to release it`
+                : `LOOP: arm a ${currentBeats}-beat loop at the playhead`
+            }
+          >
+            loop
+          </button>
+          <button
+            type="button"
+            onClick={toggleMove}
+            aria-pressed={moveOn}
+            className={`${SWITCH_BASE} ${moveOn ? SWITCH_ON : SWITCH_OFF}`}
+            title={
+              moveOn
+                ? 'MOVE on — < / > beat-jump the playhead (a running loop travels with it), the number cycles the step'
+                : 'MOVE: < / > beat-jump the playhead by the step (also releases the loop when switched off)'
+            }
+          >
+            move
+          </button>
         </div>
 
         <div className="flex flex-1">
           <button
             type="button"
-            onClick={loopMode === 'loop' ? loopHalf : () => loopMove(-1)}
-            disabled={
-              loopMode === 'loop'
-                ? !deck.track || selectedLoopIdx === 0
-                : !loopMoveTarget(-1)
-            }
-            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-r ${CHEVRON_PRESS} ${
-              isLoopActive ? 'border-white/30' : 'border-[#282828]'
-            }`}
+            onClick={moveOn ? () => beatJump(-1) : loopHalf}
+            disabled={moveOn ? !deck.track : !deck.track || selectedLoopIdx === 0}
+            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors rounded-bl-md ${CHEVRON_PRESS}`}
             title={
-              loopMode === 'loop'
-                ? 'Half loop length (÷2)'
-                : 'Move the armed loop back to the bar line before it'
+              moveOn
+                ? `Jump the playhead back ${currentBeats} beats (a running loop comes with it)`
+                : 'Half loop length (÷2)'
             }
           >
             &lt;
@@ -630,19 +657,17 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
 
           <button
             type="button"
-            onClick={loopMode === 'loop' ? toggleLoop : undefined}
-            disabled={loopMode === 'move' || !deck.track}
-            className={`flex-1 flex items-center justify-center transition-colors text-[9px] font-mono font-bold leading-none ${
-              loopMode === 'move'
-                ? 'text-[#666666]'
-                : isLoopActive
-                  ? 'bg-[#141414] text-white'
-                  : 'hover:bg-[#222222] text-[#777777] hover:text-[#d4d4d4]'
+            onClick={moveOn ? cycleBeats : toggleLoop}
+            disabled={!deck.track}
+            className={`flex-1 flex items-center justify-center transition-colors text-[9px] font-mono font-bold leading-none disabled:opacity-40 ${
+              isLoopActive && !moveOn
+                ? 'bg-accent/25 text-white'
+                : 'hover:bg-[#222222] text-[#777777] hover:text-[#d4d4d4]'
             }`}
             title={
-              loopMode === 'loop'
-                ? `Loop ${currentBeats} beats (Click to toggle)`
-                : `${currentBeats}-beat size — switch to LOOP to change it`
+              moveOn
+                ? `${currentBeats}-beat jump step — click to cycle the size`
+                : `Loop ${currentBeats} beats (Click to toggle)`
             }
           >
             {currentBeats}
@@ -650,19 +675,15 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
 
           <button
             type="button"
-            onClick={loopMode === 'loop' ? loopDouble : () => loopMove(1)}
+            onClick={moveOn ? () => beatJump(1) : loopDouble}
             disabled={
-              loopMode === 'loop'
-                ? !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
-                : !loopMoveTarget(1)
+              moveOn ? !deck.track : !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
             }
-            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors border-l ${CHEVRON_PRESS} ${
-              isLoopActive ? 'border-white/30' : 'border-[#282828]'
-            }`}
+            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors rounded-br-md ${CHEVRON_PRESS}`}
             title={
-              loopMode === 'loop'
-                ? 'Double loop length (×2)'
-                : 'Move the armed loop forward to the next bar line (at least one loop length)'
+              moveOn
+                ? `Jump the playhead forward ${currentBeats} beats (a running loop comes with it)`
+                : 'Double loop length (×2)'
             }
           >
             &gt;
