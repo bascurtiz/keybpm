@@ -11,6 +11,7 @@ import { TraktorMixer } from '@/components/dj/TraktorMixer'
 import { TraktorTransportBar } from '@/components/dj/TraktorTransportBar'
 import { TraktorFxDrawer } from '@/components/dj/TraktorFxDrawer'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
+import { BrowserNotice } from '@/components/BrowserNotice'
 import { Link } from 'react-router-dom'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import { useConsoleFit, CONSOLE_WIDTH, type ConsoleFit } from '@/lib/dj/use-console-fit'
@@ -343,6 +344,9 @@ export function MixIt() {
           </p>
         </div>
         )}
+
+        {/* Safari: the console's audio paths are not supported there (see `isSafari`). */}
+        <BrowserNotice className={kiosk ? 'mx-1 mt-1 shrink-0' : 'mt-3'} />
 
         {/* Error notification banner if any */}
         {errorMsg && (

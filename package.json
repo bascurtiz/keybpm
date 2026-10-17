@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node scripts/test-queue-merge.mjs && node scripts/test-consensus-sources.mjs && node scripts/test-source-keys.mjs && node scripts/test-activity-order.mjs && node scripts/test-bpm-detector.mjs && node scripts/test-grid.mjs && node scripts/test-loop-move.mjs && node scripts/test-bar-structure.mjs && node scripts/test-beat-tracker.mjs && node scripts/test-onset-latency.mjs && node scripts/test-mix-render.mjs && npm run bench:beats",
+    "test": "node scripts/test-queue-merge.mjs && node scripts/test-consensus-sources.mjs && node scripts/test-source-keys.mjs && node scripts/test-activity-order.mjs && node scripts/test-bpm-detector.mjs && node scripts/test-grid.mjs && node scripts/test-loop-move.mjs && node scripts/test-bar-structure.mjs && node scripts/test-beat-tracker.mjs && node scripts/test-onset-latency.mjs && node scripts/test-mix-render.mjs && node scripts/test-browser-detect.mjs && npm run bench:beats",
     "bench:beats": "node scripts/bench-beats.mjs",
     "bench:beats:corpus": "node scripts/bench-beats.mjs --corpus bench/corpus --no-gate --json bench/last-run.json",
     "typecheck": "tsc --noEmit",
