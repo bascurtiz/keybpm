@@ -329,6 +329,39 @@ The stretch/build/render logic is `src/lib/dj/mix-timeline.ts`, `offline-stretch
 `mix-renderer.ts` and `wav.ts`, with `npm test` covering segment building, the stretcher
 (identity, timing, keylock pitch, pitch shift) and the WAV encoder.
 
+### The phone console
+
+Below 1024 px the console replaces the page and is fitted to the viewport by
+`use-console-fit.ts`: the chassis keeps its 1120 px hardware geometry and a transform scales
+it, because reflowing a two-deck controller for a 360 px phone shrinks every control below a
+tappable size. The layout is then arranged so that scale is as large as the screen allows.
+
+On a landscape phone the fit is **width-bound**, so the console is given exactly the height
+that makes 1120 design px fill the box (`KIOSK_MIN_CONSOLE_H`/`KIOSK_MAX_CONSOLE_H` bound it)
+and every row except the deck row is fixed: the decks, the EQ columns and the crossfader take
+the rest, which is why they can be that much larger than a chassis letterboxed at a fixed
+height. What pays for it:
+
+- The stacked waveforms move **into the mixer's centre column** instead of owning a
+  full-width lane above the decks. On a landscape phone that lane was a quarter of the screen
+  spent on two 65 px stripes; in the centre it is the tallest thing on the console, and it  gives the deck row back the height it needs. The lane keeps its working controls there —
+  rewind to start, set downbeat, ±10 ms nudge, one set per lane, drawn 25 % larger so they
+  can be tapped at that fit — and gives up the two that want width rather than a tap: the
+  zoom pill and the GRID dropdown, whose panel is the size of a whole lane. That is
+  `StackedWaveforms`' `chrome="grid"`.
+- **Filters and FX are not on a phone at all.** `TraktorMixer`'s `showFilters`/`showFx` props
+  are the two things given up for that room; `centerSlot` is what takes their place. Tempo and
+  key **sync stay** (two rows of buttons at the foot of the centre column) — a mix without
+  sync is a different instrument, so the cheap block is the one that stays.
+- The menu and fullscreen buttons sit in a **slim bar above the console** rather than in rails
+  beside it, in real CSS px so the two taps do not shrink with the fit. The rails were there
+  when the console was height-bound; at 8–19 % of screen *width* each, they were costing more
+  than the height they saved.
+
+A phone held upright still opens on the rotate prompt; a portrait tablet fits the same console
+into the screen it has, capped at `KIOSK_MAX_CONSOLE_H` so a tall box cannot stretch the deck
+row into empty space.
+
 ## Stack
 
 React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · React Router 6 · ONNX Runtime Web · Essentia.js (WASM) · Web Audio API. Optional API: Cloudflare Workers + D1 ([`workers/api`](workers/api)).

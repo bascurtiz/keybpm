@@ -8,6 +8,8 @@ interface ConsoleFitResult {
   setBoxRef: (el: HTMLDivElement | null) => void
   /** Attach to the chassis itself. */
   setChassisRef: (el: HTMLDivElement | null) => void
+  /** Last measured size of the box, in CSS px. Zero until the first measurement. */
+  box: { w: number; h: number }
   /** Scale for the chassis; 1 while measuring, and never above 1. */
   scale: number
 }
@@ -64,5 +66,5 @@ export function useConsoleFit(designWidth = CONSOLE_WIDTH): ConsoleFitResult {
       ? Math.min(1, box.w / chassis.w, box.h / chassis.h)
       : 1
 
-  return { setBoxRef: setBoxEl, setChassisRef: setChassisEl, scale }
+  return { setBoxRef: setBoxEl, setChassisRef: setChassisEl, box, scale }
 }

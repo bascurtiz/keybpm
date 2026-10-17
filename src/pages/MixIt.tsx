@@ -21,6 +21,23 @@ import { useKeepScreenAwake } from '@/lib/wake-lock'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 /**
+ * Floor for the kiosk chassis height (design px): the strip, one row of decks at a
+ * usable size, and the transport bar. See `kioskDesignH`.
+ */
+const KIOSK_MIN_CONSOLE_H = 430
+
+/**
+ * Ceiling for the same height (design px), about a 2:1 chassis.
+ *
+ * Without it, a tall box stretches the deck row to whatever the box allows: an iPad in
+ * portrait asks for a 1444 px row, in which a 196 px jog wheel floats in a metre of
+ * nothing. The row is a row of controls, not a flex container for empty space — past
+ * roughly twice the wheel's height the extra height is letterboxing, so it is left to
+ * the page instead.
+ */
+const KIOSK_MAX_CONSOLE_H = 560
+
+/**
  * Pages worth reaching from the console on a phone, where the site header is hidden.
  * Kept short on purpose: this is a way out and back, not a second navigation system.
  */
@@ -86,7 +103,7 @@ export function MixIt() {
   useEffect(() => {
     if (!portraitPhone) setPortraitOptOut(false)
   }, [portraitPhone])
-  const { setBoxRef, setChassisRef, scale } = useConsoleFit()
+  const { setBoxRef, setChassisRef, box, scale } = useConsoleFit()
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
   // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
   const fullscreen = useFullscreen()
@@ -285,53 +302,77 @@ export function MixIt() {
     ? 'w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0'
     : 'absolute left-1/2 top-1/2 shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col'
 
+  /**
+   * Height the kiosk chassis is laid out at, in design px.
+   *
+   * On a landscape phone the console is width-bound: 1120 design px across ~844 CSS px
+   * of screen, so the fit can never be larger than ~0.75 whatever the height. The old
+   * kiosk then letterboxed: a 556 px-tall chassis at 0.75 leaves ~55 px of the screen
+   * empty, and every row above the decks was paid for out of a fixed budget. So instead
+   * of a fixed height, the chassis is given exactly the height that makes 1120 wide fill
+   * the box, and the deck row (the only flexible row) takes what the strip and the
+   * transport bar do not. The result is a console that fills the phone edge to edge at
+   * the largest scale the width allows, with the extra height going to the waveforms.
+   *
+   * Below `KIOSK_MIN_CONSOLE_H` the console is taller than the screen and the fit falls
+   * back to scaling by height, so a short window shrinks the console rather than
+   * squashing its rows into each other; above `KIOSK_MAX_CONSOLE_H` the console stops
+   * growing and the leftover height is left to the page.
+   */
+  const kioskDesignH =
+    kiosk && box.w > 0 && box.h > 0
+      ? Math.min(
+          KIOSK_MAX_CONSOLE_H,
+          Math.max(KIOSK_MIN_CONSOLE_H, Math.round((box.h * CONSOLE_WIDTH) / box.w))
+        )
+      : undefined
+
   const chassisStyle = !kiosk
     ? undefined
-    : { width: CONSOLE_WIDTH, transform: `translate(-50%, -50%) scale(${scale})` }
+    : {
+        width: CONSOLE_WIDTH,
+        height: kioskDesignH,
+        transform: `translate(-50%, -50%) scale(${scale})`,
+      }
 
-  // Kiosk rails. Both are given the *same* width, computed from the widest safe-area
-  // inset on either side — a phone in landscape puts its cutout on one edge only, so
-  // `env(safe-area-inset-left)` can be ~47 px while the right side is 0. Padding each
-  // rail with its own inset made the left rail ~43 px wider than the right one, and the
-  // console (centred between the rails) leaned right by half that difference. Using the
-  // larger of the two on both sides keeps the buttons equally far from their edge and
-  // the rails identical in width, whatever the device reports.
-  const railEdge = 'max(0.25rem, env(safe-area-inset-left), env(safe-area-inset-right))'
-  // 32 px button + 4 px inner padding + 1 px border, then the safe-area edge.
-  const railStyle = {
-    width: `calc(2.3125rem + ${railEdge})`,
-    paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
-    paddingBottom: '0.25rem',
-  }
+  /**
+   * Room kept clear of a display cutout, in real CSS px.
+   *
+   * The console is drawn edge to edge, so on a landscape phone with the camera in the
+   * corner its outermost column — the pitch fader, which is exactly the control a thumb
+   * reaches for — would sit under the cutout. Both sides get the *larger* of the two
+   * insets so the console stays centred on the screen: padding each side with its own
+   * inset would shift it by half the difference, which is the leaning jogs the old side
+   * rails were fixed for. Zero on a device that reports none, so this only ever costs
+   * the inset itself.
+   */
+  const safeEdge = 'max(env(safe-area-inset-left), env(safe-area-inset-right))'
 
   return (
     <div
       className={
         kiosk
-          ? 'fixed inset-x-0 top-0 z-30 flex h-[100dvh] overflow-hidden bg-bg select-none text-text'
+          ? 'fixed inset-x-0 top-0 z-30 flex h-[100dvh] flex-col overflow-hidden bg-bg select-none text-text'
           : 'flex flex-col min-h-[calc(100vh-var(--header-h,64px))] bg-bg select-none text-text'
       }
+      style={kiosk ? { paddingLeft: safeEdge, paddingRight: safeEdge } : undefined}
     >
       {/* Kiosk chrome. The site header is hidden here (see `Header`), so the console
-          carries its own controls: the way back into the database without unloading
-          the decks (top left), and fullscreen for the address bar (top right). They sit
-          in rails *beside* the console rather than in a bar above it: on a landscape
-          phone the console is fitted to the viewport, so every row of chrome is
-          transport space taken from the decks. Vertical space is the scarce axis here,
-          horizontal is not — each rail costs 41 px of width, which the fit absorbs,
-          and no height at all.
-
-          There are two rails, even though there is only one control on each side. The
-          console is centred in what is left of the viewport, so a rail on the left
-          alone pushed the mixer off-centre by half its width — the jog wheels visibly
-          leaned right. The right rail is rendered even where fullscreen is unsupported
-          (Safari has no element fullscreen) purely so the frame stays symmetric. Both
-          rails share one width (see `railStyle`), so a device with a cutout on the left
-          cannot make one side of the frame wider than the other. */}
+          carries its own controls: the way back into the database without unloading the
+          decks, and fullscreen for the address bar. They sit in a slim bar *above* the
+          console rather than in rails beside it. The rails were there to buy height when
+          the console was height-bound; once the waveform lane moved between the decks
+          the console is width-bound instead, and the rails were costing 8–19 % of the
+          screen width — every knob, label and lane scaled down by that much — to save
+          height that the reflow now has spare. The bar is measured in real CSS px, not
+          design px, so these two taps stay 32 px however small the console is drawn. */}
       {kiosk && (
         <div
-          className="flex shrink-0 flex-col items-center gap-1.5 border-r border-white/10 bg-[#141414]"
-          style={{ ...railStyle, paddingLeft: railEdge, paddingRight: '0.25rem' }}
+          className="flex shrink-0 items-center justify-between px-2"
+          style={{
+            paddingTop: 'max(0.1875rem, env(safe-area-inset-top))',
+            paddingBottom: '0.1875rem',
+          }}
         >
           <button
             type="button"
@@ -343,6 +384,27 @@ export function MixIt() {
               <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
           </button>
+          {fullscreen.supported ? (
+            <button
+              type="button"
+              onClick={fullscreen.toggle}
+              aria-label={fullscreen.active ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={fullscreen.active ? 'Exit fullscreen' : 'Fullscreen (hides the address bar)'}
+              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {fullscreen.active ? (
+                  <path d="M9 4v5H4M15 20v-5h5M20 9h-5V4M4 15h5v5" />
+                ) : (
+                  <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
+                )}
+              </svg>
+            </button>
+          ) : (
+            // Safari has no element fullscreen. The empty box keeps the menu button on
+            // the left instead of letting `justify-between` centre it.
+            <span aria-hidden className="h-8 w-8" />
+          )}
         </div>
       )}
 
@@ -430,10 +492,12 @@ export function MixIt() {
                 setActiveFxDeck(current => (current === deckId ? null : deckId))
               }}
               activeFxDeck={activeFxDeck}
+              showFx={!kiosk}
             />
 
-            {/* 2. OPTIONAL FX DRAWER */}
-            {activeFxDeck && (
+            {/* 2. OPTIONAL FX DRAWER. Desktop only: the phone console has no FX at all,
+                which is what buys the waveforms their room in the mixer's centre. */}
+            {!kiosk && activeFxDeck && (
               <TraktorFxDrawer
                 deck={activeFxDeck === 'A' ? deckA : deckB}
                 deckId={activeFxDeck}
@@ -442,26 +506,30 @@ export function MixIt() {
               />
             )}
 
-            {/* 3. FULL-WIDTH STACKED SCROLLING WAVEFORMS. In a fitted console the lane
-                gives up height on purpose: scaling a 290 px waveform to half size spends
-                that space on the waveform while shrinking every fader to nothing, and the
-                lane is the one block whose job survives being smaller. */}
-            <div
-              className={`w-full ${
-                kiosk ? 'h-[130px]' : 'h-[290px]'
-              } border-b border-[#282828] bg-[#161616]`}
-            >
-              <StackedWaveforms
-                deckA={deckA}
-                deckB={deckB}
-                onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
-                onLoadClick={deckId => setLoadModalDeck(deckId)}
-                className="h-full w-full rounded-none border-none"
-              />
-            </div>
+            {/* 3. FULL-WIDTH STACKED SCROLLING WAVEFORMS — desktop only. On a phone the
+                lanes move into the mixer's centre column (see `centerSlot` below): a
+                130 px-tall full-width band spends a quarter of a landscape screen on two
+                stripes, and moving it between the decks is what lets the deck row be tall
+                enough to read. Where they move to, the lane keeps its rewind, downbeat
+                and ±10 ms controls (`chrome="grid"`) — see `StackedWaveforms`. */}
+            {!kiosk && (
+              <div className="w-full h-[290px] border-b border-[#282828] bg-[#161616]">
+                <StackedWaveforms
+                  deckA={deckA}
+                  deckB={deckB}
+                  onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
+                  onLoadClick={deckId => setLoadModalDeck(deckId)}
+                  className="h-full w-full rounded-none border-none"
+                />
+              </div>
+            )}
 
             {/* 4. MAIN CONSOLE SURFACE: DECK A (GREEN) | 2-COLUMN MIXER | DECK B (PURPLE) */}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-stretch justify-center h-[280px] px-3 py-2 bg-[#1C1C1C] gap-4">
+            <div
+              className={`grid grid-cols-[1fr_auto_1fr] items-stretch justify-center px-3 py-2 bg-[#1C1C1C] gap-4 ${
+                kiosk ? 'flex-1 min-h-0' : 'h-[280px]'
+              }`}
+            >
               {/* Deck A Control Section (Green) */}
               <div
                 onDrop={e => onDrop('A', e)}
@@ -481,9 +549,31 @@ export function MixIt() {
                 />
               </div>
 
-              {/* Central 5-Column Traktor Mixer matching mockup */}
-              <div className="flex items-stretch h-full w-[380px] justify-center">
-                <TraktorMixer engine={engine} className="w-full" />
+              {/* Central 5-Column Traktor Mixer matching mockup. On a phone the centre
+                  column is the waveform lane and the outer columns are the EQ and faders;
+                  filters and FX step aside (see `TraktorMixer`). */}
+              <div
+                className={`flex items-stretch h-full justify-center ${
+                  kiosk ? 'w-[400px]' : 'w-[380px]'
+                }`}
+              >
+                <TraktorMixer
+                  engine={engine}
+                  className="w-full"
+                  showFilters={!kiosk}
+                  showFx={!kiosk}
+                  centerSlot={
+                    kiosk ? (
+                      <StackedWaveforms
+                        deckA={deckA}
+                        deckB={deckB}
+                        chrome="grid"
+                        onDropFile={(targetDeckId, file) => void handleFileSelected(targetDeckId, file)}
+                        className="h-full w-full"
+                      />
+                    ) : undefined
+                  }
+                />
               </div>
 
               {/* Deck B Control Section (Purple) */}
@@ -507,38 +597,10 @@ export function MixIt() {
             </div>
 
             {/* 5. BOTTOM TRANSPORT BAR: PLAY / CUE / LOOP < 4 BEATS > | CROSSFADER */}
-            <TraktorTransportBar engine={engine} />
+            <TraktorTransportBar engine={engine} className={kiosk ? 'shrink-0' : undefined} />
           </div>
         </div>
       </main>
-
-      {/* Right-hand rail: fullscreen sits opposite the menu, so the console in between
-          is centred on the screen rather than shifted right by the left rail. Same width
-          and padding as its counterpart, mirrored. */}
-      {kiosk && (
-        <div
-          className="flex shrink-0 flex-col items-center gap-1.5 border-l border-white/10 bg-[#141414]"
-          style={{ ...railStyle, paddingLeft: '0.25rem', paddingRight: railEdge }}
-        >
-          {fullscreen.supported && (
-            <button
-              type="button"
-              onClick={fullscreen.toggle}
-              aria-label={fullscreen.active ? 'Exit fullscreen' : 'Enter fullscreen'}
-              title={fullscreen.active ? 'Exit fullscreen' : 'Fullscreen (hides the address bar)'}
-              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                {fullscreen.active ? (
-                  <path d="M9 4v5H4M15 20v-5h5M20 9h-5V4M4 15h5v5" />
-                ) : (
-                  <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
-                )}
-              </svg>
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Menu sheet. Sits above the console so the decks stay mounted (and playing)
           while the user looks something up. */}

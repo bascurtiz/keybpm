@@ -18,6 +18,8 @@ interface TraktorMiddleStripProps {
   onLoadTrackClick?: (deckId: 'A' | 'B') => void
   onToggleFx?: (deckId: 'A' | 'B') => void
   activeFxDeck?: 'A' | 'B' | null
+  /** Show the per-deck FX buttons. Off in the phone console, which has no FX drawer. */
+  showFx?: boolean
 }
 
 function formatTime(sec: number): string {
@@ -49,6 +51,7 @@ export function TraktorMiddleStrip({
   onLoadTrackClick,
   onToggleFx,
   activeFxDeck,
+  showFx = true,
 }: TraktorMiddleStripProps) {
   const deckA = engine.decks.A
   const deckB = engine.decks.B
@@ -129,6 +132,7 @@ export function TraktorMiddleStrip({
           fxActive={activeFxDeck === 'A'}
           side="left"
           keyMode={keyMode}
+          showFx={showFx}
         />
 
         {/* ================= CENTER: MASTER BPM, BEAT COUNTER & KEY NOTATION ================= */}
@@ -249,6 +253,7 @@ export function TraktorMiddleStrip({
           fxActive={activeFxDeck === 'B'}
           side="right"
           keyMode={keyMode}
+          showFx={showFx}
         />
       </div>
     </div>
@@ -265,6 +270,7 @@ function DeckHeader({
   fxActive,
   side,
   keyMode,
+  showFx,
 }: {
   deck: DeckEngine
   deckId: 'A' | 'B'
@@ -275,6 +281,7 @@ function DeckHeader({
   fxActive?: boolean
   side: 'left' | 'right'
   keyMode: WheelMode
+  showFx?: boolean
 }) {
   const [isEditingBpm, setIsEditingBpm] = useState(false)
   const [isEditingKey, setIsEditingKey] = useState(false)
@@ -344,18 +351,20 @@ function DeckHeader({
                 SLIP
               </span>
             )}
-            <button
-              type="button"
-              onClick={onToggleFx}
-              className={`h-[14px] px-1 rounded-[2px] border text-[8px] font-bold uppercase tracking-wider transition-all shrink-0 ${
-                fxActive
-                  ? 'bg-[#141414] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.35)]'
-                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-              }`}
-              title={`Deck ${deckId} FX drawer`}
-            >
-              FX
-            </button>
+            {showFx !== false && (
+              <button
+                type="button"
+                onClick={onToggleFx}
+                className={`h-[14px] px-1 rounded-[2px] border text-[8px] font-bold uppercase tracking-wider transition-all shrink-0 ${
+                  fxActive
+                    ? 'bg-[#141414] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.35)]'
+                    : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+                }`}
+                title={`Deck ${deckId} FX drawer`}
+              >
+                FX
+              </button>
+            )}
           </div>
           <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0 leading-none">
             0:00 / 0:00
