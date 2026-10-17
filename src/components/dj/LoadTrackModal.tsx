@@ -101,10 +101,12 @@ export function LoadTrackModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm select-none">
-      <div className="relative w-full max-w-2xl bg-[#181818] rounded-xl border border-[#2c2c2c] shadow-2xl flex flex-col overflow-hidden text-white max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm select-none sm:p-4">
+      {/* `dvh`, not `vh`: on a phone the address bar is exactly that difference, and a
+          dialog sized against `vh` hangs off the bottom in landscape. */}
+      <div className="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#2c2c2c] bg-[#181818] text-white shadow-2xl sm:max-h-[85vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-[#141414] border-b border-[#252525]">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#252525] bg-[#141414] px-3 py-2 sm:px-5 sm:py-3.5 [@media(max-height:520px)]:py-1.5">
           <div className="flex items-center gap-2.5">
             <span
               className="text-xs font-mono font-bold px-2 py-0.5 rounded border"
@@ -121,40 +123,45 @@ export function LoadTrackModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 hover:text-white p-1 rounded transition text-base leading-none"
+            className="-mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base leading-none text-zinc-400 transition hover:bg-white/5 hover:text-white"
           >
             ✕
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center px-5 pt-3 border-b border-[#252525] gap-2 bg-[#161616]">
+        {/* Tab Navigation. Scrolls sideways rather than squeezing three labels into a
+            360 px phone, where the third tab used to be clipped by the dialog. */}
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#252525] bg-[#161616] px-2 pt-2 sm:gap-2 sm:px-5 sm:pt-3 [@media(max-height:520px)]:pt-1">
           <button
             type="button"
             onClick={() => setActiveTab('file')}
-            className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
+            className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 pb-2 text-xs font-semibold transition sm:px-3 sm:pb-2.5 [@media(max-height:520px)]:pb-1 ${
               activeTab === 'file'
                 ? 'border-emerald-400 text-white font-bold'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <span>📁</span> Local Audio File
+            <span>📁</span>
+            <span className="hidden sm:inline">Local Audio File</span>
+            <span className="sm:hidden">Local file</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('download')}
-            className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
+            className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 pb-2 text-xs font-semibold transition sm:px-3 sm:pb-2.5 [@media(max-height:520px)]:pb-1 ${
               activeTab === 'download'
                 ? 'border-accent text-white font-bold'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <span>⬇</span> From YouTube
+            <span>⬇</span>
+            <span className="hidden sm:inline">From YouTube</span>
+            <span className="sm:hidden">YouTube</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('catalog')}
-            className={`pb-2.5 px-3 text-xs font-semibold transition border-b-2 flex items-center gap-1.5 ${
+            className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 pb-2 text-xs font-semibold transition sm:px-3 sm:pb-2.5 [@media(max-height:520px)]:pb-1 ${
               activeTab === 'catalog'
                 ? 'border-accent text-white font-bold'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
@@ -164,11 +171,14 @@ export function LoadTrackModal({
           </button>
         </div>
 
-        {/* Tab Body */}
-        <div className="p-5 flex-1 overflow-y-auto">
+        {/* Tab Body. Each tab owns its scrolling instead of the body scrolling as a
+            whole: the catalog's list then fills a landscape phone's ~230 px of
+            leftover height, rather than nesting a 300 px scroll area inside a
+            scrolled parent that is shorter than it. */}
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* 1. FROM YOUTUBE TAB */}
           {activeTab === 'download' && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain p-3 sm:p-5">
               <p className="text-xs text-zinc-400 leading-relaxed">
                 KeyBPM downloads nothing — it has no server and hands out no audio. Fetch the file
                 with an external tool, then drop it below. You get a beat grid, key and keylock,
@@ -287,7 +297,7 @@ export function LoadTrackModal({
                     setDragOver(false)
                     handleDownloadedFile(e.dataTransfer.files?.[0])
                   }}
-                  className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed transition ${
+                  className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-4 transition sm:p-6 ${
                     dragOver
                       ? 'border-accent bg-accent/5'
                       : 'border-[#333] bg-[#1c1c1c] hover:border-accent/60'
@@ -326,14 +336,14 @@ export function LoadTrackModal({
 
           {/* 2. KEYDB CATALOG TAB */}
           {activeTab === 'catalog' && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="text"
                   placeholder="Search catalog by title, artist, genre, BPM..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-lg bg-[#222] border border-[#333] text-xs text-white focus:outline-none focus:border-accent"
+                  className="min-w-[11rem] flex-1 rounded-lg border border-[#333] bg-[#222] px-3 py-2 text-xs text-white focus:border-accent focus:outline-none"
                 />
                 <button
                   type="button"
@@ -362,7 +372,9 @@ export function LoadTrackModal({
                 )}
               </div>
 
-              <div className="max-h-[300px] overflow-y-auto rounded-lg border border-[#282828] divide-y divide-[#242424]">
+              {/* Fills what the dialog has left on a phone, and stops at 340 px on a
+                  tall screen so the modal keeps its compact desktop size. */}
+              <div className="max-h-[min(340px,65dvh)] min-h-0 flex-1 divide-y divide-[#242424] overflow-y-auto overscroll-contain rounded-lg border border-[#282828]">
                 {catalogTracks.map(t => {
                   const camColor = t.camelot ? camelotColor(t.camelot) : '#777'
                   const isHarmonic =
@@ -430,15 +442,19 @@ export function LoadTrackModal({
 
           {/* 3. LOCAL FILE TAB */}
           {activeTab === 'file' && (
-            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-[#333] hover:border-emerald-400/60 rounded-xl bg-[#1c1c1c] transition">
-              <span className="text-3xl mb-2">📁</span>
-              <p className="text-sm font-semibold text-white mb-1">
+            <div className="flex flex-1 overflow-y-auto overscroll-contain rounded-xl border-2 border-dashed border-[#333] bg-[#1c1c1c] p-4 transition hover:border-emerald-400/60 sm:p-8">
+              {/* `m-auto`, not `justify-center`: on a short landscape screen the block is
+                  taller than the room left for it, and flex centring would clip the top
+                  of it out of reach. Auto margins collapse to 0 and keep it scrollable. */}
+              <div className="m-auto flex flex-col items-center text-center">
+              <span className="mb-2 text-3xl">📁</span>
+              <p className="mb-1 text-sm font-semibold text-white">
                 Choose an audio file from your computer
               </p>
-              <p className="text-xs text-zinc-400 mb-4 text-center max-w-sm">
+              <p className="mb-4 max-w-sm text-center text-xs text-zinc-400">
                 Supports MP3, WAV, FLAC, AAC, OGG. Decodes with full Web Audio waveform peaks, 3-band EQ, and vinyl scratching.
               </p>
-              <label className="cursor-pointer px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition">
+              <label className="cursor-pointer rounded-lg bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg transition hover:bg-emerald-500">
                 Browse Audio File
                 <input
                   type="file"
@@ -452,6 +468,7 @@ export function LoadTrackModal({
                   className="hidden"
                 />
               </label>
+              </div>
             </div>
           )}
         </div>

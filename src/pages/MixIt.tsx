@@ -14,8 +14,8 @@ import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 import { BrowserNotice } from '@/components/BrowserNotice'
 import { Link } from 'react-router-dom'
 import { useViewportMode } from '@/lib/use-viewport'
-import { useConsoleFit, CONSOLE_WIDTH, type ConsoleFit } from '@/lib/dj/use-console-fit'
-import { useFullscreen } from '@/lib/fullscreen'
+import { useConsoleFit, CONSOLE_WIDTH } from '@/lib/dj/use-console-fit'
+import { useFullscreen, enterFullscreen } from '@/lib/fullscreen'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
@@ -64,26 +64,44 @@ export function MixIt() {
   // Read from resize events, not media-query events, so the address bar sliding away
   // (or the keyboard opening) re-fits the console immediately — see `use-viewport.ts`.
   const { kiosk, portraitPhone } = useViewportMode()
-  // A phone held upright is the wrong shape for a two-deck console: at fit size the
-  // controls are too small to hit, and at 1:1 you see one of the three panels at a
-  // time and have to pan between the decks and the mixer. So portrait opens on a
-  // rotate prompt instead, with 1:1 behind it for anyone who cannot turn the phone.
+  const [menuOpen, setMenuOpen] = useState(false)
+  // A phone held upright is the wrong shape for a two-deck console: fitted, the
+  // controls are too small to hit. So portrait opens on a rotate prompt instead.
   // Landscape fits the whole console (the mock-up's mode); a portrait tablet is wide
   // enough that fitting only costs a little type size and needs no prompt.
-  const [fitChoice, setFitChoice] = useState<ConsoleFit | null>(null)
-  const fitMode: ConsoleFit = fitChoice ?? (portraitPhone ? 'actual' : 'fit')
   // "Continue anyway" is per-rotation, not permanent: coming back from landscape
   // re-arms the prompt, so the next upright visit starts from the right advice.
   const [portraitOptOut, setPortraitOptOut] = useState(false)
-  const showRotatePrompt = kiosk && portraitPhone && !portraitOptOut
+  // The prompt stays out of the way while one of the console's own dialogs is open:
+  // rotating mid-task (picking a file, reading the analysis bar, browsing the menu)
+  // should not throw a full-screen prompt over the thing being used.
+  const showRotatePrompt =
+    kiosk &&
+    portraitPhone &&
+    !portraitOptOut &&
+    loadModalDeck === null &&
+    !menuOpen &&
+    analyzingDeck === null
   useEffect(() => {
     if (!portraitPhone) setPortraitOptOut(false)
   }, [portraitPhone])
-  const { setBoxRef, setChassisRef, scale } = useConsoleFit(fitMode)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const { setBoxRef, setChassisRef, scale } = useConsoleFit()
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
   // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
   const fullscreen = useFullscreen()
+
+  /**
+   * Rotating a phone is not a user gesture, so the browser will usually refuse a
+   * fullscreen request at that moment — the prompt's "start fullscreen" button is
+   * the part that is allowed to ask, and Chrome keeps fullscreen across the
+   * rotation that follows. This is the one attempt for engines that do allow it,
+   * so a user who simply turns the phone still lands in fullscreen where possible.
+   */
+  const wasPortrait = useRef(portraitPhone)
+  useEffect(() => {
+    if (wasPortrait.current && !portraitPhone && kiosk) void enterFullscreen()
+    wasPortrait.current = portraitPhone
+  }, [portraitPhone, kiosk])
 
   // Esc closes the console menu, matching the site drawer's behaviour.
   useEffect(() => {
@@ -236,64 +254,53 @@ export function MixIt() {
 
   const spinnerColor = analyzingDeck === 'A' ? '#34d399' : '#a855f7'
 
-  // Kiosk layout: the chassis is measured against the box it is put in, then either
-  // scaled to fit both axes (landscape — the whole console visible) or left at 1:1
-  // and panned (portrait — the console's height nearly matches the screen's).
+  // Kiosk layout: the chassis is measured against the box it is put in and scaled to
+  // fit both axes, so the whole console is visible at its own proportions.
   const boxClass = !kiosk
     ? 'mt-4 w-full overflow-x-auto pb-2 flex justify-center'
-    : fitMode === 'fit'
-      ? 'relative w-full flex-1 min-h-0 overflow-hidden'
-      : 'relative w-full flex-1 min-h-0 overflow-auto overscroll-contain'
+    : 'relative min-w-0 flex-1 min-h-0 overflow-hidden'
 
   const chassisClass = !kiosk
     ? 'w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0'
-    : fitMode === 'fit'
-      ? 'absolute left-1/2 top-1/2 shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col'
-      : 'mx-auto shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col'
+    : 'absolute left-1/2 top-1/2 shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col'
 
   const chassisStyle = !kiosk
     ? undefined
-    : fitMode === 'fit'
-      ? { width: CONSOLE_WIDTH, transform: `translate(-50%, -50%) scale(${scale})` }
-      : { width: CONSOLE_WIDTH }
+    : { width: CONSOLE_WIDTH, transform: `translate(-50%, -50%) scale(${scale})` }
 
   return (
     <div
       className={
         kiosk
-          ? 'fixed inset-x-0 top-0 z-30 flex h-[100dvh] flex-col overflow-hidden bg-bg select-none text-text'
+          ? 'fixed inset-x-0 top-0 z-30 flex h-[100dvh] overflow-hidden bg-bg select-none text-text'
           : 'flex flex-col min-h-[calc(100vh-var(--header-h,64px))] bg-bg select-none text-text'
       }
     >
       {/* Kiosk chrome. The site header is hidden here (see `Header`), so the console
-          carries its own slim bar: the zoom toggle, because a fitted console is small
-          to tap, and a way back into the database without unloading the decks. A bar
-          rather than floating buttons — every corner of the console is a control. */}
+          carries its own controls: the way back into the database without unloading
+          the decks, and fullscreen for the address bar. They sit in a rail *beside*
+          the console rather than in a bar above it: on a landscape phone the console
+          is fitted to the viewport, so every row of chrome is transport space taken
+          from the decks. Vertical space is the scarce axis here, horizontal is not —
+          the rail costs 41 px of width, which the fit absorbs, and no height at all. */}
       {kiosk && (
         <div
-          className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-[#141414] px-2 py-1"
+          className="flex shrink-0 flex-col items-center gap-1.5 border-r border-white/10 bg-[#141414] px-1 pb-1"
           style={{
-            paddingTop: 'max(0.25rem, env(safe-area-inset-top))',
-            paddingLeft: 'max(0.5rem, env(safe-area-inset-left))',
-            paddingRight: 'max(0.5rem, env(safe-area-inset-right))',
+            paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
+            paddingLeft: 'max(0.25rem, env(safe-area-inset-left))',
           }}
         >
-          <div className="flex min-w-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Open KeyBPM menu"
-              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <path d="M3 6h18M3 12h18M3 18h18" />
-              </svg>
-            </button>
-            <span className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Mix it!
-            </span>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open KeyBPM menu"
+            className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <path d="M3 6h18M3 12h18M3 18h18" />
+            </svg>
+          </button>
           {fullscreen.supported && (
             <button
               type="button"
@@ -311,18 +318,6 @@ export function MixIt() {
               </svg>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setFitChoice(fitMode === 'fit' ? 'actual' : 'fit')}
-            aria-label={
-              fitMode === 'fit' ? 'Show the console at full size' : 'Fit the whole console on screen'
-            }
-            title={fitMode === 'fit' ? 'Fit to screen (tap for 1:1)' : 'Full size (tap to fit)'}
-            className="flex h-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 px-3 font-mono text-[11px] font-semibold text-white/70 transition-colors active:text-white"
-          >
-            {fitMode === 'fit' ? '1:1' : 'FIT'}
-          </button>
-          </div>
         </div>
       )}
 
@@ -330,7 +325,7 @@ export function MixIt() {
       <main
         className={
           kiosk
-            ? 'flex-1 flex flex-col min-h-0 w-full'
+            ? 'flex-1 flex flex-col min-h-0 min-w-0'
             : 'flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-6'
         }
       >
@@ -375,7 +370,7 @@ export function MixIt() {
         {errorMsg && (
           <div
             className={`${
-              kiosk ? 'absolute inset-x-2 top-10 z-30' : 'mt-4'
+              kiosk ? 'absolute left-12 right-2 top-2 z-30' : 'mt-4'
             } p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between backdrop-blur-sm`}
           >
             <span>{errorMsg}</span>
@@ -428,7 +423,7 @@ export function MixIt() {
                 lane is the one block whose job survives being smaller. */}
             <div
               className={`w-full ${
-                kiosk && fitMode === 'fit' ? 'h-[130px]' : 'h-[290px]'
+                kiosk ? 'h-[130px]' : 'h-[290px]'
               } border-b border-[#282828] bg-[#161616]`}
             >
               <StackedWaveforms
@@ -622,12 +617,23 @@ export function MixIt() {
           </svg>
           <div className="space-y-1.5">
             <p id="rotate-prompt-title" className="text-base font-semibold text-text">
-              Turn your screen
+              {fullscreen.active ? 'Now turn your screen' : 'Turn your screen'}
             </p>
-            <p className="mx-auto max-w-[17rem] text-sm leading-relaxed text-text-muted">
-              The two-deck console needs landscape. Rotate your phone for the optimal view.
+            <p className="mx-auto max-w-[19rem] text-sm leading-relaxed text-text-muted">
+              {fullscreen.active
+                ? 'Fullscreen is on — rotate your phone and the console comes back edge to edge.'
+                : 'The two-deck console needs landscape. Start fullscreen first, then rotate: the browser can only drop its address bar from a tap.'}
             </p>
           </div>
+          {fullscreen.supported && !fullscreen.active && (
+            <button
+              type="button"
+              onClick={fullscreen.toggle}
+              className="btn-primary touch-manipulation px-4 py-2.5 text-sm"
+            >
+              Start fullscreen, then turn
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setPortraitOptOut(true)}
