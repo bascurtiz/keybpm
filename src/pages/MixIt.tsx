@@ -278,14 +278,21 @@ export function MixIt() {
     >
       {/* Kiosk chrome. The site header is hidden here (see `Header`), so the console
           carries its own controls: the way back into the database without unloading
-          the decks, and fullscreen for the address bar. They sit in a rail *beside*
-          the console rather than in a bar above it: on a landscape phone the console
-          is fitted to the viewport, so every row of chrome is transport space taken
-          from the decks. Vertical space is the scarce axis here, horizontal is not —
-          the rail costs 41 px of width, which the fit absorbs, and no height at all. */}
+          the decks (top left), and fullscreen for the address bar (top right). They sit
+          in rails *beside* the console rather than in a bar above it: on a landscape
+          phone the console is fitted to the viewport, so every row of chrome is
+          transport space taken from the decks. Vertical space is the scarce axis here,
+          horizontal is not — each rail costs 41 px of width, which the fit absorbs,
+          and no height at all.
+
+          There are two rails, even though there is only one control on each side. The
+          console is centred in what is left of the viewport, so a rail on the left
+          alone pushed the mixer off-centre by half its width — the jog wheels visibly
+          leaned right. The right rail is rendered even where fullscreen is unsupported
+          (Safari has no element fullscreen) purely so the frame stays symmetric. */}
       {kiosk && (
         <div
-          className="flex shrink-0 flex-col items-center gap-1.5 border-r border-white/10 bg-[#141414] px-1 pb-1"
+          className="flex min-w-[41px] shrink-0 flex-col items-center gap-1.5 border-r border-white/10 bg-[#141414] px-1 pb-1"
           style={{
             paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
             paddingLeft: 'max(0.25rem, env(safe-area-inset-left))',
@@ -301,23 +308,6 @@ export function MixIt() {
               <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
           </button>
-          {fullscreen.supported && (
-            <button
-              type="button"
-              onClick={fullscreen.toggle}
-              aria-label={fullscreen.active ? 'Exit fullscreen' : 'Enter fullscreen'}
-              title={fullscreen.active ? 'Exit fullscreen' : 'Fullscreen (hides the address bar)'}
-              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                {fullscreen.active ? (
-                  <path d="M9 4v5H4M15 20v-5h5M20 9h-5V4M4 15h5v5" />
-                ) : (
-                  <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
-                )}
-              </svg>
-            </button>
-          )}
         </div>
       )}
 
@@ -325,7 +315,7 @@ export function MixIt() {
       <main
         className={
           kiosk
-            ? 'flex-1 flex flex-col min-h-0 min-w-0'
+            ? 'relative flex-1 flex flex-col min-h-0 min-w-0'
             : 'flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-6'
         }
       >
@@ -486,6 +476,36 @@ export function MixIt() {
           </div>
         </div>
       </main>
+
+      {/* Right-hand rail: fullscreen sits opposite the menu, so the console in between
+          is centred on the screen rather than shifted right by the left rail. */}
+      {kiosk && (
+        <div
+          className="flex min-w-[41px] shrink-0 flex-col items-center gap-1.5 border-l border-white/10 bg-[#141414] px-1 pb-1"
+          style={{
+            paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
+            paddingRight: 'max(0.25rem, env(safe-area-inset-right))',
+          }}
+        >
+          {fullscreen.supported && (
+            <button
+              type="button"
+              onClick={fullscreen.toggle}
+              aria-label={fullscreen.active ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={fullscreen.active ? 'Exit fullscreen' : 'Fullscreen (hides the address bar)'}
+              className="flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors active:text-white"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {fullscreen.active ? (
+                  <path d="M9 4v5H4M15 20v-5h5M20 9h-5V4M4 15h5v5" />
+                ) : (
+                  <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
+                )}
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Menu sheet. Sits above the console so the decks stay mounted (and playing)
           while the user looks something up. */}
