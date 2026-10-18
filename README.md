@@ -387,12 +387,14 @@ desktop and phone arrangements:
   `KIOSK_LANE_BAND_FLOOR_H` (two 53 px lanes, more than the two 48 px lanes it used to be) and
   a ceiling of `KIOSK_LANE_BAND_MAX_H` (two 150 px lanes). It keeps the full width and every
   control — rewind to start, set downbeat, ±10 ms nudge and the GRID dropdowns. A landscape
-  phone lands well inside those bounds: at 844×390 the band is 176 design px, two lanes of 88,
-  and at 667×375 it is 300, two lanes of 150. The ceiling is set on the band so that a tall
-  box cannot turn the console into a waveform display. The deck row below it is a fixed
-  `KIOSK_DECK_ROW_H` — a fifth less than the height the filling chassis used to hand it, and
+  phone lands well inside those bounds: at 844×390 the band is 167 design px, two lanes of
+  83.5, and at 667×375 it is 291, two lanes of 145.5. The ceiling is set on the band so that a
+  tall box cannot turn the console into a waveform display. The deck row below it is a fixed
+  `KIOSK_DECK_ROW_H` — 17% less than the height the filling chassis used to hand it, and
   still comfortably more than the 196 px jog wheel — so the mixer still shows its filters and
-  FX block, the decks keep their EQ, and sync stays where it is.
+  FX block, the decks keep their EQ, and sync stays where it is. That row is also the
+  waveform's counterweight: the band takes exactly the height it does not, so a trim on the
+  waveforms is expressed as nine px given back here — 5% of the 844×390 band.
 - The console's only chrome is a **side rail**: a menu button and a fullscreen toggle,
   40 design px square — the deck load button's artwork size — level with it, and sitting in
   the band kept clear on each side, *outside* the chassis. Outside is the point: on a phone
