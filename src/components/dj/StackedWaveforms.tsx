@@ -51,13 +51,16 @@ const MARKER_PHRASE = '#9ca3af'
 const DOWNBEAT_STRIPE = '#f4f4f5'
 
 /**
- * The lane's three grid tools — Set Downbeat, the ±10 ms nudge and the GRID dropdown — share
- * one body: the same 20 px height, a solid #1c1c1c fill, a #282828 hairline and the grey the
- * GRID label already used. They sit in a row beside the waveform and are read as one cluster,
- * so they are held together here instead of drifting apart one className at a time (the nudge
- * was a translucent #141414 pill, which made the trio look like three unrelated widgets).
+ * The lane's grid tools — Set Downbeat, the ±10 ms nudges and the GRID dropdown — share one
+ * body: the same 24 px height, a solid #1c1c1c fill, a #282828 hairline and the grey the GRID
+ * label already used. They sit in a row beside the waveform and are read as one cluster, so
+ * they are held together here instead of drifting apart one className at a time (the nudge was
+ * a translucent #141414 pill, which made the trio look like three unrelated widgets).
+ *
+ * The 24 px is the rewind button's height (`w-6 h-6`) on the other end of these lanes: the two
+ * ends of the lane are the same furniture, so they are the same size.
  */
-const GRID_TOOL_BOX = 'rounded border border-[#282828] bg-[#1c1c1c] shadow-sm'
+const GRID_TOOL_BOX = 'h-6 rounded border border-[#282828] bg-[#1c1c1c] shadow-sm'
 const GRID_TOOL_TEXT = 'text-[#888888] hover:text-[#d4d4d4]'
 
 /**
@@ -68,7 +71,7 @@ const GRID_TOOL_TEXT = 'text-[#888888] hover:text-[#d4d4d4]'
  * the pair the GRID dropdown already shows. It also lets the step be set in the same 10 px type
  * as everything else here — in the old pill the label had to shrink to 8 px to fit.
  */
-const NUDGE_BTN = `h-5 px-1.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] font-mono text-[10px] leading-none font-bold whitespace-nowrap transition-colors flex items-center justify-center disabled:opacity-20 disabled:pointer-events-none`
+const NUDGE_BTN = `px-1.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] font-mono text-[10px] leading-none font-bold whitespace-nowrap transition-colors flex items-center justify-center disabled:opacity-20 disabled:pointer-events-none`
 
 /**
  * Invisible tap padding for the lane's controls on the fitted (phone) console.
@@ -555,7 +558,7 @@ export function StackedWaveforms({
             deckA.setBeat1AtPosition()
           }}
           disabled={!deckA.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
           aria-label="Set downbeat (beat 1) at the playhead"
         >
@@ -563,9 +566,11 @@ export function StackedWaveforms({
               Drawn as a bar plus typed 1 rather than the characters "|1": a font's pipe has
               its own width and side bearing in every fallback, and this glyph has to sit
               centred in a 20 px button on every machine. Both parts take `currentColor`,
-              so the pair reads as one mark instead of a white icon beside a grey digit. */}
+              so the pair reads as one mark instead of a white icon beside a grey digit.
+              The numeral is set at the same 10 px as the nudge buttons' "10ms": the bar is
+              the sign and the 1 is a beat number, not a title, so it takes their size. */}
           <span aria-hidden="true" className="block h-[11px] w-[2px] shrink-0 rounded-full bg-current" />
-          <span aria-hidden="true" className="font-mono font-bold text-[13px] leading-none">1</span>
+          <span aria-hidden="true" className="font-mono font-bold text-[10px] leading-none">1</span>
         </button>
 
         {/* Inline grid nudge. Aligning a grid to a kick is a repeated tap-and-listen, and
@@ -611,7 +616,7 @@ export function StackedWaveforms({
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'A' ? null : 'A'))}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'A'
               ? 'bg-[#222222] border-emerald-500/70 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
               : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -633,13 +638,13 @@ export function StackedWaveforms({
             deckB.setBeat1AtPosition()
           }}
           disabled={!deckB.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
           aria-label="Set downbeat (beat 1) at the playhead"
         >
           {/* Bar and numeral as on Deck A — see the note there. */}
           <span aria-hidden="true" className="block h-[11px] w-[2px] shrink-0 rounded-full bg-current" />
-          <span aria-hidden="true" className="font-mono font-bold text-[13px] leading-none">1</span>
+          <span aria-hidden="true" className="font-mono font-bold text-[10px] leading-none">1</span>
         </button>
 
         {/* Inline grid nudge — see the Deck A copy above. */}
@@ -676,7 +681,7 @@ export function StackedWaveforms({
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'B' ? null : 'B'))}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'B'
               ? 'bg-[#222222] border-purple-500/70 text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
               : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -693,7 +698,7 @@ export function StackedWaveforms({
         <div
           onPointerDown={e => e.stopPropagation()}
           className={`absolute z-20 flex flex-wrap items-center gap-1.5 p-1.5 rounded bg-[#181818]/95 border border-[#333333] shadow-xl backdrop-blur-md text-[11px] select-none ${
-            activeGridDeckId === 'A' ? 'top-8 right-2' : 'top-[calc(50%+30px)] right-2'
+            activeGridDeckId === 'A' ? 'top-9 right-2' : 'top-[calc(50%+34px)] right-2'
           }`}
         >
           {/* Deck Badge */}

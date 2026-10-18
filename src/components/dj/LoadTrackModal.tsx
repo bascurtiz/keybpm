@@ -3,6 +3,7 @@ import { tracks, useCatalog } from '@/lib/data'
 import { youtubeId, youtubeThumbUrl } from '@/lib/youtube'
 import { camelotColor, areKeysCompatible } from '@/lib/camelot'
 import { DOWNLOADER_PRIMARY, DOWNLOADER_FALLBACKS, copyText } from '@/lib/downloader'
+import { YoutubeIcon } from '@/components/icons'
 import type { Track } from '@/types/track'
 
 interface LoadTrackModalProps {
@@ -15,6 +16,78 @@ interface LoadTrackModalProps {
 }
 
 type TabType = 'download' | 'catalog' | 'file'
+
+/**
+ * What the file picker accepts. One list for every way in: the local tab and the YouTube tab
+ * both end in the same decoder, so a format one of them offers and the other hides would be an
+ * accident of history rather than a limit of the app.
+ */
+const AUDIO_ACCEPT = 'audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff,.webm'
+
+/**
+ * The one way this dialog asks for a file.
+ *
+ * "From YouTube — step 2" and "Local Audio File" are the same act at the end: hand the dialog
+ * a file, which it decodes into a beat grid, a key and a keylock stage. They used to be two
+ * separately written drop zones — different radius, border, icon size, button weight and
+ * padding — which made the everyday path look like the lesser one. They are this card now, so
+ * they cannot drift apart again.
+ *
+ * `fill` stretches the card over the tab's whole body, for the local tab where it is the only
+ * thing on screen instead of one step in a list.
+ */
+function AudioDropCard({
+  id,
+  heading,
+  hint,
+  fill = false,
+  onFile,
+}: {
+  /** Labels the card for screen readers; the picker inside is its real control. */
+  id: string
+  heading: string
+  hint: string
+  fill?: boolean
+  onFile: (file: File | undefined) => void
+}) {
+  const [dragOver, setDragOver] = useState(false)
+
+  return (
+    <div
+      onDragOver={e => {
+        e.preventDefault()
+        setDragOver(true)
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => {
+        e.preventDefault()
+        setDragOver(false)
+        onFile(e.dataTransfer.files?.[0])
+      }}
+      aria-labelledby={id}
+      className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-4 text-center transition sm:p-6 ${
+        fill ? 'min-h-[7.5rem] flex-1' : ''
+      } ${dragOver ? 'border-accent bg-accent/5' : 'border-[#333] bg-[#1c1c1c] hover:border-accent/60'}`}
+    >
+      <span className="mb-2 text-2xl" aria-hidden="true">
+        ⬇
+      </span>
+      <p id={id} className="mb-1 text-xs font-semibold text-white">
+        {heading}
+      </p>
+      <p className="mb-3 max-w-xs text-[11px] text-zinc-400">{hint}</p>
+      <label className="cursor-pointer rounded-lg bg-[#2e2e2e] px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-600">
+        Browse File
+        <input
+          type="file"
+          accept={AUDIO_ACCEPT}
+          onChange={e => onFile(e.target.files?.[0])}
+          className="hidden"
+        />
+      </label>
+    </div>
+  )
+}
 
 /**
  * Load a track onto a deck.
@@ -41,7 +114,6 @@ export function LoadTrackModal({
   const [activeTab, setActiveTab] = useState<TabType>('file')
   const [ytUrl, setYtUrl] = useState('')
   const [copied, setCopied] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCompatible, setFilterCompatible] = useState(false)
   const [filterOnlyVideo, setFilterOnlyVideo] = useState(true)
@@ -251,10 +323,16 @@ export function LoadTrackModal({
                   onClick={() => {
                     if (detectedVideoId) void handleCopyLink()
                   }}
-                  className="flex flex-col gap-0.5 px-4 py-2.5 rounded-lg bg-accent-solid hover:brightness-110 shadow-lg transition"
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-accent-solid hover:brightness-110 shadow-lg transition"
                 >
-                  <span className="text-sm font-bold">⬇ Open {DOWNLOADER_PRIMARY.name}</span>
-                  <span className="text-[11px] leading-snug opacity-75">
+                  <span className="shrink-0 text-sm font-bold">⬇ Open {DOWNLOADER_PRIMARY.name}</span>
+                  {/* Beside the name, not under it: one row per option. The note truncates
+                      rather than wrapping, and carries itself in `title` for the narrow
+                      cases. */}
+                  <span
+                    className="min-w-0 truncate text-[11px] leading-tight opacity-75"
+                    title={DOWNLOADER_PRIMARY.note}
+                  >
                     {DOWNLOADER_PRIMARY.note}
                   </span>
                 </a>
@@ -272,10 +350,14 @@ export function LoadTrackModal({
                       onClick={() => {
                         if (detectedVideoId) void handleCopyLink()
                       }}
-                      className="flex flex-col gap-0.5 px-3 py-1.5 rounded-lg bg-[#1c1c1c] border border-[#282828] hover:border-accent/40 hover:bg-[#222] transition"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1c1c1c] border border-[#282828] hover:border-accent/40 hover:bg-[#222] transition"
                     >
-                      <span className="text-[11px] font-semibold text-zinc-300">↗ {opt.name}</span>
-                      <span className="text-[10px] leading-snug text-zinc-500">{opt.note}</span>
+                      <span className="shrink-0 text-[11px] font-semibold text-zinc-300">
+                        ↗ {opt.name}
+                      </span>
+                      <span className="min-w-0 truncate text-[10px] leading-tight text-zinc-500" title={opt.note}>
+                        {opt.note}
+                      </span>
                     </a>
                   ))}
                 </div>
@@ -286,40 +368,12 @@ export function LoadTrackModal({
                 <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider block mb-1.5">
                   Step 2 — the file
                 </span>
-                <div
-                  onDragOver={e => {
-                    e.preventDefault()
-                    setDragOver(true)
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={e => {
-                    e.preventDefault()
-                    setDragOver(false)
-                    handleDownloadedFile(e.dataTransfer.files?.[0])
-                  }}
-                  className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-4 transition sm:p-6 ${
-                    dragOver
-                      ? 'border-accent bg-accent/5'
-                      : 'border-[#333] bg-[#1c1c1c] hover:border-accent/60'
-                  }`}
-                >
-                  <span className="text-2xl mb-2">⬇</span>
-                  <p className="text-xs font-semibold text-white mb-1">
-                    Drop the downloaded audio file here
-                  </p>
-                  <p className="text-[11px] text-zinc-400 mb-3 text-center max-w-xs">
-                    MP3, M4A, WAV, FLAC, OGG or OPUS — anything the browser can decode.
-                  </p>
-                  <label className="cursor-pointer px-4 py-2 rounded-lg bg-[#2e2e2e] hover:bg-emerald-600 text-white font-bold text-xs transition">
-                    Browse File
-                    <input
-                      type="file"
-                      accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff,.webm"
-                      onChange={e => handleDownloadedFile(e.target.files?.[0])}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+                <AudioDropCard
+                  id="youtube-drop-heading"
+                  heading="Drop the downloaded audio file here"
+                  hint="MP3, M4A, WAV, FLAC, OGG or OPUS — anything the browser can decode."
+                  onFile={handleDownloadedFile}
+                />
               </div>
 
               <div className="flex justify-end">
@@ -355,7 +409,11 @@ export function LoadTrackModal({
                   }`}
                   title="Filter tracks that have a YouTube link to hand to the downloader"
                 >
-                  <span className="text-red-400">▶</span> Has Video
+                  {/* The same mark the track page uses for its YouTube link, in YouTube red —
+                      so "has a video" is recognised from one place to the next instead of
+                      being a play triangle here and a branded badge there. */}
+                  <YoutubeIcon size={13} className="text-[#FF0033]" />
+                  <span>Has Video</span>
                 </button>
                 {otherDeckCamelot && (
                   <button
@@ -402,8 +460,13 @@ export function LoadTrackModal({
                           <p className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
                             <span className="truncate">{t.title}</span>
                             {t.youtube && (
-                              <span className="text-[9px] font-bold text-red-400 bg-red-950/50 border border-red-500/30 px-1 py-0.2 rounded shrink-0">
-                                ▶ VIDEO
+                              <span
+                                role="img"
+                                aria-label="Has a YouTube link"
+                                title="Has a YouTube link"
+                                className="shrink-0 leading-none"
+                              >
+                                <YoutubeIcon size={12} className="text-[#FF0033]" />
                               </span>
                             )}
                           </p>
@@ -440,35 +503,17 @@ export function LoadTrackModal({
             </div>
           )}
 
-          {/* 3. LOCAL FILE TAB */}
+          {/* 3. LOCAL FILE TAB. The same card as the YouTube tab's step 2 — one file, dropped
+              in or picked — filling the tab's body because it is all this tab does. */}
           {activeTab === 'file' && (
-            <div className="flex flex-1 overflow-y-auto overscroll-contain rounded-xl border-2 border-dashed border-[#333] bg-[#1c1c1c] p-4 transition hover:border-emerald-400/60 sm:p-8">
-              {/* `m-auto`, not `justify-center`: on a short landscape screen the block is
-                  taller than the room left for it, and flex centring would clip the top
-                  of it out of reach. Auto margins collapse to 0 and keep it scrollable. */}
-              <div className="m-auto flex flex-col items-center text-center">
-              <span className="mb-2 text-3xl">📁</span>
-              <p className="mb-1 text-sm font-semibold text-white">
-                Choose an audio file from your computer
-              </p>
-              <p className="mb-4 max-w-sm text-center text-xs text-zinc-400">
-                Supports MP3, WAV, FLAC, AAC, OGG. Decodes with full Web Audio waveform peaks, 3-band EQ, and vinyl scratching.
-              </p>
-              <label className="cursor-pointer rounded-lg bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg transition hover:bg-emerald-500">
-                Browse Audio File
-                <input
-                  type="file"
-                  accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff"
-                  onChange={e => {
-                    if (e.target.files && e.target.files[0]) {
-                      onLoadLocalFile(deckId, e.target.files[0])
-                      onClose()
-                    }
-                  }}
-                  className="hidden"
-                />
-              </label>
-              </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-3 sm:p-5">
+              <AudioDropCard
+                id="local-file-heading"
+                fill
+                heading="Drop an audio file here"
+                hint="MP3, M4A, WAV, FLAC, OGG or OPUS — anything the browser can decode."
+                onFile={handleDownloadedFile}
+              />
             </div>
           )}
         </div>

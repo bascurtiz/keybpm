@@ -42,7 +42,12 @@ export interface DownloaderOption {
   /** Label on the link. */
   name: string
   url: string
-  /** One line on who it suits. */
+  /**
+   * One line on who it suits.
+   *
+   * Kept to a few words because the link renders it *beside* its name, on the same row: a
+   * sentence here makes the row wrap, and a wrapped row stops reading as one option.
+   */
   note: string
 }
 
@@ -50,7 +55,7 @@ export interface DownloaderOption {
 export const DOWNLOADER_PRIMARY: DownloaderOption = {
   name: 'AudioFetcher',
   url: 'https://audiofetcher.com',
-  note: 'Zero install — paste a link, keep the original Opus or M4A',
+  note: 'No install — keeps the original Opus or M4A',
 }
 
 /**
@@ -61,12 +66,12 @@ export const DOWNLOADER_FALLBACKS: DownloaderOption[] = [
   {
     name: 'OrpheusDL GUI',
     url: 'https://github.com/bascurtiz/OrpheusDL-GUI',
-    note: 'YouTube + Beatport + Qobuz + Tidal, lossless where available — needs setup (KeyBPM author)',
+    note: 'Beatport, Qobuz, Tidal — needs setup (KeyBPM author)',
   },
   {
     name: 'yt-dlp',
     url: 'https://github.com/yt-dlp/yt-dlp',
-    note: 'The command line engine the other two ultimately drive',
+    note: 'The CLI engine those two drive',
   },
 ]
 
