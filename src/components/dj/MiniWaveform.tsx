@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { canvasPixelRatio } from '@/lib/canvas-dpr'
+import { consoleProfile } from '@/lib/dj/device-profile'
 
 interface MiniWaveformProps {
   deck: DeckEngine
@@ -45,15 +46,20 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
     if (!ctx) return
 
     let raf = 0
-    let frame = 0
+    let drawn = 0
     let rect = { width: 0, height: 0 }
+    // There is one of these per deck and its whole width is redrawn each frame, so it takes the
+    // same hand-held stride as the lanes. The cadence is counted in drawn frames, so a stride
+    // of two cannot skip the frame that measures the box.
+    const stride = consoleProfile().canvasStride
     const tick = () => {
       raf = requestAnimationFrame(tick)
+      if (drawn++ % stride !== 0) return
       // A layout read, not a paint: the box only changes when the viewport does, and the
       // chassis this canvas sits in is scaled by a transform, so the measured width is
-      // re-read once every eight frames (a tenth of a second) rather than sixty times a
+      // re-read once every eight drawn frames (a few times a second) rather than sixty times a
       // second — time a phone would rather spend on the audio thread.
-      if (frame++ % 8 === 0) rect = canvas.getBoundingClientRect()
+      if (rect.width === 0 || drawn % 8 === 0) rect = canvas.getBoundingClientRect()
       if (rect.width === 0) return
       const dpr = canvasPixelRatio()
       const w = rect.width

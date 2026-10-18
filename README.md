@@ -299,6 +299,46 @@ asked for 3x device pixels for a console that is drawn scaled *down*. `StackedWa
 (`wake-lock.ts`): Web Audio does not get the "this is playback" treatment a media element does,
 and a phone that dims mid-set is a phone that starts dropping clocks.
 
+Two more of those costs only matter once both decks are running, which is exactly when a phone
+starts glitching. `src/lib/dj/device-profile.ts` spends frame rate rather than audio quality on
+a hand-held device, with `keybpm:handheld` = `1` / `0` in localStorage forcing either profile
+(read once, so a reload applies it — that is how the phone path is exercised on a desktop):
+
+- **Playhead reports arrive at 30 Hz instead of 60.** The rate is passed to the vinyl worklet in
+  its `load` message. Every report crosses the worklet port, runs a callback and re-renders the
+  console; two decks playing is twice as many of them, and 30 Hz still reads as smooth motion
+  for a playhead.
+- **The lanes and the strip waveforms redraw every second frame.** Both clear and repaint their
+  whole surface, grid, peaks and playhead included, so on a phone they were the single largest
+  consumer of a frame.
+
+Independently of the device, deck notifications are now batched into **one animation-frame
+flush** (`pendingEmits` in `deck-engine.ts`). Ten components subscribe to each deck with
+`setVer(v => v + 1)`, so two reports from two decks used to mean two separate React passes per
+frame; they now share one. A hidden tab has no animation frames and flushes synchronously
+instead, so state still settles with nothing to draw.
+
+Keylock is deliberately left at two voices per deck on a phone. Measured through the real
+`rubberband-processor.js`, four high-quality kernels cost under 1 % of a core each, which is an
+order of magnitude below the main-thread work above; the spare voice is what keeps a pitch move
+from dropping out, and buying CPU that was not the bottleneck with an audible artifact would be
+the wrong trade.
+
+### Playhead jumps no longer click
+
+SYNC's bar alignment can move a deck's read head by most of a bar in one sample, and a seek, hot
+cue, beat jump or slip's return do the same. A step like that is a discontinuity in the waveform
+— on a sustained bass note it is a full-scale step, heard as a click, and sync is exactly when
+both decks are in the mix. The vinyl worklet now renders every such jump as a **4 ms equal-power
+crossfade**: the outgoing stream stays audible for those 4 ms while the incoming one fades in
+from the target, so the head lands on the target instead of stepping to it. A jump that arrives
+mid-crossfade is queued behind it, a stopped or scratched deck lands immediately (there is no
+audio to hide), and pausing mid-crossfade lands the jump rather than resuming it on the next
+play. `scripts/test-vinyl-declick.mjs` extracts the real processor, renders a sine through it and
+asserts that no sample-to-sample step across a jump exceeds twice the sine's own slope, that the
+undeclicked step would have been more than ten times that, and that the deck lands on the target
+and plays on. It is part of `npm test`.
+
 Recording a mix does **not** capture audio. It captures what the decks *did* — per deck:
 where the audio read from, how fast (the pitch fader's value, with any seek recorded as a
 segment break), the channel gain, three-band EQ, filter and key shift — then rebuilds the

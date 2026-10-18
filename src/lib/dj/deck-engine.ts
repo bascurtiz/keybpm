@@ -1,4 +1,5 @@
 import { createRubberBandNode, type RubberBandNode } from './rubberband-node'
+import { consoleProfile } from './device-profile'
 import { measureLevel, TARGET_RMS } from './autogain'
 import {
   audiblePosition as audiblePositionOf,
@@ -213,6 +214,50 @@ type CutterVoice = {
   gain: GainNode
   /** Context time the source will sound at. */
   startAt: number
+}
+
+/**
+ * Deck state notifications are coalesced to one flush per animation frame.
+ *
+ * The vinyl worklet reports its playhead at display rate, and ten components subscribe to a
+ * deck with `setVer(v => v + 1)`. Two decks playing used to mean two separate React passes per
+ * frame, each waking every one of those components — roughly twice the work a single frame has
+ * for a playhead that the lanes already read from the deck's own clock when they redraw.
+ * Batching them into one frame-wide flush means the two decks cost one pass, and on a phone
+ * that pass is half of what it was, because the hand-held profile asks for 30 reports/s.
+ *
+ * A hidden tab has no animation frames, so it flushes synchronously instead: state still
+ * settles for anything listening, it simply has nothing to draw.
+ */
+const pendingEmits = new Set<DeckEngine>()
+let flushHandle: number | null = null
+
+function flushEmits() {
+  // A frame may have been requested just before the tab was hidden; it will never run, and
+  // leaving the handle set would stop every later flush from being scheduled.
+  if (flushHandle !== null) {
+    if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(flushHandle)
+    }
+    flushHandle = null
+  }
+  if (pendingEmits.size === 0) return
+  const decks = Array.from(pendingEmits)
+  pendingEmits.clear()
+  for (const deck of decks) deck.flushListeners()
+}
+
+function scheduleFlush() {
+  if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+    flushEmits()
+    return
+  }
+  if (typeof document !== 'undefined' && document.hidden) {
+    flushEmits()
+    return
+  }
+  if (flushHandle !== null) return
+  flushHandle = window.requestAnimationFrame(flushEmits)
 }
 
 export class DeckEngine {
@@ -549,6 +594,16 @@ export class DeckEngine {
 
   private emit() {
     this.version++
+    pendingEmits.add(this)
+    scheduleFlush()
+  }
+
+  /**
+   * Notifies subscribers. Called from {@link flushEmits}, not from the deck: see the note there.
+   *
+   * @internal
+   */
+  flushListeners() {
     for (const listener of this.listeners) listener()
   }
 
@@ -1110,7 +1165,18 @@ export class DeckEngine {
       buf.copyFromChannel(data, c)
       channels.push(data.buffer)
     }
-    this.post({ t: 'load', channels, length: buf.length, rate: buf.sampleRate, initialSec: startPos }, channels)
+    this.post(
+      {
+        t: 'load',
+        channels,
+        length: buf.length,
+        rate: buf.sampleRate,
+        initialSec: startPos,
+        // Only what the UI redraws at; see `device-profile.ts`.
+        hz: consoleProfile().positionReportHz,
+      },
+      channels
+    )
     this.autoGain.gain.setTargetAtTime(track.gain || 1, this.ctx.currentTime, 0.01)
     this.updateKeyLockRouting()
     this.updateFxTiming()

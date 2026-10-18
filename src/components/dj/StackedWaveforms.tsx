@@ -12,6 +12,7 @@ import {
 import { laneSecPerPx, laneTimebase, laneX } from '@/lib/dj/waveform-timebase'
 import type { Track } from '@/lib/dj/types'
 import { canvasPixelRatio } from '@/lib/canvas-dpr'
+import { consoleProfile } from '@/lib/dj/device-profile'
 
 interface StackedWaveformsProps {
   deckA: DeckEngine
@@ -325,15 +326,21 @@ export function StackedWaveforms({
     if (!ctx) return
 
     let raf = 0
-    let frame = 0
+    let drawn = 0
     let rect = { width: 0, height: 0 }
+    // Both lanes, grid, peaks and playhead are cleared and redrawn in full; on a phone that is
+    // half the frame budget of the console, so the hand-held profile draws every second frame.
+    const stride = consoleProfile().canvasStride
     const tick = () => {
       raf = requestAnimationFrame(tick)
+      // The cadence is counted in *drawn* frames, not animation frames: with a stride of two an
+      // `% 8` on the animation-frame counter would land only on the frames that are skipped.
+      if (drawn++ % stride !== 0) return
       // A layout read, not a paint: the lanes are re-measured a few times a second instead of
       // sixty. The box only changes when the viewport does, and this canvas lives inside a
       // chassis scaled by a transform, so the read also has to be cheap enough that it does not
       // compete with the audio thread on a phone.
-      if (frame++ % 8 === 0) rect = canvas.getBoundingClientRect()
+      if (rect.width === 0 || drawn % 8 === 0) rect = canvas.getBoundingClientRect()
       if (rect.width === 0) return
       const dpr = canvasPixelRatio()
       const w = rect.width
