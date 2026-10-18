@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { tracks, useCatalog } from '@/lib/data'
 import { youtubeId, youtubeThumbUrl } from '@/lib/youtube'
 import { camelotColor, areKeysCompatible } from '@/lib/camelot'
 import { DOWNLOADER_PRIMARY, DOWNLOADER_FALLBACKS, copyText } from '@/lib/downloader'
 import { YoutubeIcon } from '@/components/icons'
-import type { Track } from '@/types/track'
+import type { PrecomputedTrackData } from '@/lib/dj/track-analyzer'
+import { CAMELOT_TO_KEY, type Track } from '@/types/track'
 
 interface LoadTrackModalProps {
   isOpen: boolean
@@ -12,7 +13,11 @@ interface LoadTrackModalProps {
   otherDeckBpm?: number
   otherDeckCamelot?: string | null
   onClose: () => void
-  onLoadLocalFile: (deckId: 'A' | 'B', file: File) => void
+  /**
+   * Hand a file to the deck. `precomputed` is what the *source* already knows about the
+   * recording — see `pendingYouTube` — and outranks anything the file's own tags say.
+   */
+  onLoadLocalFile: (deckId: 'A' | 'B', file: File, precomputed?: PrecomputedTrackData) => void
 }
 
 type TabType = 'download' | 'catalog' | 'file'
@@ -157,11 +162,79 @@ export function LoadTrackModal({
   useCatalog()
   const [activeTab, setActiveTab] = useState<TabType>('file')
   const [ytUrl, setYtUrl] = useState('')
+  /**
+   * The catalog row the link in the box came from, if it came from one at all.
+   *
+   * Kept as the *row*, not as a copied bag of fields, so that editing the link can
+   * invalidate it: the metadata is only true for the video it was taken from.
+   */
+  const [catalogTrack, setCatalogTrack] = useState<Track | null>(null)
   const [copied, setCopied] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCompatible, setFilterCompatible] = useState(false)
 
+  /**
+   * Which deck the link in the box was prepared for.
+   *
+   * The component stays mounted while the dialog is shut, so the errand survives being
+   * interrupted — you can close it, fetch the file, and come back. But a link prepared
+   * for deck A must not be waiting when deck B is opened: dropping a file there would
+   * stamp deck B with another track's title, BPM and key.
+   */
+  const openedForDeck = useRef<'A' | 'B' | null>(null)
+  useEffect(() => {
+    if (!isOpen) return
+    if (openedForDeck.current === deckId) return
+    openedForDeck.current = deckId
+    setYtUrl('')
+    setCatalogTrack(null)
+    setCopied(false)
+  }, [isOpen, deckId])
+
   const detectedVideoId = useMemo(() => youtubeId(ytUrl), [ytUrl])
+
+  /** The catalog row behind the link — null once the link points somewhere else. */
+  const sourceTrack = useMemo(() => {
+    if (!catalogTrack || !detectedVideoId) return null
+    return youtubeId(catalogTrack.youtube) === detectedVideoId ? catalogTrack : null
+  }, [catalogTrack, detectedVideoId])
+
+  /**
+   * What the video in the box will stamp onto the file dropped below.
+   *
+   * This is the whole difference between "From YouTube" and "Local Audio File": the
+   * audio that arrives is a downloaded file either way, so without this the two tabs are
+   * the same errand with an extra step. Everything here is known *before* the download
+   * finishes, so the deck can open with the video's artwork, and — when the link came
+   * from a catalog row — the catalogue's title, artist, BPM and key, rather than whatever
+   * tags the downloader happened to write. Skipping key detection and the tempo search
+   * for known values is also most of the load time.
+   *
+   * The artwork is unconditional: any link names a video, and its thumbnail is as true
+   * an image of the recording as the deck is going to get.
+   */
+  const pendingYouTube = useMemo<PrecomputedTrackData | undefined>(() => {
+    if (!detectedVideoId) return undefined
+    const coverUrl = youtubeThumbUrl(detectedVideoId)
+    if (!sourceTrack) return { metadata: { coverUrl } }
+
+    const camelot = sourceTrack.camelot
+    const key = camelot
+      ? { name: sourceTrack.key || CAMELOT_TO_KEY[camelot] || camelot, camelot }
+      : null
+
+    return {
+      bpm: sourceTrack.bpm ?? undefined,
+      key,
+      metadata: {
+        title: sourceTrack.title,
+        artist: sourceTrack.artist,
+        genre: sourceTrack.genre ?? undefined,
+        label: sourceTrack.label ?? undefined,
+        coverUrl,
+      },
+    }
+  }, [detectedVideoId, sourceTrack])
 
   /**
    * Filter KeyDB tracks.
@@ -194,15 +267,32 @@ export function LoadTrackModal({
 
   const accentColor = deckId === 'A' ? '#34d399' : '#a855f7'
 
+  /** The catalogue's facts about the video, in the deck's own order: artist, BPM, key, genre. */
+  const youtubeStamp = [
+    sourceTrack?.artist,
+    sourceTrack?.bpm ? `${sourceTrack.bpm} BPM` : null,
+    sourceTrack?.camelot,
+    sourceTrack?.genre,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   const handleCopyLink = async () => {
     const ok = await copyText(ytUrl.trim())
     setCopied(ok)
   }
 
-  /** Take the file the user just downloaded and send it down the local-file path. */
-  const handleDownloadedFile = (file: File | undefined) => {
+  /** A file from this machine: nothing is known about it but what its tags claim. */
+  const handleLocalFile = (file: File | undefined) => {
     if (!file) return
     onLoadLocalFile(deckId, file)
+    onClose()
+  }
+
+  /** The file the user just downloaded for the video in step 1. */
+  const handleDownloadedFile = (file: File | undefined) => {
+    if (!file) return
+    onLoadLocalFile(deckId, file, pendingYouTube)
     onClose()
   }
 
@@ -214,6 +304,7 @@ export function LoadTrackModal({
   const handleSelectCatalogTrack = (track: Track) => {
     if (!track.youtube) return
     setYtUrl(track.youtube)
+    setCatalogTrack(track)
     setCopied(false)
     setActiveTab('download')
     void copyText(track.youtube).then(ok => setCopied(ok))
@@ -311,9 +402,10 @@ export function LoadTrackModal({
               {/* The one thing worth knowing before starting, in the smallest type that still
                   reads: why the tab exists, and why the file has to come from outside. */}
               <p className="border-b border-[#242424] px-3 py-2 text-[11px] leading-snug text-zinc-500 sm:px-4">
-                KeyBPM has no server, so it cannot fetch audio itself. Get the file with one of
-                the tools below and drop it in — the deck then gets a beat grid, key and
-                keylock, exactly as it would from a local file.
+                KeyBPM has no server, so it cannot fetch audio itself. Fetch the file with one
+                of the tools below and drop it back in: the deck opens with the video's
+                artwork as its cover, and — when the link came from a catalogue row — that
+                row's title, artist, BPM and key, so nothing arrives as an untitled rip.
               </p>
 
               {/* 1 — the link */}
@@ -347,11 +439,9 @@ export function LoadTrackModal({
                 </div>
                 {detectedVideoId ? (
                   <div className="mt-1.5 flex items-center gap-2">
-                    <img
-                      src={youtubeThumbUrl(detectedVideoId)}
-                      alt=""
-                      className="h-6 w-10 shrink-0 rounded object-cover"
-                    />
+                    {/* No thumbnail here: the artwork belongs to step 3, where it is shown
+                        beside the title it will become. Two copies of the same frame an inch
+                        apart only made the reader check whether they were the same video. */}
                     <span className="min-w-0 truncate font-mono text-[10px] text-zinc-400">
                       {detectedVideoId}
                     </span>
@@ -417,7 +507,37 @@ export function LoadTrackModal({
 
               {/* 3 — the file. The only control here that loads anything. */}
               <section className="px-3 py-2 sm:px-4">
-                <StepHeading n="3" title="Drop it back in" aside="after the download finishes" />
+                <StepHeading
+                  n="3"
+                  title="Drop it back in"
+                  aside={sourceTrack ? 'catalog values' : pendingYouTube ? 'video artwork' : 'after the download finishes'}
+                  asideClass={sourceTrack ? 'text-emerald-400/80' : undefined}
+                />
+
+                {/* What the drop will be labelled. Shown *before* the download finishes so
+                    the tab answers its own question — drop the file here and the deck opens
+                    with this, rather than with whatever the file calls itself. */}
+                {detectedVideoId && pendingYouTube && (
+                  <div className="mb-1.5 flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#1d1d1d] px-2 py-1.5">
+                    <img
+                      src={youtubeThumbUrl(detectedVideoId)}
+                      alt=""
+                      className="h-8 w-8 shrink-0 rounded-[3px] object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11px] font-semibold leading-tight text-zinc-200">
+                        {sourceTrack ? sourceTrack.title : 'Video artwork as cover'}
+                      </p>
+                      <p className="truncate font-mono text-[10px] leading-tight text-zinc-500">
+                        {youtubeStamp || 'title and key from the audio'}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-zinc-600">
+                      on load
+                    </span>
+                  </div>
+                )}
+
                 <AudioDropCard
                   id="youtube-drop-heading"
                   heading="Drop the downloaded file here"
@@ -547,7 +667,7 @@ export function LoadTrackModal({
                 fill
                 heading="Drop an audio file here"
                 hint="MP3, M4A, WAV, FLAC, OGG or OPUS — anything the browser can decode."
-                onFile={handleDownloadedFile}
+                onFile={handleLocalFile}
               />
             </div>
           )}

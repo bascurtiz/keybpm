@@ -159,6 +159,9 @@ export async function analyzeTrackFile(
   const artist = precomputed?.metadata?.artist || meta.artist || 'Unknown Artist'
   const label = precomputed?.metadata?.label || meta.album
   const coverUrl = precomputed?.metadata?.coverUrl || meta.coverUrl
+  // Genre has no tag reader behind it: a file only ever gets one from its source (a
+  // catalog row whose video was used to fetch it).
+  const genre = precomputed?.metadata?.genre
 
   onProgress?.({
     stage: 'ready',
@@ -171,6 +174,7 @@ export async function analyzeTrackFile(
     title,
     artist,
     label,
+    genre,
     duration: buffer.duration,
     bpm,
     grid: gridResult,
