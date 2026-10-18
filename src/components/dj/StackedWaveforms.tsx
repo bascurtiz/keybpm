@@ -489,7 +489,8 @@ export function StackedWaveforms({
           two zoom steps are the one pair of controls on the console a slip between is
           most annoying, and there is nothing else on the seam to crowd. The buttons
           themselves stay 24px and carry a wider invisible tap pad, so the visible pair
-          does not grow into the waveform while the hit areas do. */}
+          does not grow into the waveform while the hit areas do — and their marks are drawn
+          at the two `|◀` buttons' 12 px, so the lane's controls read as one set. */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-28"
       >
@@ -498,20 +499,43 @@ export function StackedWaveforms({
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomOut}
           disabled={windowSeconds >= WINDOW_MAX_S}
-          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[12px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
           title="Zoom out (or scroll down over the waveforms)"
         >
-          −
+          {/* Drawn, not typed, at the same 12 px as the rewind control's icon: a "−" glyph
+              at 12 px is a short thin dash, so this pair read as a smaller control than the
+              two `|◀` buttons beside it even though every box here is 24 px. */}
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            className="w-3 h-3"
+            aria-hidden="true"
+          >
+            <path d="M3 8h10" />
+          </svg>
         </button>
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomIn}
           disabled={windowSeconds <= WINDOW_MIN_S}
-          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[12px] font-bold text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
           title="Zoom in (or scroll up over the waveforms)"
         >
-          +
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            className="w-3 h-3"
+            aria-hidden="true"
+          >
+            <path d="M8 3v10M3 8h10" />
+          </svg>
         </button>
       </div>
 
