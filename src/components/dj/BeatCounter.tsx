@@ -17,9 +17,21 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
     const tick = () => {
       // Deck A 4-beat bar indicator. The grid module resolves the phase, so this
       // stays correct on both constant and variable-tempo grids.
+      //
+      // Counted off the *audible* position, not the read head — the same clock the
+      // waveform lanes are drawn against. `position` is the vinyl worklet's read head,
+      // which with keylock engaged runs about a quarter of a beat ahead of the sound, so
+      // reading it here lit each step before the bar line it belongs to reached the
+      // playhead: the grid looked right and the counter stepped early. See
+      // `DeckEngine.audiblePosition`.
+      //
+      // No look-ahead here, unlike the 4-bar segments in `TopBar` (which light 0.04 of a
+      // beat early). This counter is read against the lane ticks, and those are drawn
+      // from the same getter in the same animation frame, so a lead would step the cell
+      // ahead of the line crossing the needle rather than on it.
       const gridA = deckA.track?.grid
       const beatsPerBarA = gridA?.beatsPerBar || 4
-      const activeIdxA = beatInBarAt(gridA, deckA.position, 0.04) % beatsPerBarA
+      const activeIdxA = beatInBarAt(gridA, deckA.audiblePosition) % beatsPerBarA
 
       for (let i = 0; i < 4; i++) {
         const el = beatAEls.current[i]
@@ -32,10 +44,10 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
         }
       }
 
-      // Deck B 4-beat bar indicator
+      // Deck B 4-beat bar indicator, on the same audible clock as Deck A.
       const gridB = deckB.track?.grid
       const beatsPerBarB = gridB?.beatsPerBar || 4
-      const activeIdxB = beatInBarAt(gridB, deckB.position, 0.04) % beatsPerBarB
+      const activeIdxB = beatInBarAt(gridB, deckB.audiblePosition) % beatsPerBarB
 
       for (let i = 0; i < 4; i++) {
         const el = beatBEls.current[i]

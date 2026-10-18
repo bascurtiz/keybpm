@@ -312,29 +312,21 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
 
 /**
- * Press feedback for the loop cluster's `<` / `>` chevrons, the same idea as the − / + under the
- * pitch fader: while the button is held it gains a white outline.
+ * Press feedback for the loop cluster's triangles, the same idea as the − / + under the pitch
+ * fader: while the button is held the cell fills and the glyph goes white.
  *
- * The outline *is* the cell's own border rather than a box painted inside it. At rest a chevron
- * carries one border — the seam it shares with the middle cell (`border-r` / `border-l`) — so
- * `active:border` gives the other three sides their 1px, and `active:border-white` recolours the
- * seam to match; the four edges then join up into a single outline on the cell's own border box,
- * with nothing drawn inside it. This is also why nothing moves: the cell is `w-6` under
- * border-box sizing, so the added edges eat into its padding rather than its width, and the glyph
- * stays centred in the smaller content box. An inset ring, the earlier approach, sat 1px inside
- * the seam and so read as a second line rather than as the button's own edge.
- *
- * The background lift and the brightened glyph come along because a bare 1px line is easy to miss
- * at 11px tall; both are press-only, like the outline itself.
+ * The fill *is* the feedback here, where the pitch pair gets an outline. The triangles sit in a
+ * group whose outer border and two hairline dividers are the only lines in the control, and each
+ * cell owns none of them — so an outline would have had to be drawn inside the cell, which at
+ * this size reads as a second box rather than as the button's own edge.
  *
  * `active:transition-none` is load-bearing, not tidiness. The cell's `transition-colors` covers
- * border-color, background-color and color, so without this the outline would *fade in* over the
- * 150 ms default — longer than a click, which means a quick tap would never reach full white and a
- * held press would look mushy. Killing the transition for the duration of the press makes the
- * white appear in the same frame the button goes down, while the release still fades out.
+ * background-color and color, so without this the fill would *fade in* over the 150 ms default —
+ * longer than a click, which means a quick tap would never reach full brightness and a held press
+ * would look mushy. Killing the transition for the duration of the press makes the white appear in
+ * the same frame the button goes down, while the release still fades out.
  */
-const CHEVRON_PRESS =
-  'active:border active:border-white active:bg-[#2b2b2b] active:text-white active:transition-none'
+const ARROW_PRESS = 'active:bg-[#2b2b2b] active:text-white active:transition-none'
 
 /**
  * The LOOP and MOVE switches are the same control with a different bit of state
@@ -343,10 +335,24 @@ const CHEVRON_PRESS =
  * white would otherwise go dead under the cursor while its neighbour lit up.
  */
 const SWITCH_BASE =
-  'flex-1 rounded-[3px] border text-[8px] font-bold uppercase tracking-wider leading-none transition-colors disabled:opacity-40'
+  'w-full rounded-[4px] border bg-[#141414] text-[8px] font-bold uppercase tracking-wider leading-none transition-colors disabled:opacity-40'
 const SWITCH_ON = 'border-white text-white hover:bg-white/10'
 const SWITCH_OFF =
-  'border-transparent text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+  'border-[#2b2b2b] text-[#6f6f6f] hover:text-[#d4d4d4] hover:border-[#444444]'
+
+/**
+ * One solid triangle, sized 7 × 8 px, for the loop cluster's arrows.
+ *
+ * Drawn with borders rather than set as `‹` / `›` or `◀` / `▶`: the text glyph is whatever the
+ * font supplies at whatever optical size it likes, which on Windows falls back to a different
+ * shape from the one on macOS, and the triangle here is a control affordance that should be the
+ * same everywhere. `border-*-current` makes it follow the button's text colour, so hover and press
+ * light it without a second rule.
+ */
+const TRIANGLE_LEFT =
+  'block h-0 w-0 border-y-[4px] border-y-transparent border-r-[7px] border-r-current'
+const TRIANGLE_RIGHT =
+  'block h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-current'
 
 function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }) {
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
@@ -600,18 +606,22 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
         CUE
       </button>
 
-      {/* Loop / Move Section: the LOOP | MOVE switches on top, the < number > cluster under it.
-          One pair of arrows with two jobs, so a bar this tight does not need a second row of
-          buttons: LOOP sizes and arms a loop, MOVE beat-jumps the playhead. The number is that
-          job's control too — it toggles the loop under LOOP and cycles the step under MOVE. No
-          frame around the cluster: the switches carry their own state, and a border only ate the
-          room the two labels needed. */}
+      {/* Loop / Move: the LOOP and MOVE switches side by side in a column, then the loop-length
+          cluster as its own bordered group. The switches and the cluster used to be one box with
+          a switch row inside it, which made LOOP/MOVE read as the cluster's own tabs; separating
+          them says what they are — two switches over one cluster, not a mode for the box.
+
+          One pair of arrows with two jobs, because a bar this tight cannot afford a second row:
+          LOOP sizes and arms a loop, MOVE beat-jumps the playhead. The number is that job's
+          control too — it toggles the loop under LOOP and cycles the step under MOVE. */}
       <div
         role="group"
         aria-label={`Deck ${deckId} loop and move`}
-        className="flex flex-col overflow-hidden h-11 w-[94px] rounded-md bg-[#141414]"
+        className="flex items-center gap-2 shrink-0"
       >
-        <div className="flex h-[22px] shrink-0 gap-[2px] p-[2px]">
+        {/* 18 px each with the row's 8 px gap: the pair fills the 44 px row exactly, which is what
+            keeps their outer edges on the play, CUE and TAP buttons' lines. */}
+        <div className="grid h-11 w-9 shrink-0 grid-rows-2 gap-2">
           <button
             type="button"
             onClick={toggleLoop}
@@ -632,38 +642,50 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
             className={`${SWITCH_BASE} ${moveOn ? SWITCH_ON : SWITCH_OFF}`}
             title={
               moveOn
-                ? 'MOVE on — < / > beat-jump the playhead (a running loop travels with it), the number cycles the step'
-                : 'MOVE: < / > beat-jump the playhead by the step (also releases the loop when switched off)'
+                ? 'MOVE on — the arrows beat-jump the playhead (a running loop travels with it), the number cycles the step'
+                : 'MOVE: the arrows beat-jump the playhead by the step (also releases the loop when switched off)'
             }
           >
             move
           </button>
         </div>
 
-        <div className="flex flex-1">
+        {/* 26 px cells at the ends, so the number gets 52 of the 106 — half the group, which is
+            what lets it be set at 16 px and still read from a laptop across the desk. The middle
+            cell carries the dividers as `border-x`, so the three cells and the group's own border
+            are the only lines, and no cell has a box of its own. */}
+        <div className="flex h-11 w-[106px] shrink-0 items-stretch overflow-hidden rounded-[4px] border border-[#2b2b2b] bg-[#141414]">
           <button
             type="button"
             onClick={moveOn ? () => beatJump(-1) : loopHalf}
             disabled={moveOn ? !deck.track : !deck.track || selectedLoopIdx === 0}
-            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors rounded-bl-md ${CHEVRON_PRESS}`}
+            className={`w-[26px] shrink-0 flex items-center justify-center text-[#6f6f6f] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors ${ARROW_PRESS}`}
+            aria-label={
+              moveOn
+                ? `Jump the playhead back ${currentBeats} beats`
+                : 'Half loop length'
+            }
             title={
               moveOn
                 ? `Jump the playhead back ${currentBeats} beats (a running loop comes with it)`
                 : 'Half loop length (÷2)'
             }
           >
-            &lt;
+            <span className={TRIANGLE_LEFT} aria-hidden="true" />
           </button>
 
           <button
             type="button"
             onClick={moveOn ? cycleBeats : toggleLoop}
             disabled={!deck.track}
-            className={`flex-1 flex items-center justify-center transition-colors text-[9px] font-mono font-bold leading-none disabled:opacity-40 ${
+            className={`flex-1 flex items-center justify-center border-x border-[#2b2b2b] transition-colors text-[16px] font-mono font-bold leading-none disabled:opacity-40 ${
               isLoopActive && !moveOn
                 ? 'bg-accent/25 text-white'
-                : 'hover:bg-[#222222] text-[#777777] hover:text-[#d4d4d4]'
+                : 'hover:bg-[#222222] text-[#5c5c5c] hover:text-[#d4d4d4]'
             }`}
+            aria-label={
+              moveOn ? `${currentBeats}-beat jump step` : `Loop ${currentBeats} beats`
+            }
             title={
               moveOn
                 ? `${currentBeats}-beat jump step — click to cycle the size`
@@ -679,14 +701,19 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
             disabled={
               moveOn ? !deck.track : !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
             }
-            className={`w-6 shrink-0 text-xs font-bold text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors rounded-br-md ${CHEVRON_PRESS}`}
+            className={`w-[26px] shrink-0 flex items-center justify-center text-[#6f6f6f] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors ${ARROW_PRESS}`}
+            aria-label={
+              moveOn
+                ? `Jump the playhead forward ${currentBeats} beats`
+                : 'Double loop length'
+            }
             title={
               moveOn
                 ? `Jump the playhead forward ${currentBeats} beats (a running loop comes with it)`
                 : 'Double loop length (×2)'
             }
           >
-            &gt;
+            <span className={TRIANGLE_RIGHT} aria-hidden="true" />
           </button>
         </div>
       </div>
