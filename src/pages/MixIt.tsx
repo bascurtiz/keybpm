@@ -34,15 +34,17 @@ import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 const KIOSK_LANE_BAND_FLOOR_H = 106
 
 /**
- * Ceiling for the same band, in design px: two 150 px lanes.
+ * Ceiling for the same band, in design px: two 136 px lanes.
  *
  * Capped on the *band* rather than on the chassis, because the band is the row that
- * grows. A 16:9 landscape phone fills at ~702 design px, where the band lands at 291 —
- * just under this ceiling — and a portrait tablet, where the same fill asks for 1,600
- * px, is what the ceiling is really there for: it keeps the console from turning into
- * a waveform display.
+ * grows. It moves with the deck row: when the mixer took 28 px back from the waveforms
+ * the ceiling came down by the same 28, or a tall box would simply have re-inflated the
+ * band and the trim would only have applied to the phones that filled their screen. A
+ * 16:9 landscape phone fills at ~702 design px, where the band lands at 263 — under this
+ * ceiling — and a portrait tablet, where the same fill asks for 1,600 px, is what the
+ * ceiling is really there for: it keeps the console from turning into a waveform display.
  */
-const KIOSK_LANE_BAND_MAX_H = 300
+const KIOSK_LANE_BAND_MAX_H = 272
 
 /**
  * Height of the deck row in kiosk mode, in design px — the pitch faders, jog wheels,
@@ -52,20 +54,21 @@ const KIOSK_LANE_BAND_MAX_H = 300
  * rest of the screen. The row used to take whatever the fill-to-width chassis had left,
  * which on a 19.5:9 phone was 312 px for a 196 px jog wheel: a fifth more than the
  * decks need, spent on empty space above and below every control, while the waveforms
- * were squeezed into strips. 259 is that 312 less 17%, and still clears the jog wheel
+ * were squeezed into strips. 287 is that 312 less 8%, and still clears the jog wheel
  * with room for the row's padding and the nudge buttons under it.
  *
  * This number is also the trim on the waveforms, because the band takes exactly what
- * this row does not: nine px moved here is nine px the band loses. At 844×390 that is
- * the 176 px band down to 167 — about 5% less waveform, 5% more mixer.
+ * this row does not: px moved here is px the band loses. It has moved twice for that
+ * reason — 250, then 259, then 287 when the waveforms gave 14 px per lane back to the
+ * mixer. At 844×390 the band is 139 px over this row, two lanes of 69.5.
  */
-const KIOSK_DECK_ROW_H = 259
+const KIOSK_DECK_ROW_H = 287
 
 /**
  * Bounds for the kiosk chassis height, in design px, derived from the band's own.
  *
  * The metadata strip (~87 px) and the transport bar (~65 px) are content-sized and the
- * two rows between them are constants, so the console at the band's floor is 517 px and
+ * two rows between them are constants, so the console at the band's floor is 545 px and
  * the ceiling is exactly as much taller as the band is allowed to be. This is the pair
  * `kioskDesignH` clamps the fill-to-width height into: a landscape phone lands inside
  * them and fills its screen, and a short or unusually wide one lands on the floor and

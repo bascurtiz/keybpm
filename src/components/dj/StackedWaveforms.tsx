@@ -365,6 +365,12 @@ export function StackedWaveforms({
       const halfH = h / 2
       const secPerPx = windowSeconds / w
       const centerPlayheadX = w / 2
+      // How much the chassis transform shrinks the console on screen: the canvas is laid
+      // out at the chassis's design width and drawn at its displayed width. Anything
+      // inside the canvas that should match a DOM control's *visual* size (the empty-lane
+      // letter badge) has to be multiplied by this; the wave, grid and playhead are all
+      // sized in lane/canvas terms and do not.
+      const uiScale = canvas.offsetWidth > 0 ? w / canvas.offsetWidth : 1
 
       // Render Deck A (Top Half, Green)
       renderDeckLane({
@@ -373,6 +379,7 @@ export function StackedWaveforms({
         deckLetter: 'A',
         topY: 0,
         laneH: halfH,
+        uiScale,
         windowSeconds,
         secPerPx,
         waveColor: '#34d399',
@@ -395,6 +402,7 @@ export function StackedWaveforms({
         deckLetter: 'B',
         topY: halfH,
         laneH: halfH,
+        uiScale,
         windowSeconds,
         secPerPx,
         waveColor: '#a855f7',
@@ -899,6 +907,7 @@ function renderDeckLane({
   deckLetter,
   topY,
   laneH,
+  uiScale,
   windowSeconds,
   secPerPx,
   waveColor,
@@ -910,6 +919,8 @@ function renderDeckLane({
   deckLetter: 'A' | 'B'
   topY: number
   laneH: number
+  /** Chassis scale for this canvas, so DOM-sized marks shrink with the console. */
+  uiScale: number
   /** Width of the lane in playback seconds. */
   windowSeconds: number
   /** Playback seconds per pixel, `windowSeconds / laneWidth`. The lane's own source
@@ -937,10 +948,11 @@ function renderDeckLane({
     ctx.stroke()
 
     // Squared DJ Deck Letter Badge in center (grayscaled, matching artwork box style).
-    // Sized from the lane, not fixed: the console is scaled down to fit a phone, so a
-    // constant badge is the only thing in the lane that does not shrink with it, and
-    // at two lanes in ~64 px it used to be taller than the lane. See `laneBadge`.
-    const badge = laneBadge(laneH)
+    // Drawn at the design size *through the chassis scale*, so it reads the same as the
+    // A/B on the artwork squares above: a constant would be the one mark in the lane that
+    // does not shrink with the console, which on a phone made it the loudest thing on the
+    // waveform. See `laneBadge`.
+    const badge = laneBadge(laneH, uiScale)
     const centerX = w / 2
     const halfBox = badge.box / 2
 

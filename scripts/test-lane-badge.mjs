@@ -64,4 +64,42 @@ function near(actual, expected, tol, message) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// A phone scales the whole console down, and the badge has to come with it
+// ---------------------------------------------------------------------------
+{
+  // A landscape phone: ~56 CSS px lanes inside a chassis drawn at 0.675.
+  const phone = laneBadge(56, 0.675)
+  near(phone.box, 36 * 0.675, 0.01, 'the badge is the design 36 px through the chassis scale')
+  ok(phone.box < 36 - 1e-9, `so it is smaller on screen than the desktop badge (got ${phone.box})`)
+  ok(phone.box / 56 < 0.5, 'and takes less than half the lane it sits in')
+  near(phone.font / phone.box, 15 / 36, 1e-9, 'the letter keeps its share of the box')
+  near(phone.stroke, 1.5 * 0.675, 1e-9, 'the hairline scales with it too')
+  // The artwork square above the waveform is 40 design px: the badge reads with it.
+  near(phone.box, 40 * 0.675, 3, 'and it is the artwork square\u2019s size on screen')
+
+  // A taller band is exactly what used to break this: the lane grows, so the cap on
+  // screen pixels stops binding and the badge swells instead of staying put.
+  const taller = laneBadge(83.5, 0.675)
+  near(taller.box, 36 * 0.675, 0.01, 'a taller band does not inflate the badge')
+  near(taller.box, phone.box, 0.01, 'it is the same size as in the shorter band')
+
+  // Scaling up holds too, up to the design size.
+  near(laneBadge(56, 1).box, 36, 1e-9, 'at scale 1 it is the design badge again')
+  near(laneBadge(145, 1).box, 36, 1e-9, 'and stays there on a desktop lane')
+
+  // It still never escapes a lane squashed below its floor.
+  for (const [laneH, s] of [[30, 0.6], [20, 1], [120, 0.4], [4, 0.5]]) {
+    const b = laneBadge(laneH, s)
+    ok(b.box <= laneH, `the badge fits a ${laneH} px lane at scale ${s} (got ${b.box})`)
+    ok(b.box > 0, `and is still drawn at ${laneH} px / ${s}`)
+    ok(b.stroke > 0, 'with a visible border')
+  }
+
+  // Unmeasured scale draws nothing rather than NaN geometry.
+  for (const bad of [0, -1, NaN]) {
+    ok(laneBadge(56, bad).box === 0, `an unmeasured scale (${bad}) has no badge`)
+  }
+}
+
 console.log(`lane badge: ${checks} checks passed`);
