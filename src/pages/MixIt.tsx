@@ -443,7 +443,7 @@ export function MixIt() {
             </span>
           </div>
           <p className="text-xs text-text-muted text-right">
-            Drop two tracks onto the decks, lock the keys, and start mixing live.
+            Drop a track on each deck, and audition quickly in the mix.
           </p>
         </div>
         )}

@@ -35,9 +35,14 @@ const AUDIO_ACCEPT = 'audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff,.webm'
  *
  * `fill` stretches the card over the tab's whole body, for the local tab where it is the only
  * thing on screen instead of one step in a list.
+ *
+ * The mark is the one thing the two callers don't share: a folder where the file is already on
+ * this machine, a download arrow where it still has to be fetched. Everything else about the
+ * card — size, border, type, button — is common, which is what makes them read as one control.
  */
 function AudioDropCard({
   id,
+  icon = '⬇',
   heading,
   hint,
   fill = false,
@@ -45,6 +50,8 @@ function AudioDropCard({
 }: {
   /** Labels the card for screen readers; the picker inside is its real control. */
   id: string
+  /** The mark above the heading; says where the file comes from. */
+  icon?: string
   heading: string
   hint: string
   fill?: boolean
@@ -65,17 +72,17 @@ function AudioDropCard({
         onFile(e.dataTransfer.files?.[0])
       }}
       aria-labelledby={id}
-      className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-4 text-center transition sm:p-6 ${
+      className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-3 text-center transition sm:p-4 ${
         fill ? 'min-h-[7.5rem] flex-1' : ''
       } ${dragOver ? 'border-accent bg-accent/5' : 'border-[#333] bg-[#1c1c1c] hover:border-accent/60'}`}
     >
-      <span className="mb-2 text-2xl" aria-hidden="true">
-        ⬇
+      <span className="mb-1.5 text-xl" aria-hidden="true">
+        {icon}
       </span>
       <p id={id} className="mb-1 text-xs font-semibold text-white">
         {heading}
       </p>
-      <p className="mb-3 max-w-xs text-[11px] text-zinc-400">{hint}</p>
+      <p className="mb-2.5 max-w-md text-[11px] text-zinc-400">{hint}</p>
       <label className="cursor-pointer rounded-lg bg-[#2e2e2e] px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-600">
         Browse File
         <input
@@ -85,6 +92,43 @@ function AudioDropCard({
           className="hidden"
         />
       </label>
+    </div>
+  )
+}
+
+/**
+ * The heading of one step in the From YouTube tab: a bare number, an imperative title, and an
+ * optional right-hand aside carrying that step's state ("link detected", "opens in a new tab").
+ *
+ * Not a badge in a circle and not a card of its own: the sequence is carried by the number and
+ * the reading order, and two more containers would compete with the drop card that has to be a
+ * real target.
+ */
+function StepHeading({
+  n,
+  title,
+  aside,
+  asideClass,
+}: {
+  n: string
+  title: string
+  aside?: string
+  /** The aside is grey unless a step wants to say it is ready. */
+  asideClass?: string
+}) {
+  return (
+    <div className="mb-1.5 flex items-baseline gap-1.5">
+      <span aria-hidden="true" className="font-mono text-[10px] font-bold leading-none text-zinc-600">
+        {n}
+      </span>
+      <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-300">{title}</h3>
+      {aside ? (
+        <span
+          className={`ml-auto shrink-0 text-[10px] leading-none ${asideClass ?? 'text-zinc-600'}`}
+        >
+          {aside}
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -116,16 +160,19 @@ export function LoadTrackModal({
   const [copied, setCopied] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCompatible, setFilterCompatible] = useState(false)
-  const [filterOnlyVideo, setFilterOnlyVideo] = useState(true)
 
   const detectedVideoId = useMemo(() => youtubeId(ytUrl), [ytUrl])
 
-  // Filter KeyDB tracks
+  /**
+   * Filter KeyDB tracks.
+   *
+   * Every row here has a YouTube link, unconditionally: this tab exists to hand a link to a
+   * downloader, and a row without one offers nothing the catalog page does not do better. The
+   * filter that used to toggle that used to be a button, which asked the reader to work out
+   * whether off was useful — it never was.
+   */
   const catalogTracks = useMemo(() => {
-    let list = tracks
-    if (filterOnlyVideo) {
-      list = list.filter(t => Boolean(t.youtube))
-    }
+    let list = tracks.filter(t => Boolean(t.youtube))
     if (filterCompatible && otherDeckCamelot) {
       list = list.filter(t => t.camelot && areKeysCompatible(otherDeckCamelot, t.camelot))
     }
@@ -141,7 +188,7 @@ export function LoadTrackModal({
       )
     }
     return list.slice(0, 60)
-  }, [searchQuery, filterCompatible, filterOnlyVideo, otherDeckCamelot])
+  }, [searchQuery, filterCompatible, otherDeckCamelot])
 
   if (!isOpen) return null
 
@@ -248,74 +295,82 @@ export function LoadTrackModal({
             leftover height, rather than nesting a 300 px scroll area inside a
             scrolled parent that is shorter than it. */}
         <div className="flex min-h-0 flex-1 flex-col">
-          {/* 1. FROM YOUTUBE TAB */}
+          {/* 1. FROM YOUTUBE TAB.
+              An errand in three steps, so the tab is laid out in that order: paste, fetch,
+              drop. Each step is one heading and one control, separated by hairlines rather
+              than boxed — the tab bar is already a box, and a card inside a card reads as
+              options rather than as a sequence.
+
+              Type carries the hierarchy instead: step headings are 10 px uppercase, anything
+              you can press has a fill or a border (the accent bar, Copy, the two fallbacks,
+              Browse File), and every sentence of explanation sits at 10–11 px in zinc-500
+              with no box around it. That is the whole difference between "press this" and
+              "read this"; nothing in between. */}
           {activeTab === 'download' && (
-            <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain p-3 sm:p-5">
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                KeyBPM downloads nothing — it has no server and hands out no audio. Fetch the file
-                with an external tool, then drop it below. You get a beat grid, key and keylock,
-                exactly like a local file.
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+              {/* The one thing worth knowing before starting, in the smallest type that still
+                  reads: why the tab exists, and why the file has to come from outside. */}
+              <p className="border-b border-[#242424] px-3 py-2 text-[11px] leading-snug text-zinc-500 sm:px-4">
+                KeyBPM has no server, so it cannot fetch audio itself. Get the file with one of
+                the tools below and drop it in — the deck then gets a beat grid, key and
+                keylock, exactly as it would from a local file.
               </p>
 
-              {/* Step 1 — get the link out */}
-              <div>
-                <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider block mb-1.5">
-                  Step 1 — the link
-                </span>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  YouTube Video URL or Video ID:
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://www.youtube.com/watch?v=... or youtu.be/..."
-                  value={ytUrl}
-                  onChange={e => {
-                    setYtUrl(e.target.value)
-                    setCopied(false)
-                  }}
-                  className="w-full px-3 py-2 rounded-lg bg-[#222] border border-[#333] text-sm text-white focus:outline-none focus:border-accent font-mono transition"
+              {/* 1 — the link */}
+              <section className="border-b border-[#242424] px-3 py-2 sm:px-4">
+                <StepHeading
+                  n="1"
+                  title="Paste the video"
+                  aside={detectedVideoId ? 'link detected' : 'link or ID'}
+                  asideClass={detectedVideoId ? 'text-emerald-400/80' : undefined}
                 />
-              </div>
-
-              {/* Video Preview */}
-              {detectedVideoId ? (
-                <div className="flex gap-4 p-3 rounded-lg bg-[#202020] border border-[#2e2e2e] items-center">
-                  <img
-                    src={youtubeThumbUrl(detectedVideoId)}
-                    alt="Thumbnail preview"
-                    className="w-28 h-16 object-cover rounded shadow"
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    aria-label="YouTube video URL or video ID"
+                    placeholder="youtube.com/watch?v=… or youtu.be/…"
+                    value={ytUrl}
+                    onChange={e => {
+                      setYtUrl(e.target.value)
+                      setCopied(false)
+                    }}
+                    className="min-w-0 flex-1 rounded-lg border border-[#333] bg-[#222] px-2.5 py-1.5 font-mono text-xs text-white transition focus:border-accent focus:outline-none"
                   />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] text-red-400 font-mono font-bold uppercase tracking-wider block">
-                      Video Detected
-                    </span>
-                    <p className="text-xs text-white font-semibold truncate font-mono">
+                  <button
+                    type="button"
+                    disabled={!detectedVideoId}
+                    onClick={handleCopyLink}
+                    className="shrink-0 rounded-lg bg-[#252525] px-2.5 py-1.5 text-[11px] font-semibold text-zinc-200 transition hover:bg-[#303030] disabled:opacity-40 disabled:hover:bg-[#252525]"
+                  >
+                    {copied ? '✓ Copied' : 'Copy'}
+                  </button>
+                </div>
+                {detectedVideoId ? (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <img
+                      src={youtubeThumbUrl(detectedVideoId)}
+                      alt=""
+                      className="h-6 w-10 shrink-0 rounded object-cover"
+                    />
+                    <span className="min-w-0 truncate font-mono text-[10px] text-zinc-400">
                       {detectedVideoId}
-                    </p>
+                    </span>
+                    <span className="ml-auto shrink-0 text-[10px] text-zinc-500">
+                      copied when you open a tool
+                    </span>
                   </div>
-                </div>
-              ) : (
-                <div className="p-3 rounded-lg bg-[#1c1c1c] border border-dashed border-[#2a2a2a] text-center text-zinc-500 text-xs">
-                  Paste a YouTube link, copy it, then fetch the file with one of the tools below.
-                </div>
-              )}
+                ) : (
+                  <p className="mt-1.5 text-[10px] text-zinc-500">
+                    A youtube.com or youtu.be link, or just the 11-character ID.
+                  </p>
+                )}
+              </section>
 
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  disabled={!detectedVideoId}
-                  onClick={handleCopyLink}
-                  className="self-start px-3 py-2 rounded-lg bg-[#252525] hover:bg-[#303030] disabled:opacity-40 disabled:hover:bg-[#252525] text-xs font-semibold text-zinc-200 transition"
-                >
-                  {copied ? '✓ Link copied' : '📋 Copy link'}
-                </button>
-
-                {/*
-                  One obvious action, then quiet fallbacks. Each link stages the URL
-                  on the clipboard before it navigates, so the user's next move inside
-                  the tool is a paste. The anchor does the navigating — calling
-                  window.open here too would open two tabs.
-                */}
+              {/* 2 — the fetch. Every option does the same two things: put the link on the
+                  clipboard, then open the tool in a new tab. The anchor does the navigating;
+                  calling window.open here as well would open two tabs. */}
+              <section className="border-b border-[#242424] px-3 py-2 sm:px-4">
+                <StepHeading n="2" title="Fetch the file" aside="opens in a new tab" />
                 <a
                   href={DOWNLOADER_PRIMARY.url}
                   target="_blank"
@@ -323,12 +378,11 @@ export function LoadTrackModal({
                   onClick={() => {
                     if (detectedVideoId) void handleCopyLink()
                   }}
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-accent-solid hover:brightness-110 shadow-lg transition"
+                  className="flex items-center gap-2 rounded-lg bg-accent-solid px-3 py-2 shadow-lg transition hover:brightness-110"
                 >
-                  <span className="shrink-0 text-sm font-bold">⬇ Open {DOWNLOADER_PRIMARY.name}</span>
-                  {/* Beside the name, not under it: one row per option. The note truncates
-                      rather than wrapping, and carries itself in `title` for the narrow
-                      cases. */}
+                  <span className="shrink-0 text-sm font-bold">
+                    ⬇ Open {DOWNLOADER_PRIMARY.name}
+                  </span>
                   <span
                     className="min-w-0 truncate text-[11px] leading-tight opacity-75"
                     title={DOWNLOADER_PRIMARY.note}
@@ -337,10 +391,8 @@ export function LoadTrackModal({
                   </span>
                 </a>
 
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">
-                    If that doesn&apos;t work
-                  </span>
+                <div className="mt-1">
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-600">or</span>
                   {DOWNLOADER_FALLBACKS.map(opt => (
                     <a
                       key={opt.name}
@@ -350,37 +402,35 @@ export function LoadTrackModal({
                       onClick={() => {
                         if (detectedVideoId) void handleCopyLink()
                       }}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1c1c1c] border border-[#282828] hover:border-accent/40 hover:bg-[#222] transition"
+                      title={opt.note}
+                      className="-mx-1 mt-0.5 flex items-center gap-2 rounded px-1 py-0.5 transition hover:bg-white/5"
                     >
                       <span className="shrink-0 text-[11px] font-semibold text-zinc-300">
-                        ↗ {opt.name}
+                        {opt.name}
                       </span>
-                      <span className="min-w-0 truncate text-[10px] leading-tight text-zinc-500" title={opt.note}>
-                        {opt.note}
-                      </span>
+                      <span className="min-w-0 truncate text-[10px] text-zinc-500">{opt.note}</span>
+                      <span className="ml-auto shrink-0 text-[10px] text-zinc-600">↗</span>
                     </a>
                   ))}
                 </div>
-              </div>
+              </section>
 
-              {/* Step 2 — bring the file back */}
-              <div>
-                <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider block mb-1.5">
-                  Step 2 — the file
-                </span>
+              {/* 3 — the file. The only control here that loads anything. */}
+              <section className="px-3 py-2 sm:px-4">
+                <StepHeading n="3" title="Drop it back in" aside="after the download finishes" />
                 <AudioDropCard
                   id="youtube-drop-heading"
-                  heading="Drop the downloaded audio file here"
+                  heading="Drop the downloaded file here"
                   hint="MP3, M4A, WAV, FLAC, OGG or OPUS — anything the browser can decode."
                   onFile={handleDownloadedFile}
                 />
-              </div>
+              </section>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end px-3 pb-2 sm:px-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg bg-[#252525] hover:bg-[#303030] text-xs font-semibold text-zinc-300 transition"
+                  className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-zinc-400 transition hover:bg-white/5 hover:text-zinc-200"
                 >
                   Cancel
                 </button>
@@ -399,22 +449,6 @@ export function LoadTrackModal({
                   onChange={e => setSearchQuery(e.target.value)}
                   className="min-w-[11rem] flex-1 rounded-lg border border-[#333] bg-[#222] px-3 py-2 text-xs text-white focus:border-accent focus:outline-none"
                 />
-                <button
-                  type="button"
-                  onClick={() => setFilterOnlyVideo(!filterOnlyVideo)}
-                  className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition flex items-center gap-1 shrink-0 ${
-                    filterOnlyVideo
-                      ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                      : 'bg-[#222] border-[#333] text-zinc-400 hover:text-white'
-                  }`}
-                  title="Filter tracks that have a YouTube link to hand to the downloader"
-                >
-                  {/* The same mark the track page uses for its YouTube link, in YouTube red —
-                      so "has a video" is recognised from one place to the next instead of
-                      being a play triangle here and a branded badge there. */}
-                  <YoutubeIcon size={13} className="text-[#FF0033]" />
-                  <span>Has Video</span>
-                </button>
                 {otherDeckCamelot && (
                   <button
                     type="button"
@@ -509,6 +543,7 @@ export function LoadTrackModal({
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-3 sm:p-5">
               <AudioDropCard
                 id="local-file-heading"
+                icon="📁"
                 fill
                 heading="Drop an audio file here"
                 hint="MP3, M4A, WAV, FLAC, OGG or OPUS — anything the browser can decode."
