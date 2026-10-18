@@ -21,47 +21,54 @@ import { useKeepScreenAwake } from '@/lib/wake-lock'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 /**
- * Floor for the kiosk chassis height (design px): the metadata strip, the waveform
- * band, a deck row tall enough for the jog wheel, and the transport bar — the four
- * rows of the console, none of them clipped. See `kioskDesignH`.
+ * Floor for the stacked waveform band in kiosk mode, in design px: two lanes of 53 px,
+ * a tenth more than the two 48 px lanes it used to be, taken from the deck row.
  *
- * The strip and the transport are content-sized (roughly 91 px and 65 px at the
- * sizes they render), which is where the rest of this number comes from. It binds only
- * on a screen wider than 19.5:9 (or a short one), where filling the width asks for
- * less height than the rows need: a 19.5:9 phone fits at ~520 design px, so the floor
- * is headroom there rather than the active constraint.
+ * The band is the console's *flexible* row — every other row is a fixed height — so
+ * this is what it falls back to rather than what it usually is: on a landscape phone it
+ * absorbs the rest of the chassis and runs taller than 53 px lanes. Tall enough, at the
+ * floor, for a lane's own controls (rewind, downbeat, ±10 ms, GRID) to sit in the
+ * corner above the wave without eating it. The desktop band is 290 px, which on a
+ * landscape phone would be most of the screen.
  */
-const KIOSK_MIN_CONSOLE_H = 495
+const KIOSK_LANE_BAND_FLOOR_H = 106
 
 /**
- * Ceiling for the same height (design px), about a 2:1 chassis.
+ * Ceiling for the same band, in design px: two 150 px lanes.
  *
- * Without it, a tall box stretches the deck row to whatever the box allows: an iPad in
- * portrait asks for a 1444 px row, in which a 196 px jog wheel floats in a metre of
- * nothing. The row is a row of controls, not a flex container for empty space — past
- * roughly twice the wheel's height the extra height is letterboxing, so it is left to
- * the page instead.
+ * Capped on the *band* rather than on the chassis, because the band is the row that
+ * grows. It is set so that the squattest common landscape phone still reaches the top
+ * of its screen — a 16:9 one asks for a fill-to-width console ~703 design px tall,
+ * which is this band at its ceiling — while a portrait tablet, where the same fill
+ * asks for 1,600 px, does not turn the console into a waveform display.
  */
-const KIOSK_MAX_CONSOLE_H = 560
+const KIOSK_LANE_BAND_MAX_H = 300
 
 /**
- * Height of the stacked waveform band in kiosk mode, in design px.
+ * Height of the deck row in kiosk mode, in design px — the pitch faders, jog wheels,
+ * key and cue columns, and the mixer's EQ, gain and FX block.
  *
- * Two lanes of 48 px: tall enough for a lane's own controls (rewind, downbeat,
- * ±10 ms, GRID) to sit in the corner above the wave without eating it, and thin
- * enough that the deck row below — the jogs, EQ and faders — still gets the bulk of
- * the ~520 design px a 19.5:9 phone's chassis has to spend. The desktop band is 290 px,
- * which on a landscape phone would be most of the screen.
+ * A fixed height rather than a share of the chassis, which is what leaves the band the
+ * rest of the screen. The row used to take whatever the fill-to-width chassis had left,
+ * which on a 19.5:9 phone was 312 px for a 196 px jog wheel: a fifth more than the
+ * decks need, spent on empty space above and below every control, while the waveforms
+ * were squeezed into strips. 250 is that 312 less 20%, and still clears the jog wheel
+ * with room for the row's padding and the nudge buttons under it.
  */
-const KIOSK_LANE_BAND_H = 96
+const KIOSK_DECK_ROW_H = 250
 
 /**
- * Smallest deck row that holds the deck's own parts, in design px: the jog wheel is a
- * fixed 196 px, plus the deck's and the row's vertical padding. Below this the wheel
- * is clipped by the chassis, which is the one row on the console that cannot be
- * squeezed — the rest (band, strip, transport) is what gives way instead.
+ * Bounds for the kiosk chassis height, in design px, derived from the band's own.
+ *
+ * The metadata strip (~87 px) and the transport bar (~65 px) are content-sized and the
+ * two rows between them are constants, so the console at the band's floor is 508 px and
+ * the ceiling is exactly as much taller as the band is allowed to be. This is the pair
+ * `kioskDesignH` clamps the fill-to-width height into: a landscape phone lands inside
+ * them and fills its screen, and a short or unusually wide one lands on the floor and
+ * is scaled down to fit instead of clipping a row.
  */
-const KIOSK_MIN_DECK_ROW_H = 243
+const KIOSK_MIN_CONSOLE_H = 87 + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + 65
+const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK_LANE_BAND_FLOOR_H)
 
 /**
  * Side band kept clear of the console, per side, in kiosk mode.
@@ -127,7 +134,7 @@ export function MixIt() {
   useEffect(() => {
     if (!portraitPhone) setPortraitOptOut(false)
   }, [portraitPhone])
-  const { setBoxRef, setChassisRef, box, scale } = useConsoleFit()
+  const { setBoxRef, setChassisRef, box, chassis, scale } = useConsoleFit()
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
   // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
   // The toggle lives on the side rail rather than in the console — outside the chassis it
@@ -330,29 +337,35 @@ export function MixIt() {
   /**
    * Height the kiosk chassis is laid out at, in design px.
    *
-   * On a landscape phone the console is width-bound: 1120 design px across ~844 CSS px
-   * of screen, so the fit can never be larger than ~0.75 whatever the height. The old
-   * kiosk then letterboxed: a 556 px-tall chassis at 0.75 leaves ~55 px of the screen
-   * empty, and every row above the decks was paid for out of a fixed budget. So instead
-   * of a fixed height, the chassis is given the height that makes 1120 wide fill the
-   * box, and the deck row (the only flexible row) takes what the strip, the waveform
-   * band and the transport bar do not.
+   * On a landscape phone the fit is width-bound, so the console is given the height that
+   * makes 1120 design px fill the box, clamped to `KIOSK_MIN_CONSOLE_H`..
+   * `KIOSK_MAX_CONSOLE_H`: a phone therefore fills its screen edge to edge, and a box
+   * too short for the rows (or one so tall that the *band* would have to grow past its
+   * ceiling) lands on a bound instead and is letterboxed rather than clipped.
    *
-   * That height is floored at `KIOSK_MIN_CONSOLE_H`, because the rows are not all
-   * squeezable: the jog wheel is a fixed 196 px. An 844×390 phone (19.5:9) asks to
-   * fill at 518 and gets it, so the fit is width-bound at 0.754 and the deck row gets
-   * 276 design px instead of the 243 floor. A shorter screen — or a wider one — hits
-   * the floor instead, which costs margin rather than clipping the wheel. Above
-   * `KIOSK_MAX_CONSOLE_H` the console stops growing and the leftover height is left to
-   * the page.
+   * Every row but the waveform band is a fixed height, so "given the height" means the
+   * band gets it: the strip, the deck row and the transport bar are laid out at their
+   * own sizes and the band takes the remainder — which is why the deck row had to stop
+   * being the flexible one. See `KIOSK_DECK_ROW_H`.
+   *
+   * `useConsoleFit` observes the chassis it measures, so this height and the fit agree
+   * even on the frame the rows change theirs.
+   *
+   * The floor stands in for the fill until the box has been measured, so the chassis has a
+   * definite height from its first paint. That matters now that the band is the flexible
+   * row: with an indefinite chassis height the lane canvas would fall back to its own
+   * `height` attribute — i.e. how tall the previous frame drew it — and the fit would
+   * measure that instead of the layout.
    */
-  const kioskDesignH =
-    kiosk && box.w > 0 && box.h > 0
-      ? Math.min(
-          KIOSK_MAX_CONSOLE_H,
-          Math.max(KIOSK_MIN_CONSOLE_H, Math.round((box.h * CONSOLE_WIDTH) / box.w))
+  const kioskDesignH = !kiosk
+    ? undefined
+    : Math.min(
+        KIOSK_MAX_CONSOLE_H,
+        Math.max(
+          KIOSK_MIN_CONSOLE_H,
+          box.w > 0 && box.h > 0 ? Math.round((box.h * CONSOLE_WIDTH) / box.w) : KIOSK_MIN_CONSOLE_H
         )
-      : undefined
+      )
 
   const chassisStyle = !kiosk
     ? undefined
@@ -366,7 +379,10 @@ export function MixIt() {
   // the chassis half-width plus the rail gap, all in *scaled* design px. Negative on the
   // left when the console fills the box — that is the side band it draws into.
   const chassisHalf = (CONSOLE_WIDTH * scale) / 2
-  const railTop = (box.h - (kioskDesignH ?? 0) * scale) / 2 + RAIL.top * scale
+  // Placed against the chassis as *measured* rather than as computed: the two agree —
+  // `useConsoleFit` reads the same element this file gives a height to — but the
+  // measured one is what the rail is actually centred against.
+  const railTop = (box.h - chassis.h * scale) / 2 + RAIL.top * scale
   const hamburgerLeft = box.w / 2 - chassisHalf - (RAIL.gap + RAIL.size) * scale
   const fullscreenLeft = box.w / 2 + chassisHalf + RAIL.gap * scale
 
@@ -518,13 +534,14 @@ export function MixIt() {
                 instrument's horizon line, and a phone that buried them in the mixer
                 column had to bend one deck's controls around the other's. What changes
                 in kiosk is only the height: 290 design px is a comfortable band on a
-                desktop and more than half of a landscape phone's screen, so the kiosk
-                band is `KIOSK_LANE_BAND_H`, and the deck row takes what is left. */}
+                desktop and more than half of a landscape phone's screen, so on a phone it
+                is the row that takes what the fixed rows leave and the console goes back to
+                filling the screen — `KIOSK_LANE_BAND_FLOOR_H` is only its floor. */}
             <div
-              className={`w-full shrink-0 border-b border-[#282828] bg-[#161616] ${
-                kiosk ? '' : 'h-[290px]'
+              className={`w-full border-b border-[#282828] bg-[#161616] ${
+                kiosk ? 'min-h-0 flex-1' : 'h-[290px] shrink-0'
               }`}
-              style={kiosk ? { height: KIOSK_LANE_BAND_H } : undefined}
+              style={kiosk ? { minHeight: KIOSK_LANE_BAND_FLOOR_H } : undefined}
             >
               <StackedWaveforms
                 deckA={deckA}
@@ -538,9 +555,9 @@ export function MixIt() {
             {/* 4. MAIN CONSOLE SURFACE: DECK A (GREEN) | 2-COLUMN MIXER | DECK B (PURPLE) */}
             <div
               className={`grid grid-cols-[1fr_auto_1fr] items-stretch justify-center px-3 py-2 bg-[#1C1C1C] gap-4 ${
-                kiosk ? 'flex-1 min-h-0' : 'h-[280px]'
+                kiosk ? 'shrink-0' : 'h-[280px]'
               }`}
-              style={kiosk ? { minHeight: KIOSK_MIN_DECK_ROW_H } : undefined}
+              style={kiosk ? { height: KIOSK_DECK_ROW_H } : undefined}
             >
               {/* Deck A Control Section (Green) */}
               <div

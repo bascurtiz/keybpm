@@ -376,15 +376,23 @@ Below 1024 px the console replaces the page and is fitted to the viewport by
 it, because reflowing a two-deck controller for a 360 px phone shrinks every control below
 a tappable size. The layout is then arranged so that scale is as large as the screen allows.
 On a landscape phone the fit is **width-bound**, so the console is given the height that makes
-1120 design px fill the box, and the deck row (the only flexible row) takes what the metadata
-strip, the waveform band and the transport bar do not. A few things differ between the
+1120 design px fill the box — it fills the screen edge to edge. That height is clamped
+(`KIOSK_MIN_CONSOLE_H`..`KIOSK_MAX_CONSOLE_H`), and it is spent by one row: everything but the
+waveform band is a fixed height, so the band takes the remainder. Making the *band* the flexible
+row is what bought the waveforms their share — the deck row used to be the flexible one, and on
+a 19.5:9 phone it took 312 design px for a 196 px jog wheel. A few things differ between the
 desktop and phone arrangements:
 
-- The **waveform band is thinner**. It keeps the full width and every control — rewind to
-  start, set downbeat, ±10 ms nudge and the GRID dropdowns — but at `KIOSK_LANE_BAND_H`
-  (two 48 px lanes) instead of the desktop's 290 px, which on a phone would be more than half
-  the screen. The mixer therefore still shows its filters and FX block, the decks keep their
-  EQ, and sync stays where it is.
+- The **waveform band absorbs the leftover height**, between a floor of
+  `KIOSK_LANE_BAND_FLOOR_H` (two 53 px lanes, more than the two 48 px lanes it used to be) and
+  a ceiling of `KIOSK_LANE_BAND_MAX_H` (two 150 px lanes). It keeps the full width and every
+  control — rewind to start, set downbeat, ±10 ms nudge and the GRID dropdowns. A landscape
+  phone lands well inside those bounds: at 844×390 the band is 176 design px, two lanes of 88,
+  and at 667×375 it is 300, two lanes of 150. The ceiling is set on the band so that a tall
+  box cannot turn the console into a waveform display. The deck row below it is a fixed
+  `KIOSK_DECK_ROW_H` — a fifth less than the height the filling chassis used to hand it, and
+  still comfortably more than the 196 px jog wheel — so the mixer still shows its filters and
+  FX block, the decks keep their EQ, and sync stays where it is.
 - The console's only chrome is a **side rail**: a menu button and a fullscreen toggle,
   40 design px square — the deck load button's artwork size — level with it, and sitting in
   the band kept clear on each side, *outside* the chassis. Outside is the point: on a phone
@@ -420,8 +428,9 @@ desktop and phone arrangements:
   Android's system popup is left alone. See `useFullscreenKeeper` in `src/lib/fullscreen.ts`.
 
 A phone held upright still opens on the rotate prompt; a portrait tablet fits the same console
-into the screen it has, capped at `KIOSK_MAX_CONSOLE_H` so a tall box cannot stretch the deck
-row into empty space.
+into the screen it has. It cannot grow past `KIOSK_MAX_CONSOLE_H` there — the fit is
+width-bound anyway, and the band at its ceiling is as tall as the waveforms are allowed to get
+— so the leftover height is left as margin rather than spent on a two-deck waveform display.
 
 ## Stack
 

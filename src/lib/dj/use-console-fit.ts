@@ -10,6 +10,13 @@ interface ConsoleFitResult {
   setChassisRef: (el: HTMLDivElement | null) => void
   /** Last measured size of the box, in CSS px. Zero until the first measurement. */
   box: { w: number; h: number }
+  /**
+   * Last measured size of the chassis, in *design* px (transforms do not affect
+   * `offsetWidth`/`offsetHeight`, so this is the unchanging layout size, not what is on
+   * screen). Callers that place chrome against the chassis need the height too when the
+   * chassis sizes itself from its rows rather than from a number they computed.
+   */
+  chassis: { w: number; h: number }
   /** Scale for the chassis; 1 while measuring, and never above 1. */
   scale: number
 }
@@ -66,5 +73,5 @@ export function useConsoleFit(designWidth = CONSOLE_WIDTH): ConsoleFitResult {
       ? Math.min(1, box.w / chassis.w, box.h / chassis.h)
       : 1
 
-  return { setBoxRef: setBoxEl, setChassisRef: setChassisEl, box, scale }
+  return { setBoxRef: setBoxEl, setChassisRef: setChassisEl, box, chassis, scale }
 }

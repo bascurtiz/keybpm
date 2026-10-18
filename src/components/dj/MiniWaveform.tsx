@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { canvasPixelRatio } from '@/lib/canvas-dpr'
 import { consoleProfile } from '@/lib/dj/device-profile'
+import { cueFlag } from '@/lib/dj/cue-flag'
 
 interface MiniWaveformProps {
   deck: DeckEngine
@@ -122,18 +123,22 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
       ctx.fillStyle = waveColor
       columnPath(0, playedColumns)
 
-      // Cue flags — the CUE point's 'C' and the numbered hot cues, drawn as the same 2 px white
+      // Cue flags — the CUE point's 'C' and the numbered hot cues, drawn as the same white
       // stripe the full-width lanes use. This strip spans the whole track rather than a scroll
       // window, so a cue stays on screen as a fixed landmark while mixing instead of only while
       // the lane happens to be showing that part of the track.
+      //
+      // Sized from the strip: `h` is the *displayed* height, ~15 px on a phone against 22 at
+      // the design size, so the label has to come down with it — see `cueFlag`.
       if (deck.duration > 0) {
+        const flag = cueFlag(h)
         const stripe = (seconds: number, label: string) => {
           const x = (seconds / deck.duration) * w
           ctx.fillStyle = '#ffffff'
-          ctx.fillRect(x - 1, 0, 2, h)
+          ctx.fillRect(x - flag.stripe / 2, 0, flag.stripe, h)
           ctx.fillStyle = '#ffffff'
-          ctx.font = 'bold 9px Inter, ui-sans-serif, sans-serif'
-          ctx.fillText(label, x + 2, 8)
+          ctx.font = `bold ${flag.font}px Inter, ui-sans-serif, sans-serif`
+          ctx.fillText(label, x + 2, flag.baseline)
         }
 
         deck.hotCues.forEach((cue, i) => {
