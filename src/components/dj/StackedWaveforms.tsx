@@ -13,6 +13,7 @@ import { laneSecPerPx, laneTimebase, laneX } from '@/lib/dj/waveform-timebase'
 import type { Track } from '@/lib/dj/types'
 import { canvasPixelRatio } from '@/lib/canvas-dpr'
 import { consoleProfile } from '@/lib/dj/device-profile'
+import { laneBadge } from '@/lib/dj/lane-badge'
 
 interface StackedWaveformsProps {
   deckA: DeckEngine
@@ -911,30 +912,33 @@ function renderDeckLane({
     ctx.lineTo(w, midY)
     ctx.stroke()
 
-    // Squared DJ Deck Letter Badge in center (grayscaled, matching artwork box style)
+    // Squared DJ Deck Letter Badge in center (grayscaled, matching artwork box style).
+    // Sized from the lane, not fixed: the console is scaled down to fit a phone, so a
+    // constant badge is the only thing in the lane that does not shrink with it, and
+    // at two lanes in ~64 px it used to be taller than the lane. See `laneBadge`.
+    const badge = laneBadge(laneH)
     const centerX = w / 2
-    const boxSize = 36
-    const halfBox = boxSize / 2
+    const halfBox = badge.box / 2
 
     ctx.save()
     ctx.fillStyle = '#161616'
     ctx.strokeStyle = '#282828'
-    ctx.lineWidth = 1.5
+    ctx.lineWidth = badge.stroke
 
     if (typeof ctx.roundRect === 'function') {
       ctx.beginPath()
-      ctx.roundRect(centerX - halfBox, midY - halfBox, boxSize, boxSize, 3)
+      ctx.roundRect(centerX - halfBox, midY - halfBox, badge.box, badge.box, badge.radius)
       ctx.fill()
       ctx.stroke()
     } else {
       ctx.beginPath()
-      ctx.rect(centerX - halfBox, midY - halfBox, boxSize, boxSize)
+      ctx.rect(centerX - halfBox, midY - halfBox, badge.box, badge.box)
       ctx.fill()
       ctx.stroke()
     }
 
     // Grayscaled Deck Letter text
-    ctx.font = 'bold 15px Inter, ui-sans-serif, system-ui, sans-serif'
+    ctx.font = `bold ${badge.font}px Inter, ui-sans-serif, system-ui, sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#888888'
