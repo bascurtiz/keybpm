@@ -119,8 +119,11 @@ export function TraktorMiddleStrip({
     (deckA.track?.bpm ?? deckB.track?.bpm ?? 128)
 
   return (
-    <div className="w-full bg-[#1C1C1C] px-3 py-2 border-b border-[#282828] text-white select-none">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 w-full">
+    // The strip is the console's darkest band, and each deck sits on it as its own
+    // raised panel: the eye then reads two sources either side of one clock in the
+    // middle, which is the console's actual signal path. See `DeckHeader`.
+    <div className="w-full bg-[#161616] px-1 py-1 border-b border-[#282828] text-white select-none">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-stretch w-full">
         {/* ================= LEFT: DECK A INFO & OVERVIEW ================= */}
         <DeckHeader
           deck={deckA}
@@ -135,107 +138,114 @@ export function TraktorMiddleStrip({
           showFx={showFx}
         />
 
-        {/* ================= CENTER: MASTER BPM, BEAT COUNTER & KEY NOTATION ================= */}
-        <div className="flex items-center gap-2.5 px-2.5 py-1 bg-[#161616] rounded-md border border-[#282828] shrink-0">
-          {/* Master BPM & Gain (Left symmetrical wing) */}
-          <div className="w-[96px] shrink-0 flex items-center justify-center gap-2 pr-2 border-r border-[#282828]">
+        {/* ================= CENTER: MASTER TEMPO & KEY NOTATION OVER THE BAR COUNTER =================
+            Two rows, not one: the master clock and the global notation are settings you
+            glance at, while snap / bar / quantise are controls you hit. Stacking them
+            keeps the module roughly square instead of a wide strip that squeezed both
+            deck headers into a third of the console each. */}
+        <div className="flex shrink-0 flex-col items-center justify-center gap-1.5 px-4 py-1">
+          <div className="flex items-center gap-4">
             <div className="flex flex-col items-center">
-              <span className="text-[7.5px] font-semibold text-[#888888] uppercase tracking-wider mb-0.5">
+              <span className="text-[8px] font-semibold text-[#888888] uppercase tracking-wider">
                 MASTER BPM
               </span>
-              {isEditingMasterBpm ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  autoFocus
-                  defaultValue={masterBpm.toFixed(2)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      const val = parseFloat((e.target as HTMLInputElement).value)
+              <div className="mt-0.5 flex items-center gap-1.5">
+                {isEditingMasterBpm ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    autoFocus
+                    defaultValue={masterBpm.toFixed(2)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const val = parseFloat((e.target as HTMLInputElement).value)
+                        if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
+                        setIsEditingMasterBpm(false)
+                      } else if (e.key === 'Escape') {
+                        setIsEditingMasterBpm(false)
+                      }
+                    }}
+                    onBlur={e => {
+                      const val = parseFloat(e.target.value)
                       if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
                       setIsEditingMasterBpm(false)
-                    } else if (e.key === 'Escape') {
-                      setIsEditingMasterBpm(false)
-                    }
-                  }}
-                  onBlur={e => {
-                    const val = parseFloat(e.target.value)
-                    if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
-                    setIsEditingMasterBpm(false)
-                  }}
-                  className="w-14 bg-black border border-white text-white font-mono text-xs font-bold text-center rounded px-0.5 outline-none"
-                />
-              ) : (
-                <span
-                  onClick={() => setIsEditingMasterBpm(true)}
-                  className="text-xs font-mono font-bold text-[#d4d4d4] hover:text-white hover:underline cursor-pointer tabular-nums"
-                  title="Click to overrule Master BPM"
-                >
-                  {masterBpm.toFixed(2)}
+                    }}
+                    className="w-16 bg-black border border-white text-white font-mono text-[13px] font-bold text-center rounded px-0.5 outline-none"
+                  />
+                ) : (
+                  <span
+                    onClick={() => setIsEditingMasterBpm(true)}
+                    className="text-[14px] font-mono font-bold leading-none text-[#dcdcdc] hover:text-white hover:underline cursor-pointer tabular-nums"
+                    title="Click to overrule Master BPM"
+                  >
+                    {masterBpm.toFixed(2)}
+                  </span>
+                )}
+                <span title="Master Volume / Gain" className="flex items-center">
+                  <Knob
+                    size={18}
+                    min={0}
+                    max={1}
+                    defaultValue={0.9}
+                    value={engine.masterVolume}
+                    onValueChange={v => engine.setMasterVolume(v)}
+                    accentColor="#34d399"
+                  />
                 </span>
-              )}
+              </div>
             </div>
-            <div className="flex items-center pt-2" title="Master Volume / Gain">
-              <Knob
-                size={18}
-                min={0}
-                max={1}
-                defaultValue={0.9}
-                value={engine.masterVolume}
-                onValueChange={v => engine.setMasterVolume(v)}
-                accentColor="#34d399"
-              />
+
+            <div className="h-7 w-px bg-[#252525]" />
+
+            <div className="flex flex-col items-center">
+              <span className="text-[8px] font-semibold text-[#888888] uppercase tracking-wider">
+                KEY NOTATION
+              </span>
+              <select
+                value={keyMode}
+                onChange={e => handleKeyModeChange(e.target.value as WheelMode)}
+                className="mt-0.5 h-5 w-[82px] px-1.5 bg-[#141414] hover:bg-[#1a1a1a] border border-[#282828] hover:border-[#444444] rounded text-[10px] font-bold text-[#d4d4d4] focus:text-white focus:border-zinc-500 outline-none cursor-pointer transition-colors text-center"
+                title="Key notation preference"
+              >
+                <option value="camelot" className="bg-[#141414] text-white">Camelot</option>
+                <option value="musical" className="bg-[#141414] text-white">Musical</option>
+                <option value="openkey" className="bg-[#141414] text-white">Open Key</option>
+              </select>
             </div>
           </div>
 
-          {/* S Button: Snap Mode */}
-          <button
-            type="button"
-            onClick={() => engine.toggleSnapMode()}
-            className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
-              engine.snapMode
-                ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
-                : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
-            }`}
-            title={`SNAP MODE (${engine.snapMode ? 'ON' : 'OFF'})\nSnaps to closest beat when setting cue points and loops.`}
-          >
-            S
-          </button>
-
-          {/* Beat Counter (4-Beat Metronome Bar Steps for Deck A & Deck B - EXACT CENTER) */}
-          <div className="w-36 shrink-0 flex items-center justify-center px-1">
-            <BeatCounter deckA={deckA} deckB={deckB} className="w-full" />
-          </div>
-
-          {/* Q Button: Quantize Mode */}
-          <button
-            type="button"
-            onClick={() => engine.toggleQuantMode()}
-            className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
-              engine.quantMode
-                ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
-                : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
-            }`}
-            title={`QUANT MODE (${engine.quantMode ? 'ON' : 'OFF'})\nEnables beat-accurate (quantized) skipping between cue points.`}
-          >
-            Q
-          </button>
-
-          {/* Key Notation Dropdown Selector (Right symmetrical wing) */}
-          <div className="w-[96px] shrink-0 flex flex-col items-center justify-center pl-2 border-l border-[#282828]">
-            <span className="text-[7.5px] font-semibold text-[#888888] uppercase tracking-wider mb-0.5">
-              KEY NOTATION
-            </span>
-            <select
-              value={keyMode}
-              onChange={e => handleKeyModeChange(e.target.value as WheelMode)}
-              className="h-5 w-full px-1 bg-[#141414] hover:bg-[#1a1a1a] border border-[#282828] hover:border-[#444444] rounded text-[10px] font-bold text-[#d4d4d4] focus:text-white focus:border-zinc-500 outline-none cursor-pointer transition-colors text-center"
-              title="Key notation preference"
+          {/* Bar counter centred between the two modes it qualifies, so the buttons read
+              as flanks of the beat that both decks are counted against. */}
+          <div className="flex items-center justify-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => engine.toggleSnapMode()}
+              className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
+                engine.snapMode
+                  ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
+                  : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
+              }`}
+              title={`SNAP MODE (${engine.snapMode ? 'ON' : 'OFF'})\nSnaps to closest beat when setting cue points and loops.`}
             >
-              <option value="camelot" className="bg-[#141414] text-white">Camelot</option>
-              <option value="musical" className="bg-[#141414] text-white">Musical</option>
-              <option value="openkey" className="bg-[#141414] text-white">Open Key</option>
-            </select>
+              S
+            </button>
+
+            <div className="w-[131px] shrink-0">
+              <BeatCounter deckA={deckA} deckB={deckB} className="w-full" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => engine.toggleQuantMode()}
+              className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
+                engine.quantMode
+                  ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
+                  : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
+              }`}
+              title={`QUANT MODE (${engine.quantMode ? 'ON' : 'OFF'})\nEnables beat-accurate (quantized) skipping between cue points.`}
+            >
+              Q
+            </button>
           </div>
 
           {/* Capture + offline render to WAV - hidden for now */}
@@ -302,9 +312,13 @@ function DeckHeader({
   const isLoaded = Boolean(deck.track || hasYt)
 
   return (
+    // One panel per deck. The artwork square always sits on the *outer* edge — the two
+    // decks face the centre, where the shared clock is — while everything that is text
+    // stays left-to-right on both sides: a mirrored title line reads backwards down the
+    // console, and the deck you are not looking at is the one you need at a glance.
     <div
-      className={`flex items-center gap-2.5 min-w-0 ${
-        side === 'right' ? 'flex-row-reverse text-right' : 'text-left'
+      className={`flex min-w-0 items-center gap-2.5 rounded-[3px] bg-[#1C1C1C] px-2 py-1.5 ${
+        side === 'right' ? 'flex-row-reverse' : ''
       }`}
     >
       {/* Artwork Square */}
@@ -333,12 +347,12 @@ function DeckHeader({
       </div>
 
       {/* Track Info (Title, Artist, BPM, Camelot/Musical/Open Key) */}
-      <div className="flex-1 min-w-0">
-        <div className={`flex items-center justify-between gap-1.5 h-[18px] ${side === 'right' ? 'flex-row-reverse' : ''}`}>
-          <div className={`flex items-center gap-1.5 min-w-0 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
+      <div className="min-w-0 flex-1">
+        <div className="flex h-[18px] items-center justify-between gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             <h2
               onClick={onLoadClick}
-              className="text-[12px] font-bold text-white truncate cursor-pointer hover:text-zinc-300 leading-none"
+              className="text-[13px] font-bold text-white truncate cursor-pointer hover:text-zinc-300 leading-none"
               title={isLoaded ? `${displayTitle} - ${displayArtist}` : 'Click to load track'}
             >
               {displayTitle}
@@ -371,7 +385,7 @@ function DeckHeader({
           </span>
         </div>
 
-        <div className={`flex items-center justify-between gap-1 text-[10px] text-zinc-400 mt-0.5 h-4 ${side === 'right' ? 'flex-row-reverse' : ''}`}>
+        <div className="mt-1 flex h-4 items-center justify-between gap-1 text-[10px] text-zinc-400">
           <p className="truncate text-zinc-400">
             {displayArtist}
           </p>
@@ -379,103 +393,102 @@ function DeckHeader({
           {/* BPM & Color-coded Key Display. The BPM and the key chip are separated by this row's
               own gap: a "/" used to sit between them, and the extra space is what it stood for.
               A literal space would not work — whitespace-only text between flex items is collapsed
-              away, so the gap is the only thing that shows. */}
-          <div className="shrink-0 font-sans font-medium text-zinc-300 flex items-center gap-1.5">
-            {isEditingBpm ? (
-              <input
-                type="number"
-                step="0.01"
-                autoFocus
-                // Edit base BPM (grid), not effective BPM — avoids double-applying pitch rate.
-                defaultValue={deck.track?.bpm ? deck.track.bpm.toFixed(2) : ''}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    const val = parseFloat((e.target as HTMLInputElement).value)
+              away, so the gap is the only thing that shows.
+
+              Nothing to read means nothing is drawn: an empty deck says "drop audio file or
+              click artwork" in one line rather than a prompt followed by two dashes. */}
+          {isLoaded && (
+            <div className="flex shrink-0 items-center gap-1.5 font-sans font-medium text-zinc-300">
+              {isEditingBpm ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  autoFocus
+                  // Edit base BPM (grid), not effective BPM — avoids double-applying pitch rate.
+                  defaultValue={deck.track?.bpm ? deck.track.bpm.toFixed(2) : ''}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = parseFloat((e.target as HTMLInputElement).value)
+                      if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
+                      setIsEditingBpm(false)
+                    } else if (e.key === 'Escape') {
+                      setIsEditingBpm(false)
+                    }
+                  }}
+                  onBlur={e => {
+                    const val = parseFloat(e.target.value)
                     if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
                     setIsEditingBpm(false)
-                  } else if (e.key === 'Escape') {
-                    setIsEditingBpm(false)
+                  }}
+                  className="w-14 bg-black border border-white text-white font-mono text-[10px] font-bold text-center rounded px-0.5 outline-none"
+                />
+              ) : (
+                <span
+                  onClick={() => {
+                    if (deck.track) setIsEditingBpm(true)
+                  }}
+                  className={`font-semibold text-white ${
+                    deck.track ? 'hover:underline hover:text-accent cursor-pointer' : ''
+                  }`}
+                  title={
+                    deck.track
+                      ? `Click to overrule base BPM (grid). Showing effective ${displayBpm?.toFixed(2) ?? '---'} BPM`
+                      : undefined
                   }
-                }}
-                onBlur={e => {
-                  const val = parseFloat(e.target.value)
-                  if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
-                  setIsEditingBpm(false)
-                }}
-                className="w-14 bg-black border border-white text-white font-mono text-[10px] font-bold text-center rounded px-0.5 outline-none"
-              />
-            ) : (
-              <span
-                onClick={() => {
-                  if (deck.track) setIsEditingBpm(true)
-                }}
-                className={`font-semibold text-white ${
-                  deck.track ? 'hover:underline hover:text-accent cursor-pointer' : ''
-                }`}
-                title={
-                  deck.track
-                    ? `Click to overrule base BPM (grid). Showing effective ${displayBpm?.toFixed(2) ?? '---'} BPM`
-                    : undefined
-                }
-              >
-                {displayBpm ? displayBpm.toFixed(2) : '---'}
-              </span>
-            )}
-            {isLoaded ? (
-              <>
-                {isEditingKey && deck.track ? (
-                  <select
-                    autoFocus
-                    value={effectiveCamelot || '8A'}
-                    onChange={e => {
-                      deck.setTrackKey(e.target.value)
-                      if (deck.keyShift !== 0) deck.resetKeyShift()
-                      setIsEditingKey(false)
-                    }}
-                    onBlur={() => setIsEditingKey(false)}
-                    className="bg-black border border-white text-white text-[10px] font-bold font-mono rounded px-0.5 outline-none cursor-pointer"
+                >
+                  {displayBpm ? displayBpm.toFixed(2) : '---'}
+                </span>
+              )}
+              {isEditingKey && deck.track ? (
+                <select
+                  autoFocus
+                  value={effectiveCamelot || '8A'}
+                  onChange={e => {
+                    deck.setTrackKey(e.target.value)
+                    if (deck.keyShift !== 0) deck.resetKeyShift()
+                    setIsEditingKey(false)
+                  }}
+                  onBlur={() => setIsEditingKey(false)}
+                  className="bg-black border border-white text-white text-[10px] font-bold font-mono rounded px-0.5 outline-none cursor-pointer"
+                >
+                  {CAMELOT_KEYS.map(k => (
+                    <option key={k} value={k}>
+                      {keyMode === 'camelot' ? k : `${formatKeyDisplay(k, keyMode)} (${k})`}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  {/* The key is the one field a DJ reads across the console, so it wears the same
+                      Camelot chip as the tables and the key wheel at the dense size — the wheel's
+                      own hue with dark ink, rather than tinted text. The label still follows the
+                      global notation (Camelot / musical / Open Key). */}
+                  <span
+                    onClick={() => setIsEditingKey(true)}
+                    className={`${CAMELOT_BLOCK_SM} cursor-pointer hover:brightness-110 ${
+                      // A ring rather than a border: a 1px border would add 2px to the box and
+                      // make the keyless chip 18px against the keyed chip's 16px.
+                      effectiveCamelot ? '' : 'ring-1 ring-inset ring-[#333333] bg-[#1a1a1a] text-[#666666]'
+                    }`}
+                    style={effectiveCamelot ? camelotBlockStyle(effectiveCamelot) : undefined}
+                    title={
+                      effectiveCamelot
+                        ? `Click to overrule Key (${effectiveCamelot} • ${CAMELOT_TO_KEY[effectiveCamelot] ?? ''})`
+                        : 'Click to overrule Key'
+                    }
                   >
-                    {CAMELOT_KEYS.map(k => (
-                      <option key={k} value={k}>
-                        {keyMode === 'camelot'
-                          ? k
-                          : `${formatKeyDisplay(k, keyMode)} (${k})`}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <>
-                    {/* The key is the one field a DJ reads across the console, so it wears the same
-                        Camelot chip as the tables and the key wheel at the dense size — the wheel's
-                        own hue with dark ink, rather than tinted text. The label still follows the
-                        global notation (Camelot / musical / Open Key). */}
-                    <span
-                      onClick={() => setIsEditingKey(true)}
-                      className={`${CAMELOT_BLOCK_SM} cursor-pointer hover:brightness-110 ${
-                        // A ring rather than a border: a 1px border would add 2px to the box and
-                        // make the keyless chip 18px against the keyed chip's 16px.
-                        effectiveCamelot ? '' : 'ring-1 ring-inset ring-[#333333] bg-[#1a1a1a] text-[#666666]'
-                      }`}
-                      style={effectiveCamelot ? camelotBlockStyle(effectiveCamelot) : undefined}
-                      title={
-                        effectiveCamelot
-                          ? `Click to overrule Key (${effectiveCamelot} • ${CAMELOT_TO_KEY[effectiveCamelot] ?? ''})`
-                          : 'Click to overrule Key'
-                      }
-                    >
-                      {effectiveCamelot ? formatKeyDisplay(effectiveCamelot, keyMode) : '---'}
+                    {effectiveCamelot ? formatKeyDisplay(effectiveCamelot, keyMode) : '---'}
+                  </span>
+                  {/* The shift sits outside the chip: amber on the chip's dark-on-pale ink vanishes. */}
+                  {deck.keyShift !== 0 && (
+                    <span className="text-amber-400 font-semibold text-[9px]">
+                      {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
                     </span>
-                    {/* The shift sits outside the chip: amber on the chip's dark-on-pale ink vanishes. */}
-                    {deck.keyShift !== 0 && (
-                      <span className="text-amber-400 font-semibold text-[9px]">
-                        {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
-                      </span>
-                    )}
-                  </>
-                )}
-              </>
-            ) : null}
-          </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Mini Waveform Overview Strip */}

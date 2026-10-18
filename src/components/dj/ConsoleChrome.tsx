@@ -24,7 +24,7 @@ export const RAIL = {
   /** Gap between a button and the nearest edge of the chassis. */
   gap: 12,
   /** Distance from the top of the chassis to the top of a button: the artwork's own row. */
-  top: 20,
+  top: 24,
 } as const
 
 interface ConsoleChromeProps {

@@ -25,13 +25,13 @@ import { youtubeBridge } from '@/lib/dj/youtube-bridge'
  * band, a deck row tall enough for the jog wheel, and the transport bar — the four
  * rows of the console, none of them clipped. See `kioskDesignH`.
  *
- * The strip and the transport are content-sized (roughly 81 px and 65 px at the
+ * The strip and the transport are content-sized (roughly 91 px and 65 px at the
  * sizes they render), which is where the rest of this number comes from. It binds only
  * on a screen wider than 19.5:9 (or a short one), where filling the width asks for
  * less height than the rows need: a 19.5:9 phone fits at ~520 design px, so the floor
  * is headroom there rather than the active constraint.
  */
-const KIOSK_MIN_CONSOLE_H = 485
+const KIOSK_MIN_CONSOLE_H = 495
 
 /**
  * Ceiling for the same height (design px), about a 2:1 chassis.
