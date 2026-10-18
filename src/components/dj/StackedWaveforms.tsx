@@ -45,11 +45,30 @@ const MARKER_PHRASE = '#9ca3af'
 /**
  * The white of the beat grid's downbeat stripes, as drawn by the waveform canvas.
  *
- * Held here rather than written twice: the Set-Downbeat button tints its marker with this same
- * value, so the icon and the line it sets are the same colour by construction instead of two
- * whites that merely look alike.
+ * The canvas paints both decks from this one value, so the stripes a Set-Downbeat press
+ * produces are the same white in both lanes.
  */
 const DOWNBEAT_STRIPE = '#f4f4f5'
+
+/**
+ * The lane's three grid tools — Set Downbeat, the ±10 ms nudge and the GRID dropdown — share
+ * one body: the same 20 px height, a solid #1c1c1c fill, a #282828 hairline and the grey the
+ * GRID label already used. They sit in a row beside the waveform and are read as one cluster,
+ * so they are held together here instead of drifting apart one className at a time (the nudge
+ * was a translucent #141414 pill, which made the trio look like three unrelated widgets).
+ */
+const GRID_TOOL_BOX = 'rounded border border-[#282828] bg-[#1c1c1c] shadow-sm'
+const GRID_TOOL_TEXT = 'text-[#888888] hover:text-[#d4d4d4]'
+
+/**
+ * One direction of the inline ±10 ms nudge.
+ *
+ * Two of these sit side by side on the lane instead of one pill with a shared "10ms" between
+ * its arrows: each direction is a target of its own, labelled with the step it makes, which is
+ * the pair the GRID dropdown already shows. It also lets the step be set in the same 10 px type
+ * as everything else here — in the old pill the label had to shrink to 8 px to fit.
+ */
+const NUDGE_BTN = `h-5 px-1.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] font-mono text-[10px] leading-none font-bold whitespace-nowrap transition-colors flex items-center justify-center disabled:opacity-20 disabled:pointer-events-none`
 
 /**
  * Invisible tap padding for the lane's controls on the fitted (phone) console.
@@ -536,71 +555,66 @@ export function StackedWaveforms({
             deckA.setBeat1AtPosition()
           }}
           disabled={!deckA.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
+          aria-label="Set downbeat (beat 1) at the playhead"
         >
-          {/* The marker wears the exact white the canvas paints its downbeat stripes, and the numeral
-              simply takes the button's own colour — the same grey-then-white the GRID label uses, so
-              the icon is what says "this is the downbeat" and the 1 is only the beat number. */}
-          <svg
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            className="w-3 h-3"
-            style={{ color: DOWNBEAT_STRIPE }}
-            aria-hidden="true"
-          >
-            <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <span className="font-mono font-bold text-[10px] leading-none">1</span>
+          {/* A bar and its numeral — the downbeat the grid draws, cut down to an icon.
+              Drawn as a bar plus typed 1 rather than the characters "|1": a font's pipe has
+              its own width and side bearing in every fallback, and this glyph has to sit
+              centred in a 20 px button on every machine. Both parts take `currentColor`,
+              so the pair reads as one mark instead of a white icon beside a grey digit. */}
+          <span aria-hidden="true" className="block h-[11px] w-[2px] shrink-0 rounded-full bg-current" />
+          <span aria-hidden="true" className="font-mono font-bold text-[13px] leading-none">1</span>
         </button>
 
         {/* Inline grid nudge. Aligning a grid to a kick is a repeated tap-and-listen, and
             routing every one of those taps through the Grid dropdown was the complaint —
             so the ±10 ms step lives here, beside the downbeat button that anchors it.
-            Shift-click still gives the 2 ms fine step the dropdown offers. */}
-        {/* No clipping: the arrows' invisible tap padding reaches outside this box
-            (see `TAP_PAD`), and the outer rounding below keeps their hover fill inside
-            the pill's corners. */}
-        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm shadow-sm">
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={e => {
-              e.stopPropagation()
-              deckA.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
-            }}
-            disabled={!deckA.track}
-            className={`${TAP_PAD} max-lg:after:left-0 max-lg:after:-right-[11px] h-full px-1 rounded-l-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
-            title="Shift Deck A beatgrid 10 ms earlier (Shift-click for 2 ms)"
-          >
-            ◀
-          </button>
-          <span className="text-[8px] leading-none font-mono text-[#666666] select-none pointer-events-none">10ms</span>
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={e => {
-              e.stopPropagation()
-              deckA.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
-            }}
-            disabled={!deckA.track}
-            className={`${TAP_PAD} max-lg:after:right-0 max-lg:after:-left-[11px] h-full px-1 rounded-r-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
-            title="Shift Deck A beatgrid 10 ms later (Shift-click for 2 ms)"
-          >
-            ▶
-          </button>
-        </div>
+            Shift-click still gives the 2 ms fine step the dropdown offers.
+
+            One button per direction, each carrying its own arrow and its own "10ms", the
+            pair the GRID dropdown shows. The step used to be a label shared by two hairline
+            arrows inside a single pill, which read as one control with a caption and left
+            both halves too small to hit cleanly; two full buttons make each direction a
+            target you can aim at. */}
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation()
+            deckA.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
+          }}
+          disabled={!deckA.track}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ${NUDGE_BTN}`}
+          title="Shift Deck A beatgrid 10 ms earlier (Shift-click for 2 ms)"
+          aria-label="Shift Deck A beatgrid 10 ms earlier"
+        >
+          ◀ 10ms
+        </button>
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation()
+            deckA.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
+          }}
+          disabled={!deckA.track}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ${NUDGE_BTN}`}
+          title="Shift Deck A beatgrid 10 ms later (Shift-click for 2 ms)"
+          aria-label="Shift Deck A beatgrid 10 ms later"
+        >
+          10ms ▶
+        </button>
 
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'A' ? null : 'A'))}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'A'
               ? 'bg-[#222222] border-emerald-500/70 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
-              : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
+              : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
           title="Adjust Deck A Beatgrid"
         >
@@ -619,66 +633,53 @@ export function StackedWaveforms({
             deckB.setBeat1AtPosition()
           }}
           disabled={!deckB.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-1.5 rounded bg-[#141414]/90 hover:bg-[#222222] border border-[#282828] hover:border-[#444444] text-[#888888] hover:text-white transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 h-5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
+          aria-label="Set downbeat (beat 1) at the playhead"
         >
-          {/* Marker and numeral styled as on Deck A — see the note there. */}
-          <svg
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            className="w-3 h-3"
-            style={{ color: DOWNBEAT_STRIPE }}
-            aria-hidden="true"
-          >
-            <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <span className="font-mono font-bold text-[10px] leading-none">1</span>
+          {/* Bar and numeral as on Deck A — see the note there. */}
+          <span aria-hidden="true" className="block h-[11px] w-[2px] shrink-0 rounded-full bg-current" />
+          <span aria-hidden="true" className="font-mono font-bold text-[13px] leading-none">1</span>
         </button>
 
         {/* Inline grid nudge — see the Deck A copy above. */}
-        {/* No clipping: the arrows' invisible tap padding reaches outside this box
-            (see `TAP_PAD`), and the outer rounding below keeps their hover fill inside
-            the pill's corners. */}
-        <div className="flex items-center h-5 rounded border border-[#282828] bg-[#141414]/90 backdrop-blur-sm shadow-sm">
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={e => {
-              e.stopPropagation()
-              deckB.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
-            }}
-            disabled={!deckB.track}
-            className={`${TAP_PAD} max-lg:after:left-0 max-lg:after:-right-[11px] h-full px-1 rounded-l-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
-            title="Shift Deck B beatgrid 10 ms earlier (Shift-click for 2 ms)"
-          >
-            ◀
-          </button>
-          <span className="text-[8px] leading-none font-mono text-[#666666] select-none pointer-events-none">10ms</span>
-          <button
-            type="button"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={e => {
-              e.stopPropagation()
-              deckB.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
-            }}
-            disabled={!deckB.track}
-            className={`${TAP_PAD} max-lg:after:right-0 max-lg:after:-left-[11px] h-full px-1 rounded-r-[3px] text-[10px] leading-none font-bold text-[#888888] hover:text-white hover:bg-[#222222] transition-colors disabled:opacity-20 disabled:pointer-events-none`}
-            title="Shift Deck B beatgrid 10 ms later (Shift-click for 2 ms)"
-          >
-            ▶
-          </button>
-        </div>
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation()
+            deckB.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)
+          }}
+          disabled={!deckB.track}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ${NUDGE_BTN}`}
+          title="Shift Deck B beatgrid 10 ms earlier (Shift-click for 2 ms)"
+          aria-label="Shift Deck B beatgrid 10 ms earlier"
+        >
+          ◀ 10ms
+        </button>
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation()
+            deckB.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)
+          }}
+          disabled={!deckB.track}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ${NUDGE_BTN}`}
+          title="Shift Deck B beatgrid 10 ms later (Shift-click for 2 ms)"
+          aria-label="Shift Deck B beatgrid 10 ms later"
+        >
+          10ms ▶
+        </button>
 
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={() => setActiveGridDeckId(prev => (prev === 'B' ? null : 'B'))}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm backdrop-blur-sm flex items-center gap-1 ${
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-5 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'B'
               ? 'bg-[#222222] border-purple-500/70 text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
-              : 'bg-[#141414]/80 border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
+              : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
           title="Adjust Deck B Beatgrid"
         >
@@ -728,10 +729,11 @@ export function StackedWaveforms({
             className="h-5 px-2 rounded bg-[#202020] border border-[#333333] hover:border-[#666666] text-white hover:text-white text-[10px] font-bold uppercase disabled:opacity-30 transition-colors flex items-center gap-1"
             title="Set Downbeat (Beat 1) at the red playhead needle"
           >
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" className="w-2.5 h-2.5 text-emerald-400" aria-hidden="true">
-              <path d="M7 1.5v8m-2.5-2.5L7 9.5l2.5-2.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M2 12.5h10" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            {/* The same bar the lane's downbeat button uses, at the same size — the two
+                buttons set the same thing, so they are marked with the same sign. In the
+                button's own white, which is the colour the canvas paints its downbeat
+                stripes. */}
+            <span aria-hidden="true" className="block h-[11px] w-[2px] shrink-0 rounded-full bg-current" />
             <span>SET DOWNBEAT</span>
           </button>
 
