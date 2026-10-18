@@ -320,8 +320,13 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             </div>
           </div>
 
-        {/* FX Target Assignment Header & Buttons */}
-        <div className="flex flex-col items-center w-full max-w-[104px] mt-0.5">
+        {/* FX module: target assignment, routing bracket and the four performance
+            buttons, as *one* flex child. Split into three, `justify-between` divided the
+            column's free space between the bracket and the buttons as well — which both
+            pulled the stem off the grid it points at (hence the old `-mt-2` patch) and
+            left the SYNC/KEY row sitting almost against the FX buttons. As a group the
+            free space lands above and below the module instead. */}
+        <div className="flex flex-col items-center w-full max-w-[104px]">
           <span className="text-[7px] font-semibold text-[#888888] uppercase tracking-widest mb-1.5">
             FX
           </span>
@@ -364,9 +369,10 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             </button>
           </div>
 
-          {/* Circuit Routing Bracket connecting A/MST/B to FX block */}
+          {/* Circuit Routing Bracket connecting A/MST/B to FX block. It sits flush on
+              the grid below, so the stem ends exactly on the buttons it forks into. */}
           <svg
-            className="w-full h-[12px] mt-2 mb-0.5 pointer-events-none"
+            className="w-full h-[12px] mt-2 pointer-events-none"
             viewBox="0 0 104 12"
             fill="none"
           >
@@ -379,55 +385,60 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             {/* Center cross/stem under MST */}
             <line x1="52" y1="1" x2="52" y2="12" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
           </svg>
-        </div>
 
-        {/* Middle: 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SPIN] */}
-        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] -mt-2 mb-0.5">
-          <button
-            type="button"
-            onClick={toggleEcho}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              isEchoActive
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-            }`}
-            title="Toggle Echo effect"
-          >
-            ECHO
-          </button>
-          <button
-            type="button"
-            onClick={toggleReverb}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              isReverbActive
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-            }`}
-            title="Toggle Reverb effect"
-          >
-            RVRB
-          </button>
-          <button
-            type="button"
-            onClick={triggerBrake}
-            className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
-            title="Vinyl Brake stop effect"
-          >
-            BRK
-          </button>
-          <button
-            type="button"
-            onClick={triggerCutter}
-            className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
-            title="SCR — forward cutter: plays the chop sample at this deck's tempo"
-          >
-            SCR
-          </button>
+          {/* 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SCR] */}
+          <div className="grid grid-cols-2 gap-1.5 w-full">
+            <button
+              type="button"
+              onClick={toggleEcho}
+              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+                isEchoActive
+                  ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Toggle Echo effect"
+            >
+              ECHO
+            </button>
+            <button
+              type="button"
+              onClick={toggleReverb}
+              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+                isReverbActive
+                  ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Toggle Reverb effect"
+            >
+              RVRB
+            </button>
+            <button
+              type="button"
+              onClick={triggerBrake}
+              className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
+              title="Vinyl Brake stop effect"
+            >
+              BRK
+            </button>
+            <button
+              type="button"
+              onClick={triggerCutter}
+              className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
+              title="SCR — forward cutter: plays the chop sample at this deck's tempo"
+            >
+              SCR
+            </button>
+          </div>
         </div>
 
         {/* Bottom: 2x2 SYNC & KEY Buttons. Stays in the phone console: a mix without
-            tempo sync is a different instrument, and four buttons is all it costs. */}
-        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] mb-0.5 shrink-0">
+            tempo sync is a different instrument, and four buttons is all it costs.
+            The margin is deliberate: `justify-between` alone gives this row the same
+            share of the column as the gaps inside the FX module, which reads as a third
+            FX row. Tempo and key sync are a separate operation, so it earns the extra
+            space — measured at 21 px above and 27 px below on a desktop, 17/23 design px
+            on a phone console. */}
+        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] mt-2.5 mb-0.5 shrink-0">
           <button
             type="button"
             onClick={() => deckA.syncTo(deckB)}
