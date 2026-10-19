@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 import { execSync } from 'child_process'
+import { resolveBuildVersion } from './src/lib/build-version'
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8')) as { version: string }
 
@@ -27,20 +28,42 @@ function git(cmd: string): string | null {
 const gitCommits = git('rev-list --count HEAD')
 const gitSha = git('rev-parse --short HEAD')
 const gitBranch = git('rev-parse --abbrev-ref HEAD')
+// A shallow clone still has a HEAD and a count — a count of 1. Hosted builders
+// clone that way (Cloudflare Pages, `actions/checkout` at its default depth), so
+// the count has to be treated as unknown there rather than as the real number.
+const gitShallow = git('rev-parse --is-shallow-repository') === 'true'
 // Only tracked-file changes count as dirty. Untracked noise (dist/, build
 // artifacts) must not flag every single build as modified.
 const gitDirty = (git('status --porcelain --untracked-files=no') ?? '') !== ''
 
 /**
- * Auto-derived version: package.json's semver plus the commit count, so the
- * number still advances on its own with every commit instead of needing a
- * manual bump. Kept to plain dotted digits — `1.0.1.124` — because the SHA,
- * branch and dirty flag are build provenance, not part of the version, and
- * they made the chip unreadable. They live in the tooltip instead.
- *
- * Falls back to the bare package version when git isn't available.
+ * The committed per-commit counter, maintained by `.githooks/pre-commit`. It exists
+ * for the shallow clones above, where git's count is 1 and the deployed chip would
+ * otherwise read `v1.0.1.1` no matter how many commits the project had.
  */
-const version = gitCommits ? `${pkg.version}.${gitCommits}` : pkg.version
+function readBuildNumber(): number | null {
+  try {
+    const raw = readFileSync(resolve(__dirname, 'build-number'), 'utf-8').trim()
+    return /^\d+$/.test(raw) ? Number(raw) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Auto-derived version: package.json's semver plus a counter that advances on
+ * every commit, so the number moves on its own instead of needing a manual bump.
+ * Kept to plain dotted digits — `1.0.1.175` — because the SHA, branch and dirty
+ * flag are build provenance, not part of the version, and they made the chip
+ * unreadable. They live in the tooltip instead. See `src/lib/build-version.ts`
+ * for which counter wins and why.
+ */
+const version = resolveBuildVersion({
+  packageVersion: pkg.version,
+  commitCount: gitCommits === null ? null : Number(gitCommits),
+  shallow: gitShallow,
+  counter: readBuildNumber(),
+})
 
 export default defineConfig({
   base: process.env.BASE_PATH || '/',

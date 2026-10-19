@@ -464,10 +464,36 @@ React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · React Router 6 · ONNX Run
 
 `.github/workflows/ci.yml` runs `npm ci && npm run build` on every push to `main` and on pull requests — a compile/typecheck gate, not a deploy. To build for a sub-path locally (GitHub Pages style): `BASE_PATH=/keybpm/ npm run build`.
 
+### Version numbering
+
+The chip next to **Mix it!** reads `v<package.json version>.<build number>` — for example
+`v1.0.1.175`. The last segment advances by one on every commit; nothing is bumped by hand.
+
+Two files are involved, and both are committed:
+
+- `build-number` holds the ordinal of the commit that carries it.
+- `.githooks/pre-commit` rewrites and stages `build-number` before each commit. `npm install`
+enables it (`core.hooksPath = .githooks` via `npm run prepare`), so a fresh clone is set up by
+the normal install step. If `core.hooksPath` is already configured for something else, the
+installer leaves it alone and prints a note.
+
+Why the file exists at all: hosted builders clone shallowly — Cloudflare Pages fetches a single
+commit, and `actions/checkout` defaults to `fetch-depth: 1` — so `git rev-list --count HEAD`
+returns 1 there and the deployed chip used to read `v1.0.1.1` forever. A full clone still uses
+git's own count (and ignores the file); a shallow clone reads the committed number. The tooltip
+on the chip carries the commit SHA, branch, exact build time and a warning when the bundle was
+built from uncommitted changes.
+
+Commit with `--no-verify` (or edit files straight on GitHub) and the file will not advance; the
+next normal commit picks the count back up from git's history, so it self-corrects. Note that
+`git commit --amend` leaves the counter one ahead for that commit, which only shows in shallow
+builds.
+
 ## Project structure
 
 ```
 ├── .github/workflows/    # CI build check (Cloudflare does the deploy)
+├── .githooks/            # pre-commit: advances build-number for the version chip
 ├── data/                 # portable dataset (tracks.json, tracks.csv)
 ├── docs/                 # data pipeline + API guides
 ├── public/               # static assets, ONNX neural key model & WASM binaries

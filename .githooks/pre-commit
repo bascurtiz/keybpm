@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Keep `build-number` equal to the ordinal of the commit being created, so the
+# fourth segment of the version chip (`v1.0.1.175`) advances by one on every
+# commit without anyone bumping it by hand.
+#
+# Why a committed file at all: hosted builders clone shallowly (Cloudflare Pages
+# clones a single commit, `actions/checkout` defaults to `fetch-depth: 1`), and in
+# such a clone `git rev-list --count HEAD` is 1 — the deployed chip read
+# `v1.0.1.1` for that reason while a full local clone read `v1.0.1.174`. The file
+# travels inside the commit, so a one-commit clone still knows which commit it is.
+# See `src/lib/build-version.ts` for which source wins where.
+#
+# Everything here is best-effort: a hook that fails a commit over a version
+# string is worse than a version string that falls behind.
+set -u
+
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$top" || exit 0
+file=build-number
+
+parents=$(git rev-list --count HEAD 2>/dev/null) || parents=0
+[ -n "$parents" ] || parents=0
+next=$((parents + 1))
+
+# Already correct (re-run of `git commit`, or a hand-edited file): leave the
+# index alone so the commit's contents match what was reviewed.
+if [ "$(cat "$file" 2>/dev/null)" = "$next" ]; then
+  exit 0
+fi
+
+printf '%s\n' "$next" >"$file" || exit 0
+git add -- "$file" || exit 0
+exit 0
