@@ -31,7 +31,11 @@ export function FilterKnob({
     setIsDragging(true)
     startY.current = e.clientY
     startVal.current = value
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -47,13 +51,14 @@ export function FilterKnob({
     if (isDragging) {
       setIsDragging(false)
       try {
-        ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
-      } catch {}
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        // ignore
+      }
     }
   }
 
   const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
     const delta = e.deltaY < 0 ? 0.05 : -0.05
     onChange(clamp(value + delta))
   }

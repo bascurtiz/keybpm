@@ -122,15 +122,23 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     const otherDeck = targetDirection === 'left' ? deckB : deckA
     const activeDeck = relevantDeck.playing ? relevantDeck : otherDeck.playing ? otherDeck : relevantDeck
     const bpm = activeDeck.effectiveBpm || activeDeck.track?.bpm || engine.masterBpm || 128
-    const beatSec = 60 / bpm
+    const safeBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 128
+    const beatSec = 60 / safeBpm
     const durationMs = Math.max(500, fadeBeats * beatSec * 1000)
 
     // The autopilot moves the low as well as the fader. `relevantDeck` is the deck being faded
     // *to* and `otherDeck` the one being faded out; their lows swap across the middle below.
-    // The incoming low is cut straight away rather than ramped: every fade worth automating
-    // starts from one end of the fader, where that deck is silent and the cut cannot be heard.
+    // The incoming low is cut straight away only if starting parked at the opposite rail,
+    // where that deck is silent and the cut cannot be heard. If starting near center, avoid
+    // an abrupt bass cut on an already audible deck.
     const outgoingLowStart = otherDeck.eqLowGain
-    relevantDeck.setEqLow(BASS_SWAP_CUT_DB)
+    const incomingLowStart = relevantDeck.eqLowGain
+    const isParkedAtOppositeRail =
+      targetDirection === 'left' ? startVal >= 0.85 : startVal <= -0.85
+
+    if (isParkedAtOppositeRail) {
+      relevantDeck.setEqLow(BASS_SWAP_CUT_DB)
+    }
 
     const startTime = performance.now()
     setIsFading(targetDirection)
@@ -154,7 +162,8 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       // from wherever the outgoing low actually was, not from a forced flat.
       if (progress >= BASS_SWAP_FROM && !lowSwapComplete) {
         const swap = Math.min(1, (progress - BASS_SWAP_FROM) / (BASS_SWAP_TO - BASS_SWAP_FROM))
-        relevantDeck.setEqLow(BASS_SWAP_CUT_DB + (BASS_SWAP_FLAT_DB - BASS_SWAP_CUT_DB) * swap)
+        const effectiveIncomingStart = isParkedAtOppositeRail ? BASS_SWAP_CUT_DB : incomingLowStart
+        relevantDeck.setEqLow(effectiveIncomingStart + (BASS_SWAP_FLAT_DB - effectiveIncomingStart) * swap)
         otherDeck.setEqLow(outgoingLowStart + (BASS_SWAP_CUT_DB - outgoingLowStart) * swap)
         if (swap === 1) lowSwapComplete = true
       }
@@ -381,6 +390,7 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
     }
 
     taps.push(now)
+    if (taps.length > 8) taps.shift()
     const count = taps.length
     setTapCount(count)
 
@@ -733,7 +743,7 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
         <span>TAP</span>
         {tapCount > 0 && (
           <span className="text-[8px] font-mono font-bold leading-none text-emerald-400 mt-0.5">
-            {tapCount}/4
+            {((tapCount - 1) % 4) + 1}/4
           </span>
         )}
       </button>

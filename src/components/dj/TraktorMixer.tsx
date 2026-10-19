@@ -3,7 +3,7 @@ import type { AudioEngine } from '@/lib/dj/audio-engine'
 import { Knob } from './Knob'
 import { FilterKnob } from './FilterKnob'
 import { Fader } from './Fader'
-import { shiftCamelot, findKeySyncShift } from '@/lib/camelot'
+import { shiftCamelot, findKeySyncShift, areKeysCompatible } from '@/lib/camelot'
 
 interface TraktorMixerProps {
   engine: AudioEngine
@@ -26,18 +26,6 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     }
   }, [engine, deckA, deckB])
 
-  const [gainA, setGainA] = useState(1)
-  const [eqHighA, setEqHighA] = useState(0)
-  const [eqMidA, setEqMidA] = useState(0)
-  const [filterA, setFilterA] = useState(0)
-  const [volumeA, setVolumeA] = useState(1)
-
-  const [gainB, setGainB] = useState(1)
-  const [eqHighB, setEqHighB] = useState(0)
-  const [eqMidB, setEqMidB] = useState(0)
-  const [filterB, setFilterB] = useState(0)
-  const [volumeB, setVolumeB] = useState(1)
-
   // Sync states (continuous sync lock)
   const isSyncedA = deckA.syncLocked
   const isSyncedB = deckB.syncLocked
@@ -54,14 +42,16 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const isKeySyncedA = Boolean(
     baseCamelotA &&
       effCamelotB &&
-      (effCamelotA === effCamelotB || deckA.keyShift === optShiftA) &&
-      (deckA.keyShift !== 0 || baseCamelotA === effCamelotB)
+      effCamelotA &&
+      (areKeysCompatible(effCamelotA, effCamelotB) ||
+        (deckA.keyShift !== 0 && deckA.keyShift === optShiftA))
   )
   const isKeySyncedB = Boolean(
     baseCamelotB &&
       effCamelotA &&
-      (effCamelotB === effCamelotA || deckB.keyShift === optShiftB) &&
-      (deckB.keyShift !== 0 || baseCamelotB === effCamelotA)
+      effCamelotB &&
+      (areKeysCompatible(effCamelotB, effCamelotA) ||
+        (deckB.keyShift !== 0 && deckB.keyShift === optShiftB))
   )
 
   const handleKeySyncA = () => {
@@ -201,13 +191,10 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             min={0}
             max={1}
             step={0.01}
-            value={volumeA}
+            value={deckA.volume}
             defaultValue={1}
             onDragChange={v => deckA.setVolume(v)}
-            onValueChange={v => {
-              setVolumeA(v)
-              deckA.setVolume(v)
-            }}
+            onValueChange={v => deckA.setVolume(v)}
             accentColor="#34d399"
             analyser={deckA.analyser}
             className="w-7 h-[135px]"
@@ -226,11 +213,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={2}
               defaultValue={1}
               bipolar
-              value={gainA}
-              onValueChange={v => {
-                setGainA(v)
-                deckA.setGain(v)
-              }}
+              value={deckA.gain}
+              onValueChange={v => deckA.setGain(v)}
               accentColor="#34d399"
             />
           }
@@ -244,11 +228,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={12}
               defaultValue={0}
               bipolar
-              value={eqHighA}
-              onValueChange={v => {
-                setEqHighA(v)
-                deckA.setEqHigh(v)
-              }}
+              value={deckA.eqHighGain}
+              onValueChange={v => deckA.setEqHigh(v)}
               accentColor="#34d399"
             />
           }
@@ -262,11 +243,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={12}
               defaultValue={0}
               bipolar
-              value={eqMidA}
-              onValueChange={v => {
-                setEqMidA(v)
-                deckA.setEqMid(v)
-              }}
+              value={deckA.eqMidGain}
+              onValueChange={v => deckA.setEqMid(v)}
               accentColor="#34d399"
             />
           }
@@ -298,11 +276,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <div className="flex flex-col items-center">
               <FilterKnob
                 size={40}
-                value={filterA}
-                onChange={v => {
-                  setFilterA(v)
-                  deckA.setFilter(v)
-                }}
+                value={deckA.filterValue}
+                onChange={v => deckA.setFilter(v)}
                 accentColor="#34d399"
               />
             </div>
@@ -310,11 +285,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <div className="flex flex-col items-center">
               <FilterKnob
                 size={40}
-                value={filterB}
-                onChange={v => {
-                  setFilterB(v)
-                  deckB.setFilter(v)
-                }}
+                value={deckB.filterValue}
+                onChange={v => deckB.setFilter(v)}
                 accentColor="#a855f7"
               />
             </div>
@@ -505,11 +477,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={2}
               defaultValue={1}
               bipolar
-              value={gainB}
-              onValueChange={v => {
-                setGainB(v)
-                deckB.setGain(v)
-              }}
+              value={deckB.gain}
+              onValueChange={v => deckB.setGain(v)}
               accentColor="#a855f7"
             />
           }
@@ -523,11 +492,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={12}
               defaultValue={0}
               bipolar
-              value={eqHighB}
-              onValueChange={v => {
-                setEqHighB(v)
-                deckB.setEqHigh(v)
-              }}
+              value={deckB.eqHighGain}
+              onValueChange={v => deckB.setEqHigh(v)}
               accentColor="#a855f7"
             />
           }
@@ -541,11 +507,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               max={12}
               defaultValue={0}
               bipolar
-              value={eqMidB}
-              onValueChange={v => {
-                setEqMidB(v)
-                deckB.setEqMid(v)
-              }}
+              value={deckB.eqMidGain}
+              onValueChange={v => deckB.setEqMid(v)}
               accentColor="#a855f7"
             />
           }
@@ -579,13 +542,10 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             min={0}
             max={1}
             step={0.01}
-            value={volumeB}
+            value={deckB.volume}
             defaultValue={1}
             onDragChange={v => deckB.setVolume(v)}
-            onValueChange={v => {
-              setVolumeB(v)
-              deckB.setVolume(v)
-            }}
+            onValueChange={v => deckB.setVolume(v)}
             accentColor="#a855f7"
             analyser={deckB.analyser}
             className="w-7 h-[135px]"

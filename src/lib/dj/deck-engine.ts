@@ -1954,8 +1954,11 @@ export class DeckEngine {
       // In FLUX mode: start playing from cue while virtual ghost continues
       this.post({ t: 'slipCueOn', s: existing })
       this.emit()
+    } else if (this._playing) {
+      // Live playback: jump to cue and keep playing (with quantize if enabled)
+      this.triggerHotCue(index)
     } else {
-      // Momentary cue-hold (CDJ behavior): seek to cue, play while held
+      // Momentary cue-hold (CDJ behavior when paused): seek to cue, play while held
       this._hotCueHoldIndex = index
       this._cuePreviewing = false
       this.seek(existing)
@@ -2142,6 +2145,7 @@ export class DeckEngine {
   private _eqMid = 0
   private _eqHigh = 0
   private _filter = 0
+  private _volume = 1
 
   get gain(): number {
     return this._gain
@@ -2203,6 +2207,7 @@ export class DeckEngine {
       this.filter.frequency.setTargetAtTime(f, t, 0.01)
       this.filter.Q.setTargetAtTime(1.2, t, 0.01)
     }
+    this.emit()
   }
 
   /** Current filter knob value, -1..1 (negative low-pass, positive high-pass). */
@@ -2210,9 +2215,15 @@ export class DeckEngine {
     return this._filter
   }
 
+  get volume(): number {
+    return this._volume
+  }
+
   setVolume(vol: number) {
+    this._volume = vol
     // Volume fader: squared curve for natural fader taper
     this.fader.gain.setTargetAtTime(vol * vol, this.ctx.currentTime, 0.01)
+    this.emit()
   }
 
   setCrossfadeGain(gain: number) {

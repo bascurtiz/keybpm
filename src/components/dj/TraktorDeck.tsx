@@ -3,7 +3,7 @@ import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { JogWheel } from './JogWheel'
 import { Knob } from './Knob'
 import { Fader } from './Fader'
-import { shiftCamelot, findKeySyncShift } from '@/lib/camelot'
+import { shiftCamelot, findKeySyncShift, areKeysCompatible } from '@/lib/camelot'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 interface TraktorDeckProps {
@@ -103,8 +103,9 @@ export function TraktorDeck({
   const isKeySynced = Boolean(
     deckBaseCamelot &&
       otherEffectiveCamelot &&
-      (currentEffectiveCamelot === otherEffectiveCamelot || deck.keyShift === optimalSyncShift) &&
-      (deck.keyShift !== 0 || deckBaseCamelot === otherEffectiveCamelot)
+      currentEffectiveCamelot &&
+      (areKeysCompatible(currentEffectiveCamelot, otherEffectiveCamelot) ||
+        (deck.keyShift !== 0 && deck.keyShift === optimalSyncShift))
   )
 
   const handleKeySync = () => {

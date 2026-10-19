@@ -56,6 +56,7 @@ export function TraktorMiddleStrip({
   const deckA = engine.decks.A
   const deckB = engine.decks.B
   const [isEditingMasterBpm, setIsEditingMasterBpm] = useState(false)
+  const cancelledMasterBpmRef = useRef(false)
   const [keyMode, setKeyMode] = useState<WheelMode>(readWheelMode)
   const [, setVer] = useState(0)
 
@@ -162,10 +163,15 @@ export function TraktorMiddleStrip({
                         if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
                         setIsEditingMasterBpm(false)
                       } else if (e.key === 'Escape') {
+                        cancelledMasterBpmRef.current = true
                         setIsEditingMasterBpm(false)
                       }
                     }}
                     onBlur={e => {
+                      if (cancelledMasterBpmRef.current) {
+                        cancelledMasterBpmRef.current = false
+                        return
+                      }
                       const val = parseFloat(e.target.value)
                       if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
                       setIsEditingMasterBpm(false)
@@ -294,6 +300,7 @@ function DeckHeader({
   showFx?: boolean
 }) {
   const [isEditingBpm, setIsEditingBpm] = useState(false)
+  const cancelledBpmRef = useRef(false)
   const [isEditingKey, setIsEditingKey] = useState(false)
 
   const ytState = youtubeBridge.state[deckId]
@@ -412,10 +419,15 @@ function DeckHeader({
                       if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
                       setIsEditingBpm(false)
                     } else if (e.key === 'Escape') {
+                      cancelledBpmRef.current = true
                       setIsEditingBpm(false)
                     }
                   }}
                   onBlur={e => {
+                    if (cancelledBpmRef.current) {
+                      cancelledBpmRef.current = false
+                      return
+                    }
                     const val = parseFloat(e.target.value)
                     if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
                     setIsEditingBpm(false)

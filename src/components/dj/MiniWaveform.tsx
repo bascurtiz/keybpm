@@ -14,7 +14,7 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const isDragging = useRef(false)
 
-  const seekFromEvent = (e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
+  const seekFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas || !deck.track) return
     const rect = canvas.getBoundingClientRect()
@@ -23,21 +23,30 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
     deck.seek(ratio * deck.duration)
   }
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!deck.track) return
     isDragging.current = true
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
     seekFromEvent(e)
+  }
 
-    const onMouseMove = (ev: MouseEvent) => {
-      if (isDragging.current) seekFromEvent(ev)
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isDragging.current) {
+      seekFromEvent(e)
     }
-    const onMouseUp = () => {
-      isDragging.current = false
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    isDragging.current = false
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
     }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
   }
 
   useEffect(() => {
@@ -198,8 +207,11 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
       <div className="relative h-full min-w-0 flex-1">
         <canvas
           ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          className="absolute inset-0 h-full w-full cursor-pointer select-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="absolute inset-0 h-full w-full cursor-pointer select-none touch-none"
           title="Click or drag to seek in track"
         />
       </div>
