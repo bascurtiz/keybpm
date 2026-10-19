@@ -456,6 +456,8 @@ export class DeckEngine {
   private _nudgeFactor = 1.0
   private posSeconds = 0
   private posFrame = 0
+  /** Audio-clock time at which `posSeconds` was last known to be accurate. */
+  private posReceivedAt = 0
 
   version = 0
   private listeners = new Set<() => void>()
@@ -631,6 +633,7 @@ export class DeckEngine {
     }
     if (d.t === 'pos' && d.s !== undefined) {
       this.posSeconds = d.s
+      this.posReceivedAt = this.ctx.currentTime
       if (d.g !== undefined) this.ghostSeconds = d.g
       if (d.f !== undefined) this.posFrame = d.f
     } else if (d.t === 'ended') {
@@ -777,6 +780,34 @@ export class DeckEngine {
    */
   get audiblePosition(): number {
     return audiblePositionOf(this.posSeconds, this._rate, this.keyLockLatencySeconds)
+  }
+
+  /**
+   * Where the playhead is *now*, for anything that is drawn rather than measured.
+   *
+   * The worklet reports its position `positionReportHz` times a second — 30 on a phone —
+   * while the lanes redraw at the display's own rate. Drawing straight from
+   * {@link audiblePosition} therefore moves the wave in 30 discrete steps, and a 120 Hz
+   * screen shows each of those steps for four frames: a stutter that reads as a heavy
+   * waveform rather than a slow one. The report is already a sample of a known clock, so
+   * the missing time can be extrapolated from the audio clock instead of guessed, which
+   * keeps the picture on the same timebase as the sound.
+   *
+   * Deliberately separate from `position`/`audiblePosition`: sync, seeks and the grid all
+   * need the last measured value, not a projection of it. Only motion consumers — the
+   * waveform lanes and their overview strip — should use this.
+   *
+   * The projection is capped at a quarter second so a stalled report (a suspended context,
+   * a backgrounded tab) can never run the picture away from the audio.
+   */
+  get displayPosition(): number {
+    if (!this._playing || this._scratching) return this.audiblePosition
+    const elapsed = Math.min(Math.max(this.ctx.currentTime - this.posReceivedAt, 0), 0.25)
+    return audiblePositionOf(
+      this.posSeconds + elapsed * this._rate,
+      this._rate,
+      this.keyLockLatencySeconds
+    )
   }
 
   private _keyShift = 0
@@ -1279,6 +1310,7 @@ export class DeckEngine {
     this.post({ t: 'rate', rate: 1.0 })
     const startPos = track.grid?.firstBar && track.grid.firstBar > 0.03 ? track.grid.firstBar : 0
     this.posSeconds = startPos
+    this.posReceivedAt = this.ctx.currentTime
     this.cuePoint = startPos
     this.loop = null
     this.hotCues = Array(HOT_CUE_COUNT).fill(null)
@@ -1318,6 +1350,7 @@ export class DeckEngine {
     this.pause()
     this.track = null
     this.posSeconds = 0
+    this.posReceivedAt = this.ctx.currentTime
     this.cuePoint = 0
     this.loop = null
     this.hotCues = Array(HOT_CUE_COUNT).fill(null)
@@ -1345,10 +1378,15 @@ export class DeckEngine {
     if (this.ctx.state === 'suspended') await this.ctx.resume()
     if (this.posSeconds >= this.duration - 0.01) {
       this.posSeconds = 0
+      this.posReceivedAt = this.ctx.currentTime
       this.post({ t: 'seek', s: 0 })
     }
     this.post({ t: 'play', rate: this._rate })
     this._playing = true
+    // Start the display clock here, not from the last report: the gap since that report
+    // covers the whole time the deck was paused, and `displayPosition` would briefly show
+    // the playhead up to its projection cap ahead of where playback actually begins.
+    this.posReceivedAt = this.ctx.currentTime
     // If SYNC was engaged while paused, align bar phase now that both can play.
     if (this._syncLocked && this._syncTargetDeck?.playing && !this._scratching) {
       this.alignPhaseTo(this._syncTargetDeck)
@@ -1469,6 +1507,7 @@ export class DeckEngine {
     }
     this.post({ t: 'seek', s: t })
     this.posSeconds = t
+    this.posReceivedAt = this.ctx.currentTime
     this.emit()
   }
 
@@ -1615,6 +1654,7 @@ export class DeckEngine {
     const shift = dPhi * barLengthAt(ownGrid, ownAt)
     this.post({ t: 'shift', s: shift })
     this.posSeconds = Math.min(Math.max(this.posSeconds + shift, 0), this.duration)
+    this.posReceivedAt = this.ctx.currentTime
     return true
   }
 

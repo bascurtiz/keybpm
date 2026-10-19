@@ -61,7 +61,10 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
     // There is one of these per deck and its whole width is redrawn each frame, so it takes the
     // same hand-held stride as the lanes. The cadence is counted in drawn frames, so a stride
     // of two cannot skip the frame that measures the box.
-    const stride = consoleProfile().canvasStride
+    const profile = consoleProfile()
+    const stride = profile.canvasStride
+    // Same rule as the full lanes: a hairline on the hand-held profile, otherwise 1.5 px.
+    const needleW = profile.handheld ? 1 : 1.5
     const tick = () => {
       raf = requestAnimationFrame(tick)
       if (drawn++ % stride !== 0) return
@@ -106,7 +109,9 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
       }
 
       const peaks = track.peaks
-      const posRatio = deck.duration > 0 ? deck.position / deck.duration : 0
+      // `displayPosition` interpolates between the worklet's reports, so the needle slides
+      // across this overview instead of stepping at the report rate.
+      const posRatio = deck.duration > 0 ? deck.displayPosition / deck.duration : 0
       const mid = h / 2
 
       // Draw peaks
@@ -157,12 +162,14 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
         if (deck.cuePoint > 0) stripe(deck.cuePoint, 'C')
       }
 
-      // Draw current Playhead indicator needle
-      const playheadX = posRatio * w
-      ctx.fillStyle = '#ffffff'
-      ctx.shadowColor = '#ffffff'
+      // Draw current Playhead indicator needle. Red, like the lane's centre needle: this strip
+      // is an overview, and the one mark on it that moves has to read as the playhead rather
+      // than as another one of the white cue stripes it sits among.
+      const playheadX = Math.round(posRatio * w)
+      ctx.fillStyle = '#ef4444'
+      ctx.shadowColor = '#ef4444'
       ctx.shadowBlur = 4
-      ctx.fillRect(playheadX - 1, 0, 2, h)
+      ctx.fillRect(playheadX - needleW / 2, 0, needleW, h)
       ctx.shadowBlur = 0
     }
     raf = requestAnimationFrame(tick)

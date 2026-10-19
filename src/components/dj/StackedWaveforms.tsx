@@ -1000,8 +1000,10 @@ function renderDeckLane({
   // Centre the lane on what is being *heard*, not on the read head. With keylock engaged
   // the engine holds the audio back ~133 ms, so centring on `position` would put the
   // playhead a quarter of a beat ahead of the beat you can hear — and, with the decks on
-  // different rates, would line the two grids up differently. See `audiblePosition`.
-  const pos = deck.audiblePosition
+  // different rates, would line the two grids up differently. `displayPosition` is that
+  // audible position projected onto the current audio-clock instant, so the lane moves
+  // with the display instead of in the worklet's 30 Hz report steps.
+  const pos = deck.displayPosition
   // The lane is drawn on a playback-time axis, not on this track's own source axis, so
   // that a beat-synced pair lines up across both lanes. See waveform-timebase.ts.
   const tb = laneTimebase(pos, windowSeconds, secPerPx, deck.rate)
@@ -1013,9 +1015,11 @@ function renderDeckLane({
     const bpb = grid.beatsPerBar || 4
     const anchorBeat = downbeatIndex(grid)
 
-    // Downbeat widest, ordinary beats hairline — the ratio is what makes the white stripes
-    // readable, so on a phone both shrink together rather than the downbeat alone.
-    const downbeatW = thickBars ? 2 : 1.5
+    // Downbeat wider than an ordinary beat, but never wider than the playhead it is read
+    // against: at 2 px the white stripes were the heaviest vertical marks in the lane, so a
+    // bar line looked more like the current position than the needle did. Brightness (0.85
+    // against 0.45) carries the downbeat distinction; width stays at or under the needle.
+    const downbeatW = thickBars ? 1.25 : 1
     const beatW = thickBars ? 1 : 0.75
     const drawTick = (t: number, isDownbeat: boolean) => {
       const x = laneX(t, tb)
