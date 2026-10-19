@@ -95,17 +95,31 @@ const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK
 const KIOSK_SIDE_BAND = 'max(env(safe-area-inset-left), env(safe-area-inset-right), 5.2vw)'
 
 /**
- * Build fingerprint rendered next to the BETA chip.
+ * Build fingerprint rendered next to the version, in the project's own timezone.
  *
- * Formatted in UTC on purpose: `__BUILD_DATE__` is baked in at build time, so
- * rendering it in the viewer's local timezone would show a different string to
- * every visitor — useless for confirming which build is actually live.
+ * `__BUILD_DATE__` is baked in at build time, so this cannot simply use the
+ * browser's clock: the stamp has to name the build the same way wherever it is
+ * read. It is pinned to Europe/Amsterdam rather than UTC so it matches the wall
+ * clock of whoever runs the deploy — and carries the `CEST`/`CET` suffix, so the
+ * offset is explicit instead of implied, on either side of daylight saving.
  */
+const BUILD_TIME_ZONE = 'Europe/Amsterdam'
+
 const BUILD_STAMP = (() => {
   const d = new Date(__BUILD_DATE__)
   if (Number.isNaN(d.getTime())) return 'unknown'
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUILD_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZoneName: 'short',
+  }).formatToParts(d)
+  const part = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')} ${part('timeZoneName')}`
 })()
 
 export function MixIt() {
@@ -446,12 +460,12 @@ export function MixIt() {
             <span className="text-[10px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">
               Beta
             </span>
+            {/* Plain greyscale text, no chip chrome, committed or not: the dirty state is
+                provenance, not a warning to read at a glance, and a bordered badge next to
+                the title competed with the deck colours for attention. It still shows in the
+                tooltip. */}
             <span
-              className={`text-[10px] font-mono font-medium tracking-wider px-1.5 py-0.5 rounded border tabular-nums ${
-                __GIT_DIRTY__
-                  ? 'bg-warn/10 text-warn border-warn/30'
-                  : 'bg-white/5 text-text-muted border-white/10'
-              }`}
+              className="text-[10px] font-mono font-medium tracking-wider tabular-nums text-text-muted"
               title={[
                 `Version: ${__APP_VERSION__}`,
                 `Built:   ${BUILD_STAMP}`,
