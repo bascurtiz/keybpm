@@ -21,9 +21,9 @@ import { isHandheldAudioDevice } from './audio-latency'
  *    the console (two decks, a beat grid, peaks and a playhead, cleared and redrawn in full).
  *    At 30 Hz they still move smoothly and cost half the raster time.
  *
- * Keylock is deliberately *not* in here: its two voices per deck are cheap next to the main
- * thread work above, and the spare voice is what keeps a pitch move from dropping out. Trading
- * an audible artifact for CPU that was not the bottleneck would be the wrong fix.
+ *  - **Keylock scaled to mobile real-time budgets:** On mobile / handheld devices,
+ *    each deck uses 1 Rubber Band voice (instead of 2) and fast mode (WSOLA)
+ *    instead of the heavy phase vocoder, reducing concurrent WASM DSP load by ~85%.
  *
  * {@link HANDHELD_OVERRIDE_KEY} sets the profile by hand — `keybpm:handheld` = `1` or `0` — so
  * the phone path can be exercised on a desktop, or a tablet with a keyboard can get the desktop

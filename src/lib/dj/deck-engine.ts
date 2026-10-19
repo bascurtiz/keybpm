@@ -63,8 +63,14 @@ interface RubberBandVoice {
   pitch: number
 }
 
-/** Audible voice plus a second one, tuned and primed ready for the next ratio change. */
-const RB_VOICE_COUNT = 2
+/**
+ * Voice count per deck:
+ * - Desktop: 2 voices (audible + spare) for seamless crossfading pitch handovers.
+ * - Handheld: 1 voice to keep WASM CPU usage within mobile real-time budgets.
+ */
+function getRbVoiceCount(): number {
+  return consoleProfile().handheld ? 1 : 2
+}
 
 /**
  * An idle voice is held at this rather than 0: inaudible (-80 dB, below the deck's own
@@ -798,7 +804,7 @@ export class DeckEngine {
    */
   private ensureSpareVoice() {
     if (DeckEngine.rubberBandBypassed) return
-    if (this.rbVoices.length >= RB_VOICE_COUNT) return
+    if (this.rbVoices.length >= getRbVoiceCount()) return
     const voice = this.createRubberBandVoice()
     if (voice) this.rbVoices.push(voice)
   }
@@ -813,10 +819,10 @@ export class DeckEngine {
         this.lastWorkletError = `RubberBand error`
         this.emit()
       }
-      // Quality is a kernel rebuild, so it has to be set before any audio flows. High
-      // quality is the only mode with exact pitch: the fast mode measured +43 cents at
-      // 1.30x and -21 cents at 2.00x.
-      node.setHighQuality(true)
+      // Quality: on desktop, high quality uses the phase vocoder with precise pitch.
+      // On mobile / handheld devices, fast mode is essential for realtime audio budgets.
+      const highQuality = !consoleProfile().handheld
+      node.setHighQuality(highQuality)
       // Pitch-only shift: tempo 1 leaves the stream's length, and therefore the playback
       // rate, to the vinyl worklet.
       node.setTempo(1)
@@ -952,6 +958,14 @@ export class DeckEngine {
       this.rbTargetChangedAt = now
       this.scheduleKeyLockSettle()
     }
+    if (this.rbVoices.length === 1) {
+      const voice = this.rbVoices[0]
+      if (voice && Math.abs(1200 * Math.log2(pitch / voice.pitch)) > RB_KEYLOCK_SWAP_CENTS) {
+        voice.node.setPitch(pitch)
+        voice.pitch = pitch
+      }
+      return
+    }
     if (this.rbHandover) return
     const audible = this.rbVoices[this.rbAudibleVoice]
     if (!audible) return
@@ -1005,6 +1019,14 @@ export class DeckEngine {
     if (this.rbSettleTimer !== null) window.clearTimeout(this.rbSettleTimer)
     this.rbSettleTimer = window.setTimeout(() => {
       this.rbSettleTimer = null
+      if (this.rbVoices.length === 1) {
+        const voice = this.rbVoices[0]
+        if (voice && Math.abs(1200 * Math.log2(this.rbTargetPitch / voice.pitch)) > RB_KEYLOCK_SETTLE_CENTS) {
+          voice.node.setPitch(this.rbTargetPitch)
+          voice.pitch = this.rbTargetPitch
+        }
+        return
+      }
       // A handover already in flight re-checks against the settle threshold when it lands.
       if (this.rbHandover) return
       const audible = this.rbVoices[this.rbAudibleVoice]
