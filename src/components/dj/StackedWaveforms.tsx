@@ -331,7 +331,13 @@ export function StackedWaveforms({
     let rect = { width: 0, height: 0 }
     // Both lanes, grid, peaks and playhead are cleared and redrawn in full; on a phone that is
     // half the frame budget of the console, so the hand-held profile draws every second frame.
-    const stride = consoleProfile().canvasStride
+    const profile = consoleProfile()
+    const stride = profile.canvasStride
+    // Hand-held screens show the same lane in far fewer pixels, where a 1.5 px needle and a
+    // 2 px stripe start eating the beat grid they are drawn against. Every vertical rule on
+    // the lane — playhead, downbeat, beat, loop edge — thins by the same step on that profile,
+    // so the hierarchy between them survives the reduction.
+    const thickBars = !profile.handheld
     const tick = () => {
       raf = requestAnimationFrame(tick)
       // The cadence is counted in *drawn* frames, not animation frames: with a stride of two an
@@ -385,6 +391,7 @@ export function StackedWaveforms({
         waveColor: '#34d399',
         beatColor: '#a1a1aa',
         downbeatColor: DOWNBEAT_STRIPE,
+        thickBars,
       })
 
       // Divider line
@@ -408,6 +415,7 @@ export function StackedWaveforms({
         waveColor: '#a855f7',
         beatColor: '#a1a1aa',
         downbeatColor: DOWNBEAT_STRIPE,
+        thickBars,
       })
 
       // Virtual FLUX Mode Playhead Needles (Green). The offset is measured from the same
@@ -443,11 +451,13 @@ export function StackedWaveforms({
       ctx.shadowBlur = 0
       ctx.fillStyle = '#ef4444'
       const playheadX = Math.round(centerPlayheadX)
-      ctx.fillRect(playheadX, 0, 1.5, h)
+      const needleW = thickBars ? 1.5 : 1
+      const capW = thickBars ? 3.5 : 2.5
+      ctx.fillRect(playheadX, 0, needleW, h)
       // Minimal precision tick caps at top, center divider, and bottom
-      ctx.fillRect(playheadX - 1, 0, 3.5, 2)
-      ctx.fillRect(playheadX - 1, Math.round(halfH - 1), 3.5, 2)
-      ctx.fillRect(playheadX - 1, h - 2, 3.5, 2)
+      ctx.fillRect(playheadX - (capW - needleW) / 2, 0, capW, 2)
+      ctx.fillRect(playheadX - (capW - needleW) / 2, Math.round(halfH - 1), capW, 2)
+      ctx.fillRect(playheadX - (capW - needleW) / 2, h - 2, capW, 2)
     }
 
     raf = requestAnimationFrame(tick)
@@ -913,6 +923,7 @@ function renderDeckLane({
   waveColor,
   beatColor,
   downbeatColor,
+  thickBars,
 }: {
   ctx: CanvasRenderingContext2D
   deck: DeckEngine
@@ -921,6 +932,8 @@ function renderDeckLane({
   laneH: number
   /** Chassis scale for this canvas, so DOM-sized marks shrink with the console. */
   uiScale: number
+  /** Full-width rules on desktop, hairline rules on the hand-held profile. */
+  thickBars: boolean
   /** Width of the lane in playback seconds. */
   windowSeconds: number
   /** Playback seconds per pixel, `windowSeconds / laneWidth`. The lane's own source
@@ -1000,11 +1013,16 @@ function renderDeckLane({
     const bpb = grid.beatsPerBar || 4
     const anchorBeat = downbeatIndex(grid)
 
+    // Downbeat widest, ordinary beats hairline — the ratio is what makes the white stripes
+    // readable, so on a phone both shrink together rather than the downbeat alone.
+    const downbeatW = thickBars ? 2 : 1.5
+    const beatW = thickBars ? 1 : 0.75
     const drawTick = (t: number, isDownbeat: boolean) => {
       const x = laneX(t, tb)
+      const tickW = isDownbeat ? downbeatW : beatW
       ctx.fillStyle = isDownbeat ? downbeatColor : beatColor
       ctx.globalAlpha = isDownbeat ? 0.85 : 0.45
-      ctx.fillRect(x - (isDownbeat ? 1 : 0.5), topY, isDownbeat ? 2 : 1, laneH)
+      ctx.fillRect(x - tickW / 2, topY, tickW, laneH)
     }
 
     if (isVariableGrid(grid)) {
@@ -1079,10 +1097,11 @@ function renderDeckLane({
       ctx.fillRect(startX, topY, loopWidth, laneH)
 
       // Green boundary edges
+      const loopEdgeW = thickBars ? 2 : 1.25
       ctx.globalAlpha = 0.95
       ctx.fillStyle = '#22c55e'
-      if (x1 >= 0 && x1 <= w) ctx.fillRect(x1 - 1, topY, 2, laneH)
-      if (x2 >= 0 && x2 <= w) ctx.fillRect(x2 - 1, topY, 2, laneH)
+      if (x1 >= 0 && x1 <= w) ctx.fillRect(x1 - loopEdgeW / 2, topY, loopEdgeW, laneH)
+      if (x2 >= 0 && x2 <= w) ctx.fillRect(x2 - loopEdgeW / 2, topY, loopEdgeW, laneH)
 
       // Center Loop Grab Handle [ ||| ] matching Traktor
       if (loopWidth > 32) {

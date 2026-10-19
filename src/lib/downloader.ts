@@ -55,7 +55,7 @@ export interface DownloaderOption {
 export const DOWNLOADER_PRIMARY: DownloaderOption = {
   name: 'AudioFetcher',
   url: 'https://audiofetcher.com',
-  note: 'No install — keeps the original Opus or M4A',
+  note: 'Paste the URL copied & download the track.',
 }
 
 /**

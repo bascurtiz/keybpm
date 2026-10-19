@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { tracks, useCatalog } from '@/lib/data'
 import { youtubeId, youtubeThumbUrl } from '@/lib/youtube'
 import { camelotColor, areKeysCompatible } from '@/lib/camelot'
-import { DOWNLOADER_PRIMARY, DOWNLOADER_FALLBACKS, copyText } from '@/lib/downloader'
+import { DOWNLOADER_PRIMARY, copyText } from '@/lib/downloader'
 import { YoutubeIcon } from '@/components/icons'
 import type { PrecomputedTrackData } from '@/lib/dj/track-analyzer'
 import { CAMELOT_TO_KEY, type Track } from '@/types/track'
@@ -88,7 +88,7 @@ function AudioDropCard({
         {heading}
       </p>
       <p className="mb-2.5 max-w-md text-[11px] text-zinc-400">{hint}</p>
-      <label className="cursor-pointer rounded-lg bg-[#2e2e2e] px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-600">
+      <label className="cursor-pointer rounded-lg bg-[#2e2e2e] px-4 py-2 text-xs font-bold text-white transition hover:bg-accent hover:text-[#04201a]">
         Browse File
         <input
           type="file"
@@ -174,6 +174,18 @@ export function LoadTrackModal({
   const [filterCompatible, setFilterCompatible] = useState(false)
 
   /**
+   * The From YouTube panel's own height, so the Catalog tab can match it.
+   *
+   * The two tabs are compared side by side, and the catalog used to stand ~40 px taller
+   * than the errand. A fixed number cannot fix that: the errand's height changes when a
+   * video is detected and the artwork row appears in step 3. So the errand is measured
+   * while it is on screen and the catalog takes that height. The local tab is left out
+   * on purpose — it is a single drop target and should keep filling the dialog.
+   */
+  const downloadPanelRef = useRef<HTMLDivElement>(null)
+  const [downloadPanelHeight, setDownloadPanelHeight] = useState<number | null>(null)
+
+  /**
    * Which deck the link in the box was prepared for.
    *
    * The component stays mounted while the dialog is shut, so the errand survives being
@@ -192,6 +204,12 @@ export function LoadTrackModal({
   }, [isOpen, deckId])
 
   const detectedVideoId = useMemo(() => youtubeId(ytUrl), [ytUrl])
+
+  useLayoutEffect(() => {
+    if (activeTab !== 'download') return
+    const el = downloadPanelRef.current
+    if (el) setDownloadPanelHeight(el.offsetHeight)
+  }, [activeTab, detectedVideoId])
 
   /** The catalog row behind the link — null once the link points somewhere else. */
   const sourceTrack = useMemo(() => {
@@ -347,13 +365,24 @@ export function LoadTrackModal({
             onClick={() => setActiveTab('file')}
             className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 pb-2 text-xs font-semibold transition sm:px-3 sm:pb-2.5 [@media(max-height:520px)]:pb-1 ${
               activeTab === 'file'
-                ? 'border-emerald-400 text-white font-bold'
+                ? 'border-accent text-white font-bold'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <span>📁</span>
             <span className="hidden sm:inline">Local Audio File</span>
             <span className="sm:hidden">Local file</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('catalog')}
+            className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 pb-2 text-xs font-semibold transition sm:px-3 sm:pb-2.5 [@media(max-height:520px)]:pb-1 ${
+              activeTab === 'catalog'
+                ? 'border-accent text-white font-bold'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Catalog
           </button>
           <button
             type="button"
@@ -367,17 +396,6 @@ export function LoadTrackModal({
             <span>⬇</span>
             <span className="hidden sm:inline">From YouTube</span>
             <span className="sm:hidden">YouTube</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('catalog')}
-            className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 pb-2 text-xs font-semibold transition sm:px-3 sm:pb-2.5 [@media(max-height:520px)]:pb-1 ${
-              activeTab === 'catalog'
-                ? 'border-accent text-white font-bold'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            Catalog
           </button>
         </div>
 
@@ -393,28 +411,22 @@ export function LoadTrackModal({
               options rather than as a sequence.
 
               Type carries the hierarchy instead: step headings are 10 px uppercase, anything
-              you can press has a fill or a border (the accent bar, Copy, the two fallbacks,
-              Browse File), and every sentence of explanation sits at 10–11 px in zinc-500
+              you can press has a fill or a border (Open AudioFetcher, Copy, Browse File), and
+              every sentence of explanation sits at 10–11 px in zinc-500
               with no box around it. That is the whole difference between "press this" and
               "read this"; nothing in between. */}
           {activeTab === 'download' && (
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-              {/* The one thing worth knowing before starting, in the smallest type that still
-                  reads: why the tab exists, and why the file has to come from outside. */}
-              <p className="border-b border-[#242424] px-3 py-2 text-[11px] leading-snug text-zinc-500 sm:px-4">
-                KeyBPM has no server, so it cannot fetch audio itself. Fetch the file with one
-                of the tools below and drop it back in: the deck opens with the video's
-                artwork as its cover, and — when the link came from a catalogue row — that
-                row's title, artist, BPM and key, so nothing arrives as an untitled rip.
-              </p>
-
+            <div
+              ref={downloadPanelRef}
+              className="flex max-h-[62dvh] min-h-0 flex-col overflow-y-auto overscroll-contain"
+            >
               {/* 1 — the link */}
               <section className="border-b border-[#242424] px-3 py-2 sm:px-4">
                 <StepHeading
                   n="1"
                   title="Paste the video"
                   aside={detectedVideoId ? 'link detected' : 'link or ID'}
-                  asideClass={detectedVideoId ? 'text-emerald-400/80' : undefined}
+                  asideClass={detectedVideoId ? 'text-accent' : undefined}
                 />
                 <div className="flex items-center gap-1.5">
                   <input
@@ -456,52 +468,29 @@ export function LoadTrackModal({
                 )}
               </section>
 
-              {/* 2 — the fetch. Every option does the same two things: put the link on the
-                  clipboard, then open the tool in a new tab. The anchor does the navigating;
-                  calling window.open here as well would open two tabs. */}
+              {/* 2 — the fetch. One button does the same two things every time: put the link
+                  on the clipboard, then open the tool in a new tab. The anchor does the
+                  navigating; calling window.open here as well would open two tabs. */}
               <section className="border-b border-[#242424] px-3 py-2 sm:px-4">
                 <StepHeading n="2" title="Fetch the file" aside="opens in a new tab" />
-                <a
-                  href={DOWNLOADER_PRIMARY.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => {
-                    if (detectedVideoId) void handleCopyLink()
-                  }}
-                  className="flex items-center gap-2 rounded-lg bg-accent-solid px-3 py-2 shadow-lg transition hover:brightness-110"
-                >
-                  <span className="shrink-0 text-sm font-bold">
-                    ⬇ Open {DOWNLOADER_PRIMARY.name}
-                  </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={DOWNLOADER_PRIMARY.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      if (detectedVideoId) void handleCopyLink()
+                    }}
+                    className="rounded-lg bg-[#2e2e2e] px-4 py-2 text-xs font-bold text-white transition hover:bg-accent hover:text-[#04201a]"
+                  >
+                    Open {DOWNLOADER_PRIMARY.name}
+                  </a>
                   <span
-                    className="min-w-0 truncate text-[11px] leading-tight opacity-75"
+                    className="min-w-0 truncate text-[11px] text-zinc-500"
                     title={DOWNLOADER_PRIMARY.note}
                   >
                     {DOWNLOADER_PRIMARY.note}
                   </span>
-                </a>
-
-                <div className="mt-1">
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-600">or</span>
-                  {DOWNLOADER_FALLBACKS.map(opt => (
-                    <a
-                      key={opt.name}
-                      href={opt.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => {
-                        if (detectedVideoId) void handleCopyLink()
-                      }}
-                      title={opt.note}
-                      className="-mx-1 mt-0.5 flex items-center gap-2 rounded px-1 py-0.5 transition hover:bg-white/5"
-                    >
-                      <span className="shrink-0 text-[11px] font-semibold text-zinc-300">
-                        {opt.name}
-                      </span>
-                      <span className="min-w-0 truncate text-[10px] text-zinc-500">{opt.note}</span>
-                      <span className="ml-auto shrink-0 text-[10px] text-zinc-600">↗</span>
-                    </a>
-                  ))}
                 </div>
               </section>
 
@@ -511,7 +500,7 @@ export function LoadTrackModal({
                   n="3"
                   title="Drop it back in"
                   aside={sourceTrack ? 'catalog values' : pendingYouTube ? 'video artwork' : 'after the download finishes'}
-                  asideClass={sourceTrack ? 'text-emerald-400/80' : undefined}
+                  asideClass={sourceTrack ? 'text-accent' : undefined}
                 />
 
                 {/* What the drop will be labelled. Shown *before* the download finishes so
@@ -545,22 +534,17 @@ export function LoadTrackModal({
                   onFile={handleDownloadedFile}
                 />
               </section>
-
-              <div className="flex justify-end px-3 pb-2 sm:px-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-zinc-400 transition hover:bg-white/5 hover:text-zinc-200"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           )}
 
-          {/* 2. KEYDB CATALOG TAB */}
+          {/* 2. KEYDB CATALOG TAB. Sized to the From YouTube panel — measured, since that
+              panel's height depends on whether a video is already in the box. The class is
+              only the fallback for opening this tab before the errand has been visited. */}
           {activeTab === 'catalog' && (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+            <div
+              style={downloadPanelHeight ? { height: downloadPanelHeight } : undefined}
+              className="flex h-[345px] max-h-[62dvh] min-h-0 flex-col gap-3 p-3 sm:p-4"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="text"
@@ -584,9 +568,9 @@ export function LoadTrackModal({
                 )}
               </div>
 
-              {/* Fills what the dialog has left on a phone, and stops at 340 px on a
-                  tall screen so the modal keeps its compact desktop size. */}
-              <div className="max-h-[min(340px,65dvh)] min-h-0 flex-1 divide-y divide-[#242424] overflow-y-auto overscroll-contain rounded-lg border border-[#282828]">
+              {/* Fills the body height the tabs share, so the list ends where the
+                  YouTube tab's last step does rather than setting its own cap. */}
+              <div className="min-h-0 flex-1 divide-y divide-[#242424] overflow-y-auto overscroll-contain rounded-lg border border-[#282828]">
                 {catalogTracks.map(t => {
                   const camColor = t.camelot ? camelotColor(t.camelot) : '#777'
                   const isHarmonic =
@@ -645,7 +629,7 @@ export function LoadTrackModal({
                               ? "Copy this track's link and switch to the download tab"
                               : 'No video link on this record'
                           }
-                          className="px-2.5 py-1 rounded bg-[#2e2e2e] hover:bg-emerald-600 disabled:opacity-30 disabled:hover:bg-[#2e2e2e] text-[11px] font-semibold text-zinc-200 disabled:text-zinc-500 transition flex items-center gap-1"
+                          className="px-2.5 py-1 rounded bg-[#2e2e2e] hover:bg-accent hover:text-[#04201a] disabled:opacity-30 disabled:hover:bg-[#2e2e2e] text-[11px] font-semibold text-zinc-200 disabled:text-zinc-500 transition flex items-center gap-1"
                         >
                           {t.youtube ? '⬇ Get file' : 'No link'}
                         </button>
