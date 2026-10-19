@@ -100,6 +100,12 @@ class VinylPlayer extends AudioWorkletProcessor {
         this.pitchRate = d.rate;
         this.rate = d.rate;
         this.endedSent = false;
+        this.port.postMessage({
+          t: "debug",
+          event: "play-received",
+          frame: currentFrame,
+          rate: d.rate,
+        });
         break;
       case "pause":
         this.playing = false;
@@ -117,6 +123,13 @@ class VinylPlayer extends AudioWorkletProcessor {
         if (d.instant) {
           this.rate = 0;
         }
+        this.port.postMessage({
+          t: "debug",
+          event: "pause-received",
+          frame: currentFrame,
+          playing: this.playing,
+          instant: Boolean(d.instant),
+        });
         break;
       case "rate":
         this.pitchRate = d.rate;

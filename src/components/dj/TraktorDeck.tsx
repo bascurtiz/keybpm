@@ -266,12 +266,16 @@ export function TraktorDeck({
             onClick={() => deck.toggleKeyLock()}
             disabled={!deck.track}
             className={`text-[7.5px] font-bold uppercase tracking-wider mb-1 leading-none bg-transparent border-0 p-0 transition-colors ${
-              deck.keyLock
+              deck.isRubberBandBypassed
+                ? 'text-amber-500/50 line-through'
+                : deck.keyLock
                 ? 'text-amber-400 hover:text-amber-300'
                 : 'text-[#888888] hover:text-white disabled:opacity-30'
             }`}
             title={
-              deck.keyLock
+              deck.isRubberBandBypassed
+                ? 'A/B Diagnostic: Rubber Band WASM is currently BYPASSED (Dry playback only, 0 WASM load).'
+                : deck.keyLock
                 ? 'Keylock ON — click to turn off. Off lets the pitch fader change the key, like vinyl. (No audible effect at 0% pitch — there is nothing to hold steady — or while a key shift is dialled in.)'
                 : 'Keylock OFF — click to turn on, holding the key steady while you move the pitch fader.'
             }

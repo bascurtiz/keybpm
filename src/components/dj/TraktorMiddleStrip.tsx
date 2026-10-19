@@ -218,6 +218,30 @@ export function TraktorMiddleStrip({
                 <option value="openkey" className="bg-[#141414] text-white">Open Key</option>
               </select>
             </div>
+
+            <div className="h-7 w-px bg-[#252525]" />
+
+            <div className="flex flex-col items-center">
+              <span className="text-[8px] font-semibold text-[#888888] uppercase tracking-wider">
+                A/B DSP TEST
+              </span>
+              <button
+                type="button"
+                onClick={() => engine.toggleRubberBandBypass()}
+                className={`mt-0.5 h-5 px-1.5 rounded text-[10px] font-bold border transition-all ${
+                  engine.rubberBandBypassed
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+                    : 'bg-[#141414] text-[#888888] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+                }`}
+                title={
+                  engine.rubberBandBypassed
+                    ? 'A/B Test: Rubber Band WASM is BYPASSED (Dry Web Audio only, 0 WASM load). Click to re-activate.'
+                    : 'A/B Test: Rubber Band WASM is ACTIVE (Keylock R3 DSP enabled). Click to bypass for diagnosis.'
+                }
+              >
+                {engine.rubberBandBypassed ? 'RB: BYPASS' : 'RB: ACTIVE'}
+              </button>
+            </div>
           </div>
 
           {/* Bar counter centred between the two modes it qualifies, so the buttons read

@@ -7,7 +7,7 @@ import {
   keyLockTransform,
 } from './keylock-transform'
 import { travelLoop } from './loop-move'
-import { HOT_CUE_COUNT, type BeatGrid, type FxType, type LoopRegion, type Track } from './types'
+import { HOT_CUE_COUNT, type BeatGrid, type DeckId, type FxType, type LoopRegion, type Track } from './types'
 import {
   barIndexAt,
   barLengthAt,
@@ -111,11 +111,34 @@ const RB_KEYLOCK_SETTLE_MS = 350
 /** ...and "exact" then means within this, which is what a resting deck should hold. */
 const RB_KEYLOCK_SETTLE_CENTS = 2
 
+export const RUBBERBAND_BYPASS_KEY = 'keybpm:rb-bypass'
+
+export function isRubberBandBypassed(): boolean {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('nokeylock') || params.get('rb') === '0' || params.has('bypass-rb')) {
+      return true
+    }
+    try {
+      const stored = localStorage.getItem(RUBBERBAND_BYPASS_KEY)
+      if (stored === '1' || stored === 'true') return true
+    } catch {
+      /* ignore */
+    }
+  }
+  return false
+}
+
 interface WorkletMessage {
   t: string
   s?: number
   g?: number
   f?: number
+  event?: string
+  frame?: number
+  playing?: boolean
+  instant?: boolean
+  rate?: number
 }
 
 /**
@@ -261,6 +284,22 @@ function scheduleFlush() {
 }
 
 export class DeckEngine {
+  static rubberBandBypassed = isRubberBandBypassed()
+
+  static setRubberBandBypassed(bypassed: boolean) {
+    DeckEngine.rubberBandBypassed = bypassed
+    try {
+      localStorage.setItem(RUBBERBAND_BYPASS_KEY, bypassed ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
+
+  readonly deckId: DeckId
+  private readonly rubberbandReadyPromise?: Promise<unknown>
+  lastWorkletEvent: string | null = null
+  lastWorkletError: string | null = null
+
   readonly ctx: AudioContext
   readonly analyser: AnalyserNode
 
@@ -424,8 +463,11 @@ export class DeckEngine {
     ctx: AudioContext,
     destination: AudioNode,
     vinylWorkletReady: Promise<unknown>,
-    rubberbandReady?: Promise<unknown>
+    rubberbandReady?: Promise<unknown>,
+    deckId: DeckId = 'A'
   ) {
+    this.deckId = deckId
+    this.rubberbandReadyPromise = rubberbandReady
     this.ctx = ctx
     this.autoGain = ctx.createGain()
     this.trim = ctx.createGain()
@@ -535,6 +577,11 @@ export class DeckEngine {
           numberOfOutputs: 1,
           outputChannelCount: [2],
         })
+        node.onprocessorerror = (err) => {
+          console.error(`%c[Deck ${this.deckId} VinylWorklet Error]`, 'color: #ef4444; font-weight: bold;', err)
+          this.lastWorkletError = `VinylWorklet error`
+          this.emit()
+        }
         node.port.onmessage = (e: MessageEvent<WorkletMessage>) => this.onWorkletMessage(e.data)
 
         // Connect vinylNode to both dry bypass and wet keylock paths
@@ -550,22 +597,11 @@ export class DeckEngine {
         // ever a gain change: it is fed from here on (so its kernel builds and primes in
         // the background), and the deck only has to move it into the wet path once the
         // output tap hears it.
-        if (rubberbandReady) {
+        if (rubberbandReady && !DeckEngine.rubberBandBypassed) {
           rubberbandReady
             .then(() => {
-              const voice = this.createRubberBandVoice()
-              if (!voice) return
-              this.rbVoices = [voice]
-              this.setAudibleVoice(0)
-              // A handover needs a spare, and *every* ratio change is a handover — so the
-              // deck keeps one primed from the moment the engine exists, not on demand.
-              this.ensureSpareVoice()
-              // A freshly built kernel emits nothing until it has been fed, so hold the deck
-              // on its dry path until the output tap hears real signal. This is the only
-              // place a voice ever appears, so it is the only place this is needed.
-              this.keyLockAwaitingKernel = true
-              this.engageRubberBandWhenReady()
-              this.emit()
+              if (DeckEngine.rubberBandBypassed) return
+              this.initRubberBandVoices()
             })
             .catch(err => console.warn('Rubber Band worklet not ready:', err))
         }
@@ -581,6 +617,12 @@ export class DeckEngine {
   private ghostSeconds = 0
 
   private onWorkletMessage(d: WorkletMessage) {
+    if (d.t === 'debug') {
+      console.log(`%c[Deck ${this.deckId} VinylWorklet] ${d.event}`, 'color: #38bdf8; font-weight: bold;', d)
+      this.lastWorkletEvent = `${d.event} @ f:${d.frame}`
+      this.emit()
+      return
+    }
     if (d.t === 'pos' && d.s !== undefined) {
       this.posSeconds = d.s
       if (d.g !== undefined) this.ghostSeconds = d.g
@@ -589,6 +631,58 @@ export class DeckEngine {
       this._playing = false
       this._cuePreviewing = false
       this.emit()
+    }
+  }
+
+  get isRubberBandBypassed(): boolean {
+    return DeckEngine.rubberBandBypassed
+  }
+
+  initRubberBandVoices() {
+    if (this.rbVoices.length > 0 || DeckEngine.rubberBandBypassed) return
+    const voice = this.createRubberBandVoice()
+    if (!voice) return
+    this.rbVoices = [voice]
+    this.setAudibleVoice(0)
+    this.ensureSpareVoice()
+    this.keyLockAwaitingKernel = true
+    this.engageRubberBandWhenReady()
+    this.updateKeyLockRouting()
+    this.emit()
+  }
+
+  setRubberBandBypass(bypass: boolean) {
+    if (bypass) {
+      if (this.rbHandoverTimer !== null) {
+        window.clearTimeout(this.rbHandoverTimer)
+        this.rbHandoverTimer = null
+      }
+      this.rbHandover = null
+      for (const voice of this.rbVoices) {
+        try {
+          if (this.vinylNode) this.vinylNode.disconnect(voice.node)
+          voice.node.disconnect()
+          voice.probe.disconnect()
+          voice.gain.disconnect()
+          voice.node.close()
+        } catch (err) {
+          console.warn('Error disconnecting Rubber Band voice:', err)
+        }
+      }
+      this.rbVoices = []
+      this.keyLockAwaitingKernel = false
+      this.updateKeyLockRouting()
+      this.emit()
+    } else {
+      if (this.rubberbandReadyPromise && this.rbVoices.length === 0) {
+        this.rubberbandReadyPromise
+          .then(() => {
+            if (!DeckEngine.rubberBandBypassed) {
+              this.initRubberBandVoices()
+            }
+          })
+          .catch(err => console.warn('Rubber Band worklet not ready:', err))
+      }
     }
   }
 
@@ -703,6 +797,7 @@ export class DeckEngine {
    * which is why there is exactly one spare and not a pool.
    */
   private ensureSpareVoice() {
+    if (DeckEngine.rubberBandBypassed) return
     if (this.rbVoices.length >= RB_VOICE_COUNT) return
     const voice = this.createRubberBandVoice()
     if (voice) this.rbVoices.push(voice)
@@ -710,8 +805,14 @@ export class DeckEngine {
 
   /** One Rubber Band voice: kernel, output tap and crossfade gain, wired into the wet bus. */
   private createRubberBandVoice(): RubberBandVoice | null {
+    if (DeckEngine.rubberBandBypassed) return null
     try {
       const node = createRubberBandNode(this.ctx)
+      node.onprocessorerror = (err) => {
+        console.error(`%c[Deck ${this.deckId} RubberBand Error]`, 'color: #ef4444; font-weight: bold;', err)
+        this.lastWorkletError = `RubberBand error`
+        this.emit()
+      }
       // Quality is a kernel rebuild, so it has to be set before any audio flows. High
       // quality is the only mode with exact pitch: the fast mode measured +43 cents at
       // 1.30x and -21 cents at 2.00x.
@@ -809,11 +910,12 @@ export class DeckEngine {
     )
 
     const active =
+      !DeckEngine.rubberBandBypassed &&
       needsKeyLock && !identity && !this._scratching && engine !== null && !this.keyLockAwaitingKernel
 
     this._keyLockActive = active
 
-    if (this.rbVoices.length > 0) {
+    if (this.rbVoices.length > 0 && !DeckEngine.rubberBandBypassed) {
       // Never applied directly: this is a request, and `requestKeyLockPitch` decides
       // whether the audible voice is close enough already or a handover is needed.
       this.requestKeyLockPitch(pitch)
@@ -838,6 +940,7 @@ export class DeckEngine {
    * cheap by design.
    */
   private requestKeyLockPitch(pitch: number) {
+    if (DeckEngine.rubberBandBypassed) return
     const now = performance.now()
     if (Math.abs(1200 * Math.log2(pitch / this.rbTargetPitch)) > 0.05) {
       const seconds = (now - this.rbTargetChangedAt) / 1000
@@ -1205,6 +1308,11 @@ export class DeckEngine {
   // ----- transport -----
 
   async play() {
+    console.log(`%c[Deck ${this.deckId}] play() called`, 'color: #10b981; font-weight: bold;', {
+      wasPlaying: this._playing,
+      rate: this._rate,
+      posSeconds: this.posSeconds,
+    })
     if (this._cuePreviewing && this._playing) {
       // Transition from temporary CUE preview to normal playback
       this._cuePreviewing = false
@@ -1228,6 +1336,11 @@ export class DeckEngine {
   }
 
   pause(instant = false) {
+    console.log(`%c[Deck ${this.deckId}] pause() called`, 'color: #f59e0b; font-weight: bold;', {
+      instant,
+      wasPlaying: this._playing,
+      posSeconds: this.posSeconds,
+    })
     this._cuePreviewing = false
     if (this.quantizeTimer) {
       window.clearTimeout(this.quantizeTimer)

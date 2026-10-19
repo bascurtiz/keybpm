@@ -114,8 +114,8 @@ export class AudioEngine {
     })
 
     this.decks = {
-      A: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady),
-      B: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady),
+      A: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady, 'A'),
+      B: new DeckEngine(this.ctx, this.master, vinylWorkletReady, rubberbandReady, 'B'),
     }
 
     // Mirror the Master Tempo onto both decks. The SCR cutter reads it as the
@@ -125,6 +125,21 @@ export class AudioEngine {
 
     this.setCrossfade(0)
     this.startPllLoop()
+  }
+
+  get rubberBandBypassed(): boolean {
+    return DeckEngine.rubberBandBypassed
+  }
+
+  setRubberBandBypass(bypassed: boolean) {
+    DeckEngine.setRubberBandBypassed(bypassed)
+    this.decks.A.setRubberBandBypass(bypassed)
+    this.decks.B.setRubberBandBypass(bypassed)
+    this.emit()
+  }
+
+  toggleRubberBandBypass() {
+    this.setRubberBandBypass(!DeckEngine.rubberBandBypassed)
   }
 
   private pllTimer: number | null = null
