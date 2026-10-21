@@ -57,7 +57,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'monospace'],
+        mono: ['Consolas', 'Liberation Mono', 'Menlo', 'Courier New', 'monospace'],
       },
       fontSize: {
         '2xs': '0.625rem',

@@ -178,7 +178,7 @@ export function MiniWaveform({ deck, waveColor, className = '' }: MiniWaveformPr
 
   return (
     <div
-      className={`relative flex items-center h-6 w-full rounded bg-[#161616] border border-[#282828] overflow-hidden ${className}`}
+      className={`relative flex items-center h-6 w-full rounded bg-[#101010] border border-[#282828] overflow-hidden ${className}`}
     >
       {/* Skip backwards to start button matching mockup */}
       <button

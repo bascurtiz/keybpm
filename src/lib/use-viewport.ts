@@ -1,16 +1,34 @@
 import { useEffect, useState } from 'react'
 
 export interface ViewportMode {
-  /** Below the desktop breakpoint: the console owns the page instead of sitting in it. */
+  /**
+   * A narrow viewport: the console has the screen to itself, so it carries its own
+   * chrome (the menu/fullscreen rail beside the chassis) and draws its controls in
+   * their compact variants.
+   *
+   * The console fills the window at every size (see `MixIt`); what changes here is
+   * what a *wide* screen has instead — the site header above the console, no rail,
+   * and the roomier control spacing the components keep for their desktop variants.
+   */
   kiosk: boolean
   /** A phone held upright — the rotate prompt's condition. */
   portraitPhone: boolean
+  /**
+   * A coarse pointer, i.e. a finger.
+   *
+   * Only the things that exist because of a touch screen hang off this: the wake
+   * lock, and re-arming fullscreen around the file picker. On a mouse-driven desktop
+   * both are noise — a fullscreen request there is a browser permission prompt for a
+   * key the user can press.
+   */
+  touch: boolean
 }
 
 function read(win: Window): ViewportMode {
   return {
     kiosk: !win.matchMedia('(min-width: 1024px)').matches,
     portraitPhone: win.matchMedia('(orientation: portrait) and (max-width: 639px)').matches,
+    touch: win.matchMedia('(pointer: coarse)').matches,
   }
 }
 
@@ -33,14 +51,20 @@ function read(win: Window): ViewportMode {
  */
 export function useViewportMode(): ViewportMode {
   const [mode, setMode] = useState<ViewportMode>(() =>
-    typeof window === 'undefined' ? { kiosk: false, portraitPhone: false } : read(window)
+    typeof window === 'undefined'
+      ? { kiosk: false, portraitPhone: false, touch: false }
+      : read(window)
   )
 
   useEffect(() => {
     const update = () => {
       const next = read(window)
       setMode(prev =>
-        prev.kiosk === next.kiosk && prev.portraitPhone === next.portraitPhone ? prev : next
+        prev.kiosk === next.kiosk &&
+        prev.portraitPhone === next.portraitPhone &&
+        prev.touch === next.touch
+          ? prev
+          : next
       )
     }
     update()

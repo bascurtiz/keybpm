@@ -11,7 +11,8 @@ import { readWheelMode, writeWheelMode, type WheelMode } from '@/lib/wheelMode'
 import { Knob } from './Knob'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 // import { MixRenderButton } from './MixRenderButton'
-import { youtubeThumbUrl } from '@/lib/youtube'
+import { useCoverArt } from '@/lib/dj/cover-art'
+import { ACTIVE, ACTIVE_SWITCH } from '@/lib/dj/control-state'
 
 interface TraktorMiddleStripProps {
   engine: AudioEngine
@@ -123,7 +124,13 @@ export function TraktorMiddleStrip({
     // The strip is the console's darkest band, and each deck sits on it as its own
     // raised panel: the eye then reads two sources either side of one clock in the
     // middle, which is the console's actual signal path. See `DeckHeader`.
-    <div className="w-full bg-[#161616] px-1 py-1 border-b border-[#282828] text-white select-none">
+    //
+    // No padding here any more. The 4 px it used to add showed as a #161616 outline
+    // between the chassis edge and each deck header, which made the two panels look
+    // inset in a frame instead of being the corners of the console. The deck panels
+    // carry that padding themselves now and run to the chassis edge in #1C1C1C; only
+    // the centre module still sits on #161616, so the band still reads as three parts.
+    <div className="w-full bg-[#161616] border-b border-[#282828] text-white select-none">
       <div className="grid grid-cols-[1fr_auto_1fr] items-stretch w-full">
         {/* ================= LEFT: DECK A INFO & OVERVIEW ================= */}
         <DeckHeader
@@ -226,10 +233,10 @@ export function TraktorMiddleStrip({
             <button
               type="button"
               onClick={() => engine.toggleSnapMode()}
-              className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
+              className={`h-[22px] w-[22px] shrink-0 rounded-[3px] border text-[9px] font-bold flex items-center justify-center transition-all select-none ${
                 engine.snapMode
-                  ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
-                  : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
+                  ? ACTIVE
+                  : 'bg-[#141414] border-[#282828] text-[#777777] hover:border-[#444444] hover:text-[#d4d4d4]'
               }`}
               title={`SNAP MODE (${engine.snapMode ? 'ON' : 'OFF'})\nSnaps to closest beat when setting cue points and loops.`}
             >
@@ -243,10 +250,10 @@ export function TraktorMiddleStrip({
             <button
               type="button"
               onClick={() => engine.toggleQuantMode()}
-              className={`h-[18px] w-[17px] shrink-0 rounded-[3px] border text-[8.5px] font-mono font-bold flex items-center justify-center transition-all select-none ${
+              className={`h-[22px] w-[22px] shrink-0 rounded-[3px] border text-[9px] font-bold flex items-center justify-center transition-all select-none ${
                 engine.quantMode
-                  ? 'bg-[#181818] border-[#444444] text-[#d4d4d4] hover:border-[#666666] hover:text-white'
-                  : 'bg-[#141414] border-[#242424] text-[#4a4a4a] hover:border-[#383838] hover:text-[#777777]'
+                  ? ACTIVE
+                  : 'bg-[#141414] border-[#282828] text-[#777777] hover:border-[#444444] hover:text-[#d4d4d4]'
               }`}
               title={`QUANT MODE (${engine.quantMode ? 'ON' : 'OFF'})\nEnables beat-accurate (quantized) skipping between cue points.`}
             >
@@ -311,12 +318,15 @@ function DeckHeader({
     : null
 
   const displayTitle = deck.track ? deck.track.title : (hasYt ? ytState.title : `Deck ${deckId}: No track loaded`)
+  // Artist only. The genre that used to be appended here is in the tag strip on the
+  // track page and the table; on the console it crowded the line that has to be read
+  // at a glance, and the deck header is about *which record* is loaded.
   const displayArtist = deck.track
-    ? `${deck.track.artist}${deck.track.genre ? ` • ${deck.track.genre}` : ''}`
+    ? deck.track.artist
     : (hasYt ? (ytState.artist || 'YouTube Video') : 'Drop audio file or click artwork')
-  const displayCover = deck.track?.coverUrl || (hasYt && ytState.videoId ? youtubeThumbUrl(ytState.videoId) : null)
-  const displayBpm = deck.effectiveBpm ? deck.effectiveBpm : (hasYt ? ytState.bpm * ytState.playbackRate : null)
   const isLoaded = Boolean(deck.track || hasYt)
+  const displayCover = useCoverArt(deck.track, hasYt ? ytState.videoId : null)
+  const displayBpm = deck.effectiveBpm ? deck.effectiveBpm : (hasYt ? ytState.bpm * ytState.playbackRate : null)
 
   return (
     // One panel per deck. The artwork square always sits on the *outer* edge — the two
@@ -324,7 +334,7 @@ function DeckHeader({
     // stays left-to-right on both sides: a mirrored title line reads backwards down the
     // console, and the deck you are not looking at is the one you need at a glance.
     <div
-      className={`flex min-w-0 items-center gap-2.5 rounded-[3px] bg-[#1C1C1C] px-2 py-1.5 ${
+      className={`flex min-w-0 items-center gap-2.5 bg-[#1C1C1C] px-3 py-2.5 ${
         side === 'right' ? 'flex-row-reverse' : ''
       }`}
     >
@@ -353,10 +363,11 @@ function DeckHeader({
         </div>
       </div>
 
-      {/* Track Info (Title, Artist, BPM, Camelot/Musical/Open Key) */}
+      {/* Track Info (Title, FX, Time, BPM, Key, Artist, Mini Waveform) */}
       <div className="min-w-0 flex-1">
+        {/* Row 1: Title (left) | FX, Time (right) */}
         <div className="flex h-[18px] items-center justify-between gap-1.5">
-          <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5 flex-1">
             <h2
               onClick={onLoadClick}
               className="text-[13px] font-bold text-white truncate cursor-pointer hover:text-zinc-300 leading-none"
@@ -366,19 +377,22 @@ function DeckHeader({
             </h2>
             {deck.fluxMode && (
               <span
-                className="px-1 py-0.5 rounded-[2px] text-[7.5px] font-mono font-bold tracking-wider uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.4)] shrink-0 leading-none"
+                className="px-1 py-0.5 rounded-[2px] text-[7.5px] font-sans font-bold tracking-wider uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.4)] shrink-0 leading-none"
                 title="SLIP Mode is active: phrasing is preserved during cues, loops and FX"
               >
                 SLIP
               </span>
             )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
             {showFx !== false && (
               <button
                 type="button"
                 onClick={onToggleFx}
                 className={`h-[14px] px-1 rounded-[2px] border text-[8px] font-bold uppercase tracking-wider transition-all shrink-0 ${
                   fxActive
-                    ? 'bg-[#141414] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.35)]'
+                    ? ACTIVE_SWITCH
                     : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
                 }`}
                 title={`Deck ${deckId} FX drawer`}
@@ -386,32 +400,25 @@ function DeckHeader({
                 FX
               </button>
             )}
+            <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0 leading-none">
+              0:00 / 0:00
+            </span>
           </div>
-          <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0 leading-none">
-            0:00 / 0:00
-          </span>
         </div>
 
+        {/* Row 2: Artist (left) | BPM, Key (right) */}
         <div className="mt-1 flex h-4 items-center justify-between gap-1 text-[10px] text-zinc-400">
-          <p className="truncate text-zinc-400">
+          <p className="truncate text-zinc-400 font-medium text-[11px] flex-1 min-w-0">
             {displayArtist}
           </p>
 
-          {/* BPM & Color-coded Key Display. The BPM and the key chip are separated by this row's
-              own gap: a "/" used to sit between them, and the extra space is what it stood for.
-              A literal space would not work — whitespace-only text between flex items is collapsed
-              away, so the gap is the only thing that shows.
-
-              Nothing to read means nothing is drawn: an empty deck says "drop audio file or
-              click artwork" in one line rather than a prompt followed by two dashes. */}
           {isLoaded && (
-            <div className="flex shrink-0 items-center gap-1.5 font-sans font-medium text-zinc-300">
+            <div className="flex shrink-0 items-center gap-2 font-sans">
               {isEditingBpm ? (
                 <input
                   type="number"
                   step="0.01"
                   autoFocus
-                  // Edit base BPM (grid), not effective BPM — avoids double-applying pitch rate.
                   defaultValue={deck.track?.bpm ? deck.track.bpm.toFixed(2) : ''}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
@@ -439,7 +446,7 @@ function DeckHeader({
                   onClick={() => {
                     if (deck.track) setIsEditingBpm(true)
                   }}
-                  className={`font-semibold text-white ${
+                  className={`font-bold text-white font-mono text-[11.5px] tabular-nums leading-none ${
                     deck.track ? 'hover:underline hover:text-accent cursor-pointer' : ''
                   }`}
                   title={
@@ -451,6 +458,7 @@ function DeckHeader({
                   {displayBpm ? displayBpm.toFixed(2) : '---'}
                 </span>
               )}
+
               {isEditingKey && deck.track ? (
                 <select
                   autoFocus
@@ -461,7 +469,7 @@ function DeckHeader({
                     setIsEditingKey(false)
                   }}
                   onBlur={() => setIsEditingKey(false)}
-                  className="bg-black border border-white text-white text-[10px] font-bold font-mono rounded px-0.5 outline-none cursor-pointer"
+                  className="bg-black border border-white text-white text-[10px] font-bold font-sans rounded px-0.5 outline-none cursor-pointer"
                 >
                   {CAMELOT_KEYS.map(k => (
                     <option key={k} value={k}>
@@ -470,16 +478,10 @@ function DeckHeader({
                   ))}
                 </select>
               ) : (
-                <>
-                  {/* The key is the one field a DJ reads across the console, so it wears the same
-                      Camelot chip as the tables and the key wheel at the dense size — the wheel's
-                      own hue with dark ink, rather than tinted text. The label still follows the
-                      global notation (Camelot / musical / Open Key). */}
+                <div className="flex items-center gap-1">
                   <span
                     onClick={() => setIsEditingKey(true)}
                     className={`${CAMELOT_BLOCK_SM} cursor-pointer hover:brightness-110 ${
-                      // A ring rather than a border: a 1px border would add 2px to the box and
-                      // make the keyless chip 18px against the keyed chip's 16px.
                       effectiveCamelot ? '' : 'ring-1 ring-inset ring-[#333333] bg-[#1a1a1a] text-[#666666]'
                     }`}
                     style={effectiveCamelot ? camelotBlockStyle(effectiveCamelot) : undefined}
@@ -491,19 +493,18 @@ function DeckHeader({
                   >
                     {effectiveCamelot ? formatKeyDisplay(effectiveCamelot, keyMode) : '---'}
                   </span>
-                  {/* The shift sits outside the chip: amber on the chip's dark-on-pale ink vanishes. */}
                   {deck.keyShift !== 0 && (
-                    <span className="text-amber-400 font-semibold text-[9px]">
+                    <span className="text-amber-400 font-mono font-bold text-[9px] tabular-nums">
                       {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
                     </span>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Mini Waveform Overview Strip */}
+        {/* Row 3: Mini Waveform Overview Strip */}
         <div className="mt-1">
           <MiniWaveform deck={deck} waveColor={accentColor} />
         </div>

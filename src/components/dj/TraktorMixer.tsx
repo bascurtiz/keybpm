@@ -3,7 +3,9 @@ import type { AudioEngine } from '@/lib/dj/audio-engine'
 import { Knob } from './Knob'
 import { FilterKnob } from './FilterKnob'
 import { Fader } from './Fader'
-import { shiftCamelot, findKeySyncShift, areKeysCompatible } from '@/lib/camelot'
+import { useViewportMode } from '@/lib/use-viewport'
+import { CONTROL_FRAME_W, CONTROL_H } from '@/lib/dj/control-size'
+import { ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
 
 interface TraktorMixerProps {
   engine: AudioEngine
@@ -11,10 +13,15 @@ interface TraktorMixerProps {
 }
 
 export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
+  const { kiosk } = useViewportMode()
   const deckA = engine.decks.A
   const deckB = engine.decks.B
-
   const [, setVer] = useState(0)
+
+  const knobSize = 38
+  const filterSize = 42
+  const faderClass = 'w-6 h-[140px]'
+
   useEffect(() => {
     const unE = engine.subscribe(() => setVer(v => v + 1))
     const unA = deckA.subscribe(() => setVer(v => v + 1))
@@ -26,64 +33,23 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     }
   }, [engine, deckA, deckB])
 
-  // Sync states (continuous sync lock)
-  const isSyncedA = deckA.syncLocked
-  const isSyncedB = deckB.syncLocked
-
-  // Key sync states
-  const baseCamelotA = deckA.track?.key?.camelot
-  const baseCamelotB = deckB.track?.key?.camelot
-  const effCamelotA = baseCamelotA ? shiftCamelot(baseCamelotA, deckA.keyShift) : null
-  const effCamelotB = baseCamelotB ? shiftCamelot(baseCamelotB, deckB.keyShift) : null
-
-  const optShiftA = baseCamelotA && effCamelotB ? findKeySyncShift(baseCamelotA, effCamelotB) : 0
-  const optShiftB = baseCamelotB && effCamelotA ? findKeySyncShift(baseCamelotB, effCamelotA) : 0
-
-  const isKeySyncedA = Boolean(
-    baseCamelotA &&
-      effCamelotB &&
-      effCamelotA &&
-      (areKeysCompatible(effCamelotA, effCamelotB) ||
-        (deckA.keyShift !== 0 && deckA.keyShift === optShiftA))
-  )
-  const isKeySyncedB = Boolean(
-    baseCamelotB &&
-      effCamelotA &&
-      effCamelotB &&
-      (areKeysCompatible(effCamelotB, effCamelotA) ||
-        (deckB.keyShift !== 0 && deckB.keyShift === optShiftB))
-  )
-
-  const handleKeySyncA = () => {
-    if (!deckA.track || !deckB.track || !baseCamelotA || !effCamelotB) return
-    if (isKeySyncedA && deckA.keyShift !== 0) deckA.resetKeyShift()
-    else deckA.setKeyShift(optShiftA)
-  }
-
-  const handleKeySyncB = () => {
-    if (!deckB.track || !deckA.track || !baseCamelotB || !effCamelotA) return
-    if (isKeySyncedB && deckB.keyShift !== 0) deckB.resetKeyShift()
-    else deckB.setKeyShift(optShiftB)
-  }
-
   // FX assign state: Deck A, Deck B, or Master
   const [fxAssign, setFxAssign] = useState<'A' | 'B' | 'MST'>('MST')
 
-  // FX helpers with channel assignment (Deck A, Deck B, or Master)
   const toggleEcho = () => {
     if (fxAssign === 'A') {
       if (deckA.fxType === 'echo' && deckA.fxWet > 0) {
         deckA.setFxWet(0)
       } else {
         deckA.setFx('echo')
-        deckA.setFxWet(0.55)
+        deckA.setFxWet(0.5)
       }
     } else if (fxAssign === 'B') {
       if (deckB.fxType === 'echo' && deckB.fxWet > 0) {
         deckB.setFxWet(0)
       } else {
         deckB.setFx('echo')
-        deckB.setFxWet(0.55)
+        deckB.setFxWet(0.5)
       }
     } else {
       const anyEcho = (deckA.fxType === 'echo' && deckA.fxWet > 0) || (deckB.fxType === 'echo' && deckB.fxWet > 0)
@@ -92,9 +58,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         deckB.setFxWet(0)
       } else {
         deckA.setFx('echo')
-        deckA.setFxWet(0.55)
+        deckA.setFxWet(0.5)
         deckB.setFx('echo')
-        deckB.setFxWet(0.55)
+        deckB.setFxWet(0.5)
       }
     }
   }
@@ -128,17 +94,6 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     }
   }
 
-  /**
-   * Which single deck a master-assigned FX should hit.
-   *
-   * MST means "the mix as it is being heard", so it resolves to one deck rather than
-   * every playing deck. Firing on both at once was the old behaviour and it doubled the
-   * hit — two SCR chops or two brakes starting a few milliseconds apart read as a flam
-   * instead of one punch, which is why A and B sounded right and MST did not.
-   *
-   * The crossfader already says which side the audience is on, so that picks the deck;
-   * a playing deck beats a stopped one, and a deck holding a track beats an empty one.
-   */
   const pickMasterDeck = () => {
     const favourA = engine.crossfade <= 0
     const preferred = favourA ? deckA : deckB
@@ -148,7 +103,6 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
     return preferred.track ? preferred : other
   }
 
-  /** The one deck an FX button acts on, for any of the three assignments. */
   const fxTargetDeck = () =>
     fxAssign === 'A' ? deckA : fxAssign === 'B' ? deckB : pickMasterDeck()
 
@@ -178,14 +132,14 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
   return (
     <div
-      className={`flex items-stretch justify-between gap-2 px-3 py-1.5 bg-[#1C1C1C] rounded-xl border border-[#282828] select-none h-full shadow-inner ${className}`}
+      className={`flex items-stretch gap-2 px-2 py-1.5 bg-[#1C1C1C] rounded-lg border border-[#282828] select-none h-full shadow-inner shrink-0 ${className}`}
     >
       {/* ================= 1. DECK A CHANNEL FADER ================= */}
-      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">
+      <div className="flex flex-col items-center justify-between py-1 w-9 shrink-0">
+        <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-1 leading-none">
           A
         </span>
-        <div className="h-[135px] flex items-center justify-center my-auto">
+        <div className="flex items-center justify-center my-auto">
           <Fader
             orientation="vertical"
             min={0}
@@ -197,18 +151,18 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             onValueChange={v => deckA.setVolume(v)}
             accentColor="#34d399"
             analyser={deckA.analyser}
-            className="w-7 h-[135px]"
+            className={faderClass}
           />
         </div>
       </div>
 
       {/* ================= 2. DECK A EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
-      <div className="flex flex-col justify-between items-center py-1 w-12 shrink-0">
+      <div className="flex flex-col justify-between items-center py-0.5 w-10 shrink-0">
         <EqKnobItem
           label="GAIN"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={0}
               max={2}
               defaultValue={1}
@@ -223,7 +177,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           label="HI"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={-12}
               max={12}
               defaultValue={0}
@@ -238,7 +192,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           label="MID"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={-12}
               max={12}
               defaultValue={0}
@@ -253,14 +207,11 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           label="LOW"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={-12}
               max={12}
               defaultValue={0}
               bipolar
-              // Read from the engine rather than local state: the AUTO autopilot drives the Low
-              // of both decks during a fade, and a knob that mirrors only its own pointer would
-              // show a still knob while the mix underneath it is moving.
               value={deckA.eqLowGain}
               onValueChange={v => deckA.setEqLow(v)}
               accentColor="#34d399"
@@ -269,47 +220,73 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         />
       </div>
 
-      {/* ================= 3. CENTER PANEL (FILTERS + FX + SYNC/KEY) ================= */}
-      <div className="flex flex-col justify-between items-center py-1 px-2 bg-[#161616] rounded-lg border border-[#282828] w-[132px] shrink-0">
-        {/* Top: Filter Knobs A & B */}
-        <div className="flex items-center justify-center gap-4 w-full pt-1">
-            <div className="flex flex-col items-center">
-              <FilterKnob
-                size={40}
-                value={deckA.filterValue}
-                onChange={v => deckA.setFilter(v)}
-                accentColor="#34d399"
-              />
-            </div>
+      {/* ================= 3. CENTER PANEL (FILTERS + FX) ================= */}
+      <div
+        className={`relative flex flex-col items-center py-2 bg-[#161616] rounded-md border border-[#282828] ${
+          kiosk ? 'w-[128px]' : 'w-[136px]'
+        } shrink-0 h-full`}
+      >
+        {/* Top: Filter Knobs A & B.
 
-            <div className="flex flex-col items-center">
-              <FilterKnob
-                size={40}
-                value={deckB.filterValue}
-                onChange={v => deckB.setFilter(v)}
-                accentColor="#a855f7"
-              />
-            </div>
+            The pair is inset from the panel walls: at the row's original `px-0.5` the
+            outer knob (and its ● FILTER caption, which is the wider of the two) sat 5 px
+            from the panel's border and read as touching it. `px-3` in a 136 px panel puts
+            them 13 px from the border and 14.6 px for the caption — the pair stays spread
+            by `justify-between`, and the wider panel is what turns the extra width into air
+            around the knobs rather than a wider gap between them. */}
+        <div className="flex items-center justify-between w-full px-3">
+          <div className="flex flex-col items-center">
+            <FilterKnob
+              size={filterSize}
+              value={deckA.filterValue}
+              onChange={v => deckA.setFilter(v)}
+              accentColor="#34d399"
+            />
           </div>
 
-        {/* FX module: target assignment, routing bracket and the four performance
-            buttons, as *one* flex child. Split into three, `justify-between` divided the
-            column's free space between the bracket and the buttons as well — which both
-            pulled the stem off the grid it points at (hence the old `-mt-2` patch) and
-            left the SYNC/KEY row sitting almost against the FX buttons. As a group the
-            free space lands above and below the module instead. */}
-        <div className="flex flex-col items-center w-full max-w-[104px]">
-          <span className="text-[7px] font-semibold text-[#888888] uppercase tracking-widest mb-1.5">
+          <div className="flex flex-col items-center">
+            <FilterKnob
+              size={filterSize}
+              value={deckB.filterValue}
+              onChange={v => deckB.setFilter(v)}
+              accentColor="#a855f7"
+            />
+          </div>
+        </div>
+
+        {/* FX module: target assignment, routing bracket and the four performance buttons.
+            Centred in the space under the filters rather than pinned to the floor of the
+            column: hanging it off the bottom left a dead gap above it that made the mixer
+            look like it had lost a row. It is centred on that space rather than on the
+            panel because the panel is short — centre the panel and the FX label lands on
+            the FILTER captions above it.
+
+            The module then sits a little below that centre (`mt-4`, an 8 px shift for a
+            16 px top margin): with the box centred, the margin is split between the two
+            sides of the free space, so it reads as part of the gap above the FX label.
+            Pure centring left the group floating too high, close enough to the FILTER
+            captions to look attached to them. */}
+        <div className="flex flex-1 min-h-0 w-full items-center justify-center">
+        <div className="flex flex-col items-center w-full max-w-[109px] mt-4">
+          {/* Same caption as the deck's CUES label: 8.5 px, #888888, tracking-wider. The
+              FX group is the second labelled cluster on the console, and at 7 px with
+              wider tracking it read as a smaller, different class of heading. */}
+          {/* Same 8 px caption gap as the deck's CUES label, for the same reason: at 4 px the
+              word was nearer the A / MST / B row than the row is to the panel's border. The
+              module is centred in the space under the filters, so the extra 4 px comes out
+              of that centring, not out of the FX buttons. */}
+          <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider mb-2 leading-none select-none">
             FX
           </span>
-          <div className="grid grid-cols-3 gap-1.5 w-full">
+          <div className="grid grid-cols-3 gap-1 w-full">
             <button
               type="button"
               onClick={() => setFxAssign('A')}
-              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              style={{ height: CONTROL_H }}
+              className={`rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
                 fxAssign === 'A'
-                  ? 'bg-[#161616] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.45)]'
-                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+                  ? ACTIVE_SWITCH
+                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
               title="Assign FX to Deck A"
             >
@@ -318,22 +295,24 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <button
               type="button"
               onClick={() => setFxAssign('MST')}
-              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              style={{ height: CONTROL_H }}
+              className={`rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
                 fxAssign === 'MST'
-                  ? 'bg-[#161616] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.45)]'
-                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+                  ? ACTIVE_SWITCH
+                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
-              title="Assign FX to Master — echo/reverb apply to both decks; one-shot FX (SCR / BRK) fire on the deck the crossfader favours"
+              title="Assign FX to Master"
             >
               MST
             </button>
             <button
               type="button"
               onClick={() => setFxAssign('B')}
-              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
+              style={{ height: CONTROL_H }}
+              className={`rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
                 fxAssign === 'B'
-                  ? 'bg-[#161616] text-white border-white shadow-[0_0_6px_rgba(255,255,255,0.45)]'
-                  : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+                  ? ACTIVE_SWITCH
+                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
               title="Assign FX to Deck B"
             >
@@ -341,138 +320,90 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             </button>
           </div>
 
-          {/* Circuit Routing Bracket connecting A/MST/B to FX block. It sits flush on
-              the grid below, so the stem ends exactly on the buttons it forks into. */}
+          {/* Circuit Routing Bracket */}
           <svg
-            className="w-full h-[12px] mt-2 pointer-events-none"
-            viewBox="0 0 104 12"
+            className="w-full h-[10px] my-1 pointer-events-none"
+            viewBox="0 0 104 10"
             fill="none"
           >
-            {/* Left tick down from A */}
-            <line x1="15.5" y1="0" x2="15.5" y2="6" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
-            {/* Right tick down from B */}
-            <line x1="88.5" y1="0" x2="88.5" y2="6" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
-            {/* Horizontal connecting bar */}
-            <line x1="15.5" y1="6" x2="88.5" y2="6" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
-            {/* Center cross/stem under MST */}
-            <line x1="52" y1="1" x2="52" y2="12" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
+            <line x1="15.5" y1="0" x2="15.5" y2="5" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
+            <line x1="88.5" y1="0" x2="88.5" y2="5" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
+            <line x1="15.5" y1="5" x2="88.5" y2="5" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
+            <line x1="52" y1="1" x2="52" y2="10" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
           </svg>
 
-          {/* 2x2 Performance FX Buttons [ECHO, RVRB, BRK, SCR] */}
-          <div className="grid grid-cols-2 gap-1.5 w-full">
-            <button
-              type="button"
-              onClick={toggleEcho}
-              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-                isEchoActive
-                  ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-              }`}
-              title="Toggle Echo effect"
+          {/* Performance FX Columns: [ECHO+BRK] and [RVRB+SCR] tight pairs */}
+          <div className="flex items-stretch gap-px w-full" style={{ maxWidth: CONTROL_FRAME_W * 2 + 1 }}>
+            {/* Left: ECHO & BRK unified container */}
+            <div
+              style={{ width: CONTROL_FRAME_W }}
+              className="flex flex-col shrink-0 rounded-[3px] border border-[#282828] bg-[#141414] overflow-hidden"
             >
-              ECHO
-            </button>
-            <button
-              type="button"
-              onClick={toggleReverb}
-              className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-                isReverbActive
-                  ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
-              }`}
-              title="Toggle Reverb effect"
+              <button
+                type="button"
+                onClick={toggleEcho}
+                style={{ height: CONTROL_H }}
+                className={`w-full ${CELL} text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
+                  isEchoActive
+                    ? ACTIVE_SWITCH
+                    : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
+                }`}
+                title="Toggle Echo effect"
+              >
+                ECHO
+              </button>
+              <button
+                type="button"
+                onClick={triggerBrake}
+                style={{ height: CONTROL_H }}
+                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+                title="Vinyl Brake stop effect"
+              >
+                BRK
+              </button>
+            </div>
+
+            {/* Right: RVRB & SCR unified container */}
+            <div
+              style={{ width: CONTROL_FRAME_W }}
+              className="flex flex-col shrink-0 rounded-[3px] border border-[#282828] bg-[#141414] overflow-hidden"
             >
-              RVRB
-            </button>
-            <button
-              type="button"
-              onClick={triggerBrake}
-              className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
-              title="Vinyl Brake stop effect"
-            >
-              BRK
-            </button>
-            <button
-              type="button"
-              onClick={triggerCutter}
-              className="h-[18px] rounded-[3px] border bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] active:border-white active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center"
-              title="SCR — forward cutter: plays the chop sample at this deck's tempo"
-            >
-              SCR
-            </button>
+              <button
+                type="button"
+                onClick={toggleReverb}
+                style={{ height: CONTROL_H }}
+                className={`w-full ${CELL} text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
+                  isReverbActive
+                    ? ACTIVE_SWITCH
+                    : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
+                }`}
+                title="Toggle Reverb effect"
+              >
+                RVRB
+              </button>
+              <button
+                type="button"
+                onClick={triggerCutter}
+                style={{ height: CONTROL_H }}
+                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+                title="SCR — forward cutter: plays the chop sample at this deck's tempo"
+              >
+                SCR
+              </button>
+            </div>
           </div>
         </div>
-
-        {/* Bottom: 2x2 SYNC & KEY Buttons. Stays in the phone console: a mix without
-            tempo sync is a different instrument, and four buttons is all it costs.
-            The margin is deliberate: `justify-between` alone gives this row the same
-            share of the column as the gaps inside the FX module, which reads as a third
-            FX row. Tempo and key sync are a separate operation, so it earns the extra
-            space — measured at 21 px above and 27 px below on a desktop, 17/23 design px
-            on a phone console. */}
-        <div className="grid grid-cols-2 gap-1.5 w-full max-w-[104px] mt-2.5 mb-0.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => deckA.syncTo(deckB)}
-            disabled={!deckA.track || !deckB.track}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              isSyncedA
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
-            }`}
-            title="Deck A Tempo Sync"
-          >
-            SYNC
-          </button>
-          <button
-            type="button"
-            onClick={() => deckB.syncTo(deckA)}
-            disabled={!deckB.track || !deckA.track}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              isSyncedB
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
-            }`}
-            title="Deck B Tempo Sync"
-          >
-            SYNC
-          </button>
-          <button
-            type="button"
-            onClick={handleKeySyncA}
-            disabled={!deckA.track || !deckB.track}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              isKeySyncedA
-                ? 'bg-[#221808] text-amber-400 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.35)]'
-                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
-            }`}
-            title="Deck A Harmonic Key Sync"
-          >
-            KEY
-          </button>
-          <button
-            type="button"
-            onClick={handleKeySyncB}
-            disabled={!deckB.track || !deckA.track}
-            className={`h-[18px] rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
-              isKeySyncedB
-                ? 'bg-[#221808] text-amber-400 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.35)]'
-                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
-            }`}
-            title="Deck B Harmonic Key Sync"
-          >
-            KEY
-          </button>
         </div>
+
       </div>
 
       {/* ================= 4. DECK B EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
-      <div className="flex flex-col justify-between items-center py-1 w-12 shrink-0">
+      <div className="flex flex-col justify-between items-center py-0.5 w-10 shrink-0">
         <EqKnobItem
           label="GAIN"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={0}
               max={2}
               defaultValue={1}
@@ -487,7 +418,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           label="HI"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={-12}
               max={12}
               defaultValue={0}
@@ -502,7 +433,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           label="MID"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={-12}
               max={12}
               defaultValue={0}
@@ -517,12 +448,11 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           label="LOW"
           knob={
             <Knob
-              size={40}
+              size={knobSize}
               min={-12}
               max={12}
               defaultValue={0}
               bipolar
-              // Mirrors the engine — see the Deck A LOW knob above.
               value={deckB.eqLowGain}
               onValueChange={v => deckB.setEqLow(v)}
               accentColor="#a855f7"
@@ -532,11 +462,11 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       </div>
 
       {/* ================= 5. DECK B CHANNEL FADER ================= */}
-      <div className="flex flex-col items-center justify-between py-1 w-12 shrink-0">
-        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-2">
+      <div className="flex flex-col items-center justify-between py-1 w-9 shrink-0">
+        <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider mb-1 leading-none">
           B
         </span>
-        <div className="h-[135px] flex items-center justify-center my-auto">
+        <div className="flex items-center justify-center my-auto">
           <Fader
             orientation="vertical"
             min={0}
@@ -548,7 +478,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             onValueChange={v => deckB.setVolume(v)}
             accentColor="#a855f7"
             analyser={deckB.analyser}
-            className="w-7 h-[135px]"
+            className={faderClass}
           />
         </div>
       </div>
@@ -559,7 +489,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 function EqKnobItem({ label, knob }: { label: string; knob: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center">
-      <span className="text-[7.5px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">
+      <span className="text-[7px] font-sans font-bold text-zinc-400 uppercase tracking-widest mb-0.5">
         {label}
       </span>
       {knob}

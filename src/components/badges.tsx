@@ -34,10 +34,10 @@ export function KeyBadge({
   className?: string
 }) {
   if (!keyName) {
-    return <span className={`font-mono text-text-dim ${className}`} title="No single key">—</span>
+    return <span className={`font-sans text-text-dim ${className}`} title="No single key">—</span>
   }
   return (
-    <span className={`font-mono ${className}`} title={mode ? `${keyName} (${mode})` : keyName}>
+    <span className={`font-sans ${className}`} title={mode ? `${keyName} (${mode})` : keyName}>
       {short ? shortKey(keyName) : keyName}
       {mode && <span className="ml-1 text-[0.85em] text-text-dim">{short ? modeAbbr(mode) : mode}</span>}
     </span>
@@ -65,7 +65,7 @@ export function SourceBadge({
   const label = sourceTooltip(source, track.camelot ?? null)
   const chip = (
     <span
-      className="inline-flex h-5 min-w-[1.75rem] items-center justify-center rounded border px-1 font-mono text-[11px] font-bold leading-none text-text"
+      className="inline-flex h-5 min-w-[1.75rem] items-center justify-center rounded border px-1 font-sans text-[11px] font-bold leading-none text-text"
       style={{ backgroundColor: `${meta.color}26`, borderColor: meta.color }}
     >
       {meta.code}
@@ -180,7 +180,7 @@ export function ContributorBadge({
 }
 
 const CAMELOT_BLOCK_BASE =
-  'inline-flex items-center justify-center rounded-md font-mono font-semibold'
+  'inline-flex items-center justify-center rounded-md font-sans font-semibold'
 
 /**
  * Camelot chip, table/badge size.

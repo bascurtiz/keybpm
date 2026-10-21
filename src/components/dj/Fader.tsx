@@ -197,7 +197,7 @@ export function Fader({
   const hasCustomH = /(?:^|\s)!?h-/.test(className)
   const hasCustomW = /(?:^|\s)!?w-/.test(className)
   const sizeClasses = vertical
-    ? `${hasCustomH ? '' : 'h-full'} ${hasCustomW ? '' : 'w-9'}`
+    ? `${hasCustomH ? '' : 'h-full'} ${hasCustomW ? '' : 'w-10'}`
     : `${hasCustomH ? '' : 'h-8'} ${hasCustomW ? '' : 'w-full'}`
 
   return (
@@ -259,9 +259,9 @@ export function Fader({
         className={`absolute rounded-full bg-[#161616] border border-[#282828] overflow-hidden ${
           vertical
             ? analyser
-              ? 'top-0 left-1/2 h-full w-[7px] -translate-x-1/2 py-1 flex flex-col justify-between items-center'
-              : 'top-0 left-1/2 h-full w-1.5 -translate-x-1/2'
-            : 'top-1/2 left-0 h-1.5 w-full -translate-y-1/2'
+              ? 'top-0 left-1/2 h-full w-[9px] -translate-x-1/2 py-1 flex flex-col justify-between items-center'
+              : 'top-0 left-1/2 h-full w-2 -translate-x-1/2'
+            : 'top-1/2 left-0 h-2 w-full -translate-y-1/2'
         }`}
       >
         {/* Integrated VU Meter LED Segments inside Track Slot */}
@@ -278,7 +278,7 @@ export function Fader({
               return (
                 <div
                   key={i}
-                  className="w-[3px] flex-1 rounded-[0.5px] transition-opacity duration-75"
+                  className="w-1 flex-1 rounded-[0.5px] transition-opacity duration-75"
                   style={{ backgroundColor: color, opacity: 0.15 }}
                 />
               )
@@ -310,14 +310,14 @@ export function Fader({
         )}
       </div>
 
-      {/* Fader Handle / Cap (Neutral grayscale #505050 with white indicator) */}
+      {/* Fader Handle / Cap (Hardware gray cap #505050 with bright white center indicator line) - scaled 25% bigger */}
       <div
         ref={handleRef}
         aria-hidden
         className={`absolute rounded-[2px] bg-[#505050] border border-[#383838] shadow-md flex items-center justify-center pointer-events-none z-20 ${
           vertical
-            ? 'left-1/2 w-8 h-4 -translate-x-1/2 translate-y-1/2'
-            : 'top-1/2 w-4 h-8 -translate-x-1/2 -translate-y-1/2'
+            ? 'left-1/2 w-[34px] h-[18px] -translate-x-1/2 translate-y-1/2'
+            : 'top-1/2 w-[18px] h-[30px] -translate-x-1/2 -translate-y-1/2'
         }`}
         style={
           vertical
@@ -325,12 +325,12 @@ export function Fader({
             : { left: `${norm * 100}%` }
         }
       >
-        {/* White indicator stripe */}
+        {/* White center indicator stripe */}
         <div
           className={`bg-white shadow-sm ${
             vertical
-              ? 'w-full h-[1.5px]'
-              : 'h-full w-[1.5px]'
+              ? 'w-full h-[2px]'
+              : 'h-full w-[2px]'
           }`}
         />
       </div>

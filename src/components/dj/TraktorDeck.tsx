@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { JogWheel } from './JogWheel'
-import { Knob } from './Knob'
 import { Fader } from './Fader'
 import { shiftCamelot, findKeySyncShift, areKeysCompatible } from '@/lib/camelot'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
+import { useViewportMode } from '@/lib/use-viewport'
+import { CONTROL_W, CONTROL_H } from '@/lib/dj/control-size'
+import { ACTIVE, ACTIVE_KEY, ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
 
 interface TraktorDeckProps {
   deck: DeckEngine
@@ -15,7 +17,18 @@ interface TraktorDeckProps {
   onLoadClick?: () => void
 }
 
-const PITCH_RANGES = [6, 10, 16, 100]
+/**
+ * The pitch fader's travel, fixed at ±10 %.
+ *
+ * The column used to carry a range key that cycled ±6 / ±10 / ±16 / ±100 %, with a number
+ * underneath the − / + pair to say which was armed. On a console this size the 6 % and 16 %
+ * steps were indistinguishable on a 140 px throw, the ±100 % setting turned the fader into a
+ * switch, and the number itself was the only control on the row that stated a *setting* rather
+ * than an action — so it read as a readout you had to decode before touching the fader. ±10 %
+ * is the range DJs actually mix in, so it is the only one left: the fader's ends now mean
+ * something without a label, and the space goes back to the − / + pair.
+ */
+const PITCH_RANGE = 10
 
 export function TraktorDeck({
   deck,
@@ -25,8 +38,8 @@ export function TraktorDeck({
   accentColor,
   onLoadClick: _onLoadClick,
 }: TraktorDeckProps) {
+  const { kiosk } = useViewportMode()
   const [, setVer] = useState(0)
-  const [pitchRangeIdx, setPitchRangeIdx] = useState(1) // Default ±10%
   const [activeNudge, setActiveNudge] = useState<-1 | 0 | 1>(0)
   const nudgeIntervalRef = useRef<number | null>(null)
 
@@ -72,7 +85,6 @@ export function TraktorDeck({
     deck.nudge(0)
   }
 
-  const maxPitch = PITCH_RANGES[pitchRangeIdx]
   const pitchPercent = (deck.rate - 1) * 100
 
   // Incremental BPM tempo adjustment
@@ -110,35 +122,36 @@ export function TraktorDeck({
 
   const handleKeySync = () => {
     if (!deck.track || !otherDeck?.track || !deckBaseCamelot || !otherEffectiveCamelot) return
-    if (isKeySynced && deck.keyShift !== 0) {
-      deck.resetKeyShift()
-    } else {
-      deck.setKeyShift(optimalSyncShift)
-    }
-  }
-
-  const cyclePitchRange = () => {
-    setPitchRangeIdx(i => (i + 1) % PITCH_RANGES.length)
+    deck.setKeyShift(optimalSyncShift)
+    if (!deck.keyLock) deck.setKeyLock(true)
   }
 
   const isOuterLeft = side === 'left'
 
   return (
     <div
-      className={`flex items-center justify-between w-full h-full px-1 py-1 select-none ${
-        isOuterLeft ? 'flex-row' : 'flex-row-reverse'
-      }`}
+      className={`flex items-center ${
+        kiosk ? 'gap-2.5' : 'gap-[14px]'
+      } h-full select-none shrink-0 ${isOuterLeft ? 'flex-row' : 'flex-row-reverse'}`}
     >
       {/* ================= 1. OUTER EDGE: PITCH FADER SECTION ================= */}
-      <div className="flex flex-col items-center justify-between h-full py-1 w-14 shrink-0 bg-[#161616] rounded-md border border-[#282828] px-1">
-        {/* Pitch Rate Readout & Reset to 0% */}
+      {/* 62 px with 4 px of side padding: the readout and the − / + strip are 52 px wide in a
+          52 px well, so the column is as tight as it can be around them. Widened once for air
+          and put back — the pitch fader reads as a column of gauges, and a column of gauges
+          wants its scale at the edge, unlike the filter/FX block, which needed the room. */}
+      <div
+        className="flex flex-col items-center justify-between h-full py-2 px-1 w-[62px] shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none"
+      >
+        {/* Pitch Rate Readout & Reset to 0%. A readout, not a key: the value sits on the
+            console's darkest surface without a frame, so it reads as a printed number until
+            you click it. The centred state says so in white type, not with a border. */}
         <button
           type="button"
           onClick={() => {
             deck.setRate(1)
             youtubeBridge.setPlaybackRate(deckId, 1)
           }}
-          className="text-[9.5px] font-mono font-bold text-[#d4d4d4] hover:text-white tabular-nums tracking-tight transition-colors"
+          className="w-full h-5 rounded-[5px] bg-[#101010] text-[9px] font-mono font-bold flex items-center justify-center tabular-nums tracking-tight text-[#dcdcdc] hover:text-white transition-all select-none"
           title="Click to reset pitch to 0.0%"
         >
           {pitchPercent >= 0 ? `+${pitchPercent.toFixed(1)}%` : `${pitchPercent.toFixed(1)}%`}
@@ -148,8 +161,8 @@ export function TraktorDeck({
         <div className="flex-1 flex items-center justify-center my-1">
           <Fader
             orientation="vertical"
-            min={1 - maxPitch / 100}
-            max={1 + maxPitch / 100}
+            min={1 - PITCH_RANGE / 100}
+            max={1 + PITCH_RANGE / 100}
             step={0.0005}
             value={deck.rate}
             defaultValue={1}
@@ -162,17 +175,21 @@ export function TraktorDeck({
               youtubeBridge.setPlaybackRate(deckId, r)
             }}
             accentColor={accentColor}
-            className="w-7 h-[140px]"
+            className="w-6 h-[140px]"
           />
         </div>
 
-        {/* Pitch Bend Buttons ▲ and ▼ & Range Toggle */}
-        <div className="flex flex-col items-center gap-1 w-full">
-          <div className="flex items-center justify-center gap-1 w-full">
+        {/* Pitch bend − / +. The strip itself is flat on the console's darkest surface, but
+            the two keys keep their frames: they are buttons, and at 9 px the border is the only
+            thing saying so next to the bare readout above. The range key that used to sit under
+            this pair is gone — the fader is fixed at ±10 % (see PITCH_RANGE), so there is no
+            setting left to show. */}
+        <div className="flex flex-col w-full rounded-[5px] bg-[#101010] overflow-hidden">
+          <div className="flex items-stretch w-full h-5 rounded-[4px] border border-[#282828] overflow-hidden">
             <button
               type="button"
               onClick={() => stepPitchBpm(-0.1)}
-              className="h-5 flex-1 rounded bg-[#141414] border border-[#282828] text-[10px] font-bold text-[#666666] hover:text-[#d4d4d4] flex items-center justify-center active:border-white active:text-white"
+              className="flex-1 border-r border-[#282828] bg-[#141414] text-[11px] font-bold text-[#dcdcdc] hover:text-white hover:border-r-[#444444] flex items-center justify-center active:text-white transition-all select-none"
               title="Tempo down (-0.1 BPM)"
             >
               −
@@ -180,30 +197,27 @@ export function TraktorDeck({
             <button
               type="button"
               onClick={() => stepPitchBpm(0.1)}
-              className="h-5 flex-1 rounded bg-[#141414] border border-[#282828] text-[10px] font-bold text-[#666666] hover:text-[#d4d4d4] flex items-center justify-center active:border-white active:text-white"
+              className="flex-1 bg-[#141414] text-[11px] font-bold text-[#dcdcdc] hover:text-white flex items-center justify-center active:text-white transition-all select-none"
               title="Tempo up (+0.1 BPM)"
             >
               +
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={cyclePitchRange}
-            className="w-full h-4 rounded bg-[#141414] border border-[#282828] text-[8px] font-mono font-bold text-[#777777] hover:text-[#d4d4d4] flex items-center justify-center tracking-tight"
-            title="Cycle Pitch Range (±6%, ±10%, ±16%, ±100%)"
-          >
-            ±{maxPitch}%
-          </button>
         </div>
       </div>
 
       {/* ================= 2. CENTER: JOG WHEEL & NUDGE BUTTONS ================= */}
+      {/* The nudge pair sits in the jog block's corners, not 4 px inside them. The block is
+          exactly the jog's 168 px, so at `left-1` the 24 px buttons were pinned against the
+          platter's outer ring — a circle inscribed in a square leaves its corners empty, and
+          the outer inch of that diagonal is where they belong. Cornering them moves each one
+          4 px out and 4 px down, which is 5.7 px of clearance from the ring where there was
+          a hairline. */}
       <div className="relative flex items-center justify-center shrink-0">
         <JogWheel
           deck={deck}
           deckId={deckId}
-          size={196}
+          size={168}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />
@@ -215,10 +229,10 @@ export function TraktorDeck({
           onPointerUp={handleNudgeEnd}
           onPointerCancel={handleNudgeEnd}
           disabled={!deck.track}
-          className={`absolute bottom-1 left-1.5 z-20 w-6 h-6 rounded-full border text-[13px] font-bold flex items-center justify-center transition-all select-none shadow-md ${
+          className={`absolute bottom-0 left-0 z-20 w-6 h-6 rounded-full border text-[13px] font-bold flex items-center justify-center transition-all select-none shadow-md ${
             activeNudge === -1
-              ? 'bg-white text-black border-white shadow-[0_0_8px_rgba(255,255,255,0.6)] scale-95'
-              : 'bg-[#181818] text-[#888888] border-[#333333] hover:text-white hover:border-[#555555] active:bg-white active:text-black disabled:opacity-30'
+              ? ACTIVE
+              : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
           }`}
           title="Nudge − (Hold to temporarily slow down)"
         >
@@ -232,10 +246,10 @@ export function TraktorDeck({
           onPointerUp={handleNudgeEnd}
           onPointerCancel={handleNudgeEnd}
           disabled={!deck.track}
-          className={`absolute bottom-1 right-1.5 z-20 w-6 h-6 rounded-full border text-[13px] font-bold flex items-center justify-center transition-all select-none shadow-md ${
+          className={`absolute bottom-0 right-0 z-20 w-6 h-6 rounded-full border text-[13px] font-bold flex items-center justify-center transition-all select-none shadow-md ${
             activeNudge === 1
-              ? 'bg-white text-black border-white shadow-[0_0_8px_rgba(255,255,255,0.6)] scale-95'
-              : 'bg-[#181818] text-[#888888] border-[#333333] hover:text-white hover:border-[#555555] active:bg-white active:text-black disabled:opacity-30'
+              ? ACTIVE
+              : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-30'
           }`}
           title="Nudge + (Hold to temporarily speed up)"
         >
@@ -244,98 +258,80 @@ export function TraktorDeck({
       </div>
 
       {/* ================= 3. INNER EDGE: KEY ADJUST & HOT CUES ================= */}
+      {/* 64 px, not 62: its 52 px buttons sit in 54 px frames (see control-size.ts), and
+          the extra 2 px of column is what lets a 54 px frame hold a 52 px face without
+          pressing against the column's own border. That is the width SLIP, SYNC, TAP,
+          LOOP and MOVE now all measure. */}
       <div
-        className="flex flex-col justify-between h-full py-1 w-16 shrink-0 bg-[#161616] rounded-md border border-[#282828] px-1"
+        className="flex flex-col items-center h-full py-2 px-1 w-[64px] shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none"
         title={`Deck ${deckId} Controls`}
       >
-        {/* Key Transpose Section */}
-        <div className="flex flex-col items-center" title="Key Transpose (-6 to +6 semitones)">
-          {/*
-            Keylock on/off. Until now the engine defaulted keylock on and no UI
-            anywhere in the app could turn it off. This label is the natural
-            home for it: it already sat above the key knob looking like a
-            control, and it was a plain span that did nothing when clicked.
-            A real button so it is reachable by keyboard too.
-
-            Lit amber when engaged, which is the default — so amber is the
-            resting state here and grey means keylock is off. Independent of the
-            other deck, so unlike SYNC below it needs no second track loaded.
-          */}
-          <button
-            type="button"
-            onClick={() => deck.toggleKeyLock()}
-            disabled={!deck.track}
-            className={`text-[7.5px] font-bold uppercase tracking-wider mb-1 leading-none bg-transparent border-0 p-0 transition-colors ${
-              deck.keyLock
-                ? 'text-amber-400 hover:text-amber-300'
-                : 'text-[#888888] hover:text-white disabled:opacity-30'
-            }`}
-            title={
-              deck.keyLock
-                ? 'Keylock ON — click to turn off. Off lets the pitch fader change the key, like vinyl. (No audible effect at 0% pitch — there is nothing to hold steady — or while a key shift is dialled in.)'
-                : 'Keylock OFF — click to turn on, holding the key steady while you move the pitch fader.'
-            }
-          >
-            KEY
-          </button>
-          <Knob
-            size={40}
-            min={-6}
-            max={6}
-            bipolar
-            value={deck.keyShift}
-            defaultValue={0}
-            onValueChange={v => deck.setKeyShift(Math.round(v))}
-            accentColor="#f59e0b"
-          />
-
-          {/* Horizontally aligned RESET and SYNC buttons */}
-          <div className="flex items-center justify-center gap-[4px] w-full mt-1">
+        {/* Top: Key Transpose Stepper [- 0 +] and KEY Button unified container */}
+        <div className="flex flex-col w-full rounded-[3px] border border-[#282828] bg-[#141414] overflow-hidden shrink-0">
+          {/* Key Transpose Stepper: [- 0 +] */}
+          <div className="flex items-center w-full h-[22px] border-b border-[#282828]" title="Key Transpose (-6 to +6 semitones)">
+            <button
+              type="button"
+              onClick={() => deck.setKeyShift(Math.max(-6, deck.keyShift - 1))}
+              disabled={!deck.track || deck.keyShift <= -6}
+              className="flex-1 h-full text-[12px] font-bold text-[#777777] hover:text-[#d4d4d4] active:text-white disabled:opacity-25 transition-all flex items-center justify-center select-none"
+              title="Transpose Key -1 semitone"
+            >
+              −
+            </button>
             <button
               type="button"
               onClick={() => deck.resetKeyShift()}
-              className="h-[9px] w-6 font-sans text-[7.5px] font-bold leading-none select-none flex items-center justify-center rounded-[2px] transition-colors"
-              title="Reset Key Shift to 0"
+              disabled={!deck.track}
+              className={`w-[18px] h-full bg-[#101010] border-x border-[#282828] font-mono text-[9px] font-bold leading-none select-none transition-colors shadow-inner flex items-center justify-center shrink-0 ${
+                deck.keyShift !== 0
+                  ? 'text-white'
+                  : 'text-[#dcdcdc] enabled:hover:text-white'
+              }`}
+              title="Click to reset Key shift to 0"
             >
-              <span
-                className={
-                  deck.keyShift !== 0
-                    ? 'text-amber-400 font-bold hover:text-amber-300'
-                    : 'text-[#666666] hover:text-[#d4d4d4]'
-                }
-              >
-                {deck.keyShift !== 0
-                  ? deck.keyShift > 0
-                    ? `+${deck.keyShift}`
-                    : `${deck.keyShift}`
-                  : '0'}
-              </span>
+              {deck.keyShift !== 0
+                ? deck.keyShift > 0
+                  ? `+${deck.keyShift}`
+                  : `${deck.keyShift}`
+                : '0'}
             </button>
-
             <button
               type="button"
-              onClick={handleKeySync}
-              disabled={!deck.track || !otherDeck?.track}
-              className={`h-[9px] w-6 font-sans text-[7.5px] font-bold leading-none select-none flex items-center justify-center rounded-[2px] transition-colors ${
-                isKeySynced
-                  ? 'text-amber-400 font-bold hover:text-amber-300'
-                  : 'text-[#666666] hover:text-white disabled:opacity-30'
-              }`}
-              title="Harmonic Key Sync"
+              onClick={() => deck.setKeyShift(Math.min(6, deck.keyShift + 1))}
+              disabled={!deck.track || deck.keyShift >= 6}
+              className="flex-1 h-full text-[12px] font-bold text-[#777777] hover:text-[#d4d4d4] active:text-white disabled:opacity-25 transition-all flex items-center justify-center select-none"
+              title="Transpose Key +1 semitone"
             >
-              SYNC
+              +
             </button>
           </div>
+
+          {/* KEY SYNC Button */}
+          <button
+            type="button"
+            onClick={handleKeySync}
+            disabled={!deck.track || !otherDeck?.track}
+            className={`h-[22px] w-full ${CELL} text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
+              isKeySynced
+                ? ACTIVE_KEY
+                : 'bg-[#141414] text-[#777777] enabled:hover:text-[#d4d4d4] disabled:cursor-not-allowed'
+            }`}
+            title={`KEY SYNC\nHarmonically matches this deck's key to ${otherDeck?.track ? `Deck ${deckId === 'A' ? 'B' : 'A'}` : 'other deck'}.`}
+          >
+            KEY
+          </button>
         </div>
 
-        {/* SLIP Mode Toggle Button (Center between Key and Cues) */}
-        <div className="flex items-center justify-center w-full my-1">
+        {/* Middle: SLIP Mode Toggle Button centered between KEY and CUES */}
+        <div className="flex-1 flex items-center justify-center w-full my-1">
           <button
             type="button"
             onClick={() => deck.toggleFluxMode()}
-            className={`h-[16px] w-full rounded-[3px] border text-[7.5px] font-mono font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
+            style={{ width: CONTROL_W }}
+            className={`h-[22px] rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
               deck.fluxMode
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                ? ACTIVE_SWITCH
                 : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={`SLIP MODE (${deck.fluxMode ? 'ON' : 'OFF'})\nTimeline continues in background during cues, loops and FX, snapping back on release.`}
@@ -344,18 +340,31 @@ export function TraktorDeck({
           </button>
         </div>
 
-        {/* 4 Hot Cue Pads in single vertical column below key elements */}
-        <div className="flex flex-col items-center w-full">
-          <span className="text-[7.5px] font-bold text-[#888888] uppercase tracking-wider mb-1">
+        {/* Bottom: CUES label + 4 HOT CUE PADS bottom-aligned */}
+        <div className="flex flex-col items-center w-full mt-auto shrink-0">
+          {/* 8 px under the caption, not 4: at `mb-1` the word sat closer to the pad frame
+              than the pads sit to the column's own border, so it read as part of the frame
+              rather than a heading over it. The block is `mt-auto` and the SLIP row above
+              is `flex-1`, so the extra 4 px comes out of the SLIP band and the pads stay
+              where they are. */}
+          <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider mb-2 leading-none select-none">
             CUES
           </span>
-          <div className="flex flex-col gap-1 w-full">
-            {[0, 1, 2, 3].map(i => {
+          {/* No `overflow-hidden` here: the clear-cue badge hangs off the top-right corner of
+              its pad, and a clipping frame cut it down to the sliver that made it read as
+              part of the pad's border. The corner cells round themselves instead (below),
+              which is what the clip was standing in for. */}
+          <div className="flex flex-col w-full shrink-0 rounded-[3px] border border-[#282828] bg-[#141414]">
+            {[0, 1, 2, 3].map((i, idx) => {
               const cueTime = deck.hotCues[i]
               const hasCue = cueTime !== null
               const isWaiting = deck.waitingCueIndex === i
               return (
-                <div key={i} className="relative group/cue w-full">
+                <div
+                  key={i}
+                  style={{ height: CONTROL_H }}
+                  className={`relative group/cue w-full shrink-0 ${idx < 3 ? 'border-b border-[#282828]' : ''}`}
+                >
                   <button
                     type="button"
                     onPointerDown={e => {
@@ -377,12 +386,14 @@ export function TraktorDeck({
                       e.preventDefault()
                       if (hasCue) deck.clearHotCue(i)
                     }}
-                    className={`h-[18px] w-full rounded-[3px] border text-[8.5px] font-bold flex items-center justify-center transition-all ${
+                    className={`w-full h-full border font-mono text-[10px] font-bold flex items-center justify-center transition-all select-none ${
+                      idx === 0 ? 'rounded-t-[2px]' : idx === 3 ? 'rounded-b-[2px]' : ''
+                    } ${
                       isWaiting
-                        ? 'bg-[#222222] border-white text-white animate-pulse'
+                        ? 'border-transparent bg-[#141414] text-white animate-pulse'
                         : hasCue
-                        ? 'bg-[#141414] border-white text-white shadow-sm'
-                        : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444]'
+                        ? ACTIVE
+                        : 'border-transparent bg-[#141414] text-[#777777] hover:text-[#d4d4d4]'
                     }`}
                     title={
                       hasCue
@@ -399,8 +410,8 @@ export function TraktorDeck({
                         e.stopPropagation()
                         deck.clearHotCue(i)
                       }}
-                      className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#333333] hover:bg-red-500 text-white text-[8px] font-bold leading-none flex items-center justify-center opacity-0 group-hover/cue:opacity-100 transition-opacity z-10 shadow"
-                      title={`Remove Hot Cue ${i + 1}`}
+                      className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-600/90 text-white text-[8px] font-bold leading-none hidden group-hover/cue:flex items-center justify-center hover:bg-red-500 shadow-md z-30"
+                      title={`Delete Hot Cue ${i + 1}`}
                     >
                       ×
                     </button>

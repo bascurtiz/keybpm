@@ -3,6 +3,9 @@ import type { AudioEngine } from '@/lib/dj/audio-engine'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { Fader } from './Fader'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
+import { useViewportMode } from '@/lib/use-viewport'
+import { CONTROL_W, CONTROL_FRAME_W, CONTROL_H, CONTROL_STACK_H } from '@/lib/dj/control-size'
+import { ACTIVE, ACTIVE_KEY, ACTIVE_LOOP_COUNT, ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
 
 interface TraktorTransportBarProps {
   engine: AudioEngine
@@ -40,7 +43,40 @@ const BASS_SWAP_FLAT_DB = 0
 const BASS_SWAP_FROM = 0.5
 const BASS_SWAP_TO = 0.75
 
+/**
+ * Solid triangle chevrons, sized 7 × 8 px, used for the loop/move and crossfader arrows.
+ *
+ * Drawn with borders rather than set as `‹` / `›` or `◀` / `▶`: the text glyph is whatever the
+ * font supplies at whatever optical size it likes, which on Windows falls back to a different
+ * shape from the one on macOS, and the triangle here is a control affordance that should be the
+ * same everywhere. `border-*-current` makes it follow the button's text colour, so hover and press
+ * light it without a second rule.
+ */
+/**
+ * Width of the loop-length cluster (`◀ 8 ▶`), in design px.
+ *
+ * Deliberately wider than the console's standard 54 px control frame, unlike SYNC / TAP
+ * and LOOP / MOVE on either side of it: at 54 the number sat in a 20 px slot between two
+ * 16 px arrows, so the arrows were narrow for a thumb and the count looked squeezed. 84
+ * is 1 px frame + 22 px arrow + 38 px number cell + 22 px arrow + 1 px frame — the
+ * arrows get a thumb's width and the number gets a cell of its own.
+ *
+ * The transport row is `justify-between`, so the extra 30 px comes out of the space
+ * between its three groups (each side group grows by 30, the centre stays put) rather
+ * than out of the neighbouring switches.
+ */
+const LOOP_CLUSTER_W = 84
+
+/** The two arrows flanking the loop count: `22 + 38 + 22 + 2` frame borders = `LOOP_CLUSTER_W`. */
+const LOOP_CLUSTER_ARROW_W = 22
+
+const TRIANGLE_LEFT =
+  'block h-0 w-0 border-y-[4px] border-y-transparent border-r-[7px] border-r-current'
+const TRIANGLE_RIGHT =
+  'block h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-current'
+
 export function TraktorTransportBar({ engine, className = '' }: TraktorTransportBarProps) {
+  const { kiosk } = useViewportMode()
   const deckA = engine.decks.A
   const deckB = engine.decks.B
 
@@ -61,9 +97,8 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
     }
   }, [engine, deckA, deckB])
 
-  // Default 32 beats — eight bars, i.e. two phrases. Opening on the shortest step (4) made the
-  // chip a warning light rather than a setting: almost every real fade got cycled up first.
-  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(3)
+  // Default 4 beats matching the console layout and mockup
+  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(0)
   const fadeBeats = FADE_BEAT_STEPS[fadeBeatsIdx]
   const cycleFadeBeats = () => setFadeBeatsIdx(i => (i + 1) % FADE_BEAT_STEPS.length)
 
@@ -202,117 +237,122 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
   return (
     <div
-      className={`w-full bg-[#161616] border-t border-[#282828] px-3 py-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-4 select-none ${className}`}
+      className={`w-full bg-[#161616] border-t border-[#282828] ${
+        // Symmetric air around the keys on a desktop, in design px: 16 under the divider and
+        // 16 down to the chassis outline, so 77 = divider 1 + 16 + the row's 44 px keys + 16.
+        // Explicit padding rather than a centred row with spare height, so the air is the
+        // same on both sides instead of the row splitting whatever was left over — the
+        // earlier 70 px bar put 9 px above the keys and 17 px below once the 8 px of bottom
+        // padding was counted.
+        // Kiosk keeps 56 px flat: there the console fills the screen and has no outline
+        // for the keys to crowd.
+        //
+        // 14 px of side padding, matching the deck row: the deck row's three columns
+        // (322 + 338 + 322 plus two 14 px gaps) fit its content box exactly, so the two rows
+        // start their columns at the same x and the transport groups land on the deck columns
+        // above without a fudge.
+        kiosk ? 'px-2.5 h-[56px]' : 'px-[14px] h-[77px] pt-4 pb-4'
+      } flex items-center justify-between gap-1.5 select-none ${className}`}
     >
       {/* ================= DECK A TRANSPORT (LEFT) ================= */}
       <div className="flex items-center justify-start">
-        <DeckTransport deck={deckA} deckId="A" />
+        <DeckTransport deck={deckA} otherDeck={deckB} deckId="A" />
       </div>
 
-      {/* ================= CENTER: AUTO ARMS THE CROSSFADER, FADE LENGTH BESIDE IT ================= */}
-      <div className="w-[380px] flex items-center justify-center">
-        {/* The crossfader is the only in-flow child, so it stays on the bar's centre line whatever
-            the width of the two controls flanking it. They are absolute for exactly that reason:
-            AUTO is wider than the length chip, and in flow they would push the fader off-centre —
-            the thing the previous layout was rearranged to stop. */}
-        <div className="relative flex items-center">
+      {/* ================= CENTER: AUTO | CROSSFADER | FADE LENGTH ================= */}
+      <div className="flex items-center justify-center gap-1.5 shrink-0">
+        <button
+          type="button"
+          onClick={toggleAuto}
+          aria-pressed={autoArmed}
+          style={{ width: CONTROL_W, height: CONTROL_H }}
+          className={`rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider flex items-center justify-center transition-all select-none ${
+            autoArmed
+              ? ACTIVE_SWITCH
+              : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+          }`}
+          title={
+            autoArmed
+              ? `AUTO armed — the crossfader's < / > cross-fade over ${fadeBeats} beats. Click to disarm.`
+              : `Arm AUTO: the crossfader's < / > then cross-fade over ${fadeBeats} beats with a bass swap`
+          }
+        >
+          AUTO
+        </button>
+
+        <div className="w-[200px] h-11 flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]">
           <button
             type="button"
-            onClick={toggleAuto}
-            aria-pressed={autoArmed}
-            className={`absolute right-full mr-2 top-1/2 -translate-y-1/2 h-[18px] px-1.5 rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider flex items-center justify-center transition-all ${
-              autoArmed
-                ? 'bg-[#141414] text-white border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+            onClick={() => pressCrossfadeArrow('left')}
+            className={`flex items-center justify-center w-6 h-7 rounded transition-all select-none ${CELL} ${
+              isFading === 'left'
+                ? ACTIVE
+                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white'
             }`}
             title={
-              autoArmed
-                ? `AUTO armed — the crossfader's < / > cross-fade over ${fadeBeats} beats, swapping the lows at the midpoint. Click to disarm.`
-                : `Arm AUTO: the crossfader's < / > then cross-fade over ${fadeBeats} beats with a bass swap instead of nudging`
+              isFading === 'left'
+                ? 'Stop auto-fade'
+                : autoArmed
+                  ? `Cross-fade to Deck A over ${fadeBeats} beats`
+                  : 'Nudge Crossfader toward Deck A'
             }
           >
-            AUTO
+            <span className={TRIANGLE_LEFT} aria-hidden="true" />
           </button>
 
-          <div className="w-[200px] flex items-center justify-between gap-1.5 px-2.5 py-1 bg-[#141414] rounded-lg border border-[#282828]">
-            <button
-              type="button"
-              onClick={() => pressCrossfadeArrow('left')}
-              className={`text-xs font-bold rounded px-1 py-0.5 transition-all select-none ${
-                isFading === 'left'
-                  ? 'bg-[#34d399]/20 text-[#34d399] shadow-[0_0_8px_rgba(52,211,153,0.3)] animate-pulse'
-                  : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
-              }`}
-              title={
-                isFading === 'left'
-                  ? 'Stop auto-fade'
-                  : autoArmed
-                    ? `Cross-fade to Deck A over ${fadeBeats} beats`
-                    : 'Nudge Crossfader toward Deck A'
-              }
-            >
-              &lt;
-            </button>
+          <Fader
+            min={-1}
+            max={1}
+            step={0.01}
+            value={engine.crossfade}
+            defaultValue={0}
+            bipolar
+            snapCenter
+            ticks={5}
+            onDragChange={v => engine.setCrossfade(v)}
+            onValueChange={v => {
+              abortAutoFade()
+              engine.setCrossfade(v)
+            }}
+            label="Crossfader"
+            className="h-6 w-[136px] max-w-[136px]"
+          />
 
-            <Fader
-              min={-1}
-              max={1}
-              step={0.01}
-              value={engine.crossfade}
-              defaultValue={0}
-              bipolar
-              snapCenter
-              ticks={5}
-              onDragChange={v => engine.setCrossfade(v)}
-              onValueChange={v => {
-                abortAutoFade()
-                engine.setCrossfade(v)
-              }}
-              label="Crossfader"
-              className="h-6 w-[140px] max-w-[140px]"
-            />
-
-            <button
-              type="button"
-              onClick={() => pressCrossfadeArrow('right')}
-              className={`text-xs font-bold rounded px-1 py-0.5 transition-all select-none ${
-                isFading === 'right'
-                  ? 'bg-[#a855f7]/20 text-[#a855f7] shadow-[0_0_8px_rgba(168,85,247,0.3)] animate-pulse'
-                  : 'text-[#666666] hover:text-[#d4d4d4] hover:bg-[#222222]'
-              }`}
-              title={
-                isFading === 'right'
-                  ? 'Stop auto-fade'
-                  : autoArmed
-                    ? `Cross-fade to Deck B over ${fadeBeats} beats`
-                    : 'Nudge Crossfader toward Deck B'
-              }
-            >
-              &gt;
-            </button>
-          </div>
-
-          {/* Shared auto-fade length: click to cycle 4 / 8 / 16 / 32 / 64 beats.
-              Sized to the FX plate's A/MST/B buttons — 18px tall, 3px corners — so the flanks of the
-              crossfader read as the same grade of control as the rest of the console. Its numeral is
-              a value rather than a label, so it keeps the console's value size (9px, as in the grid
-              panel) instead of AUTO's 7.5px label grade, and 30px wide is the FX plate's button
-              footprint: the digits are far narrower, so the box stays put as the value cycles 4 → 64. */}
           <button
             type="button"
-            onClick={cycleFadeBeats}
-            aria-label={`Auto-fade length: ${fadeBeats} beats`}
-            className="absolute left-full ml-2 top-1/2 -translate-y-1/2 h-[18px] min-w-[30px] px-1.5 rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] hover:border-[#444444] font-mono text-[9px] font-bold leading-none flex items-center justify-center transition-colors"
-            title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
+            onClick={() => pressCrossfadeArrow('right')}
+            className={`flex items-center justify-center w-6 h-7 rounded transition-all select-none ${CELL} ${
+              isFading === 'right'
+                ? ACTIVE
+                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white'
+            }`}
+            title={
+              isFading === 'right'
+                ? 'Stop auto-fade'
+                : autoArmed
+                  ? `Cross-fade to Deck B over ${fadeBeats} beats`
+                  : 'Nudge Crossfader toward Deck B'
+            }
           >
-            {fadeBeats}
+            <span className={TRIANGLE_RIGHT} aria-hidden="true" />
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={cycleFadeBeats}
+          aria-label={`Auto-fade length: ${fadeBeats} beats`}
+          style={{ width: CONTROL_W, height: CONTROL_H }}
+          className="rounded-[5px] border border-[#282828] bg-[#101010] text-[#dcdcdc] hover:text-white hover:border-[#444444] font-mono text-[10.5px] font-bold leading-none flex items-center justify-center transition-all select-none"
+          title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
+        >
+          {fadeBeats}
+        </button>
       </div>
 
       {/* ================= DECK B TRANSPORT (RIGHT) ================= */}
       <div className="flex items-center justify-end">
-        <DeckTransport deck={deckB} deckId="B" />
+        <DeckTransport deck={deckB} otherDeck={deckA} deckId="B" />
       </div>
     </div>
   )
@@ -335,35 +375,16 @@ const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
  * would look mushy. Killing the transition for the duration of the press makes the white appear in
  * the same frame the button goes down, while the release still fades out.
  */
-const ARROW_PRESS = 'active:bg-[#2b2b2b] active:text-white active:transition-none'
 
-/**
- * The LOOP and MOVE switches are the same control with a different bit of state
- * behind them, so they share one look outright rather than two class strings that
- * happen to match. The on branch carries its own hover: a switch that is already
- * white would otherwise go dead under the cursor while its neighbour lit up.
- */
-const SWITCH_BASE =
-  'w-full rounded-[4px] border bg-[#141414] text-[8px] font-bold uppercase tracking-wider leading-none transition-colors disabled:opacity-40'
-const SWITCH_ON = 'border-white text-white hover:bg-white/10'
-const SWITCH_OFF =
-  'border-[#2b2b2b] text-[#6f6f6f] hover:text-[#d4d4d4] hover:border-[#444444]'
-
-/**
- * One solid triangle, sized 7 × 8 px, for the loop cluster's arrows.
- *
- * Drawn with borders rather than set as `‹` / `›` or `◀` / `▶`: the text glyph is whatever the
- * font supplies at whatever optical size it likes, which on Windows falls back to a different
- * shape from the one on macOS, and the triangle here is a control affordance that should be the
- * same everywhere. `border-*-current` makes it follow the button's text colour, so hover and press
- * light it without a second rule.
- */
-const TRIANGLE_LEFT =
-  'block h-0 w-0 border-y-[4px] border-y-transparent border-r-[7px] border-r-current'
-const TRIANGLE_RIGHT =
-  'block h-0 w-0 border-y-[4px] border-y-transparent border-l-[7px] border-l-current'
-
-function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }) {
+function DeckTransport({
+  deck,
+  otherDeck,
+  deckId,
+}: {
+  deck: DeckEngine
+  otherDeck: DeckEngine
+  deckId: 'A' | 'B'
+}) {
   const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
   // What the < number > cluster under the switch does: size and toggle a loop, or beat-jump the
   // playhead. Kept per deck, like the size, so the two transports can be set up differently.
@@ -373,6 +394,7 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
   const currentBeats = LOOP_BEAT_SIZES[selectedLoopIdx]
   const isPlaying = deck.playing
   const isLoopActive = Boolean(deck.loop)
+  const { kiosk } = useViewportMode()
 
   // 4-Tap Tempo System
   const tapTimesRef = useRef<number[]>([])
@@ -577,176 +599,219 @@ function DeckTransport({ deck, deckId }: { deck: DeckEngine; deckId: 'A' | 'B' }
   }
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Play / Pause button matching Traktor */}
-      <button
-        type="button"
-        onClick={handleTogglePlay}
-        disabled={!isDeckReady}
-        className={`h-11 w-14 rounded-md border flex items-center justify-center transition-all shadow-sm select-none ${
-          isPlayingActive
-            ? 'bg-[#141414] border-white text-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-            : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-40'
-        }`}
-        title={`Deck ${deckId} Play / Pause (Space / Click)`}
-      >
-        <span className="text-base font-bold">▶</span>
-      </button>
+    <div
+      className={`flex items-center gap-1.5 ${kiosk ? '' : 'w-[316px]'}`}
+    >
+      {/* Both decks read left to right in the same order — play/cue, SYNC/TAP, loop length,
+          LOOP/MOVE — so the row is the same sequence under either hand.
 
-      {/* CUE button matching Traktor */}
-      <button
-        type="button"
-        onPointerDown={handleCueDown}
-        onPointerUp={handleCueUp}
-        onPointerCancel={handleCueUp}
-        onKeyDown={handleCueKeyDown}
-        onKeyUp={handleCueKeyUp}
-        onClick={e => e.preventDefault()}
-        onContextMenu={e => e.preventDefault()}
-        disabled={!isDeckReady}
-        className={`h-11 px-4 rounded-md border text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all shadow-sm select-none ${
-          deck.cuePreviewing
-            ? 'bg-amber-500/30 border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
-            : isPlayingActive
-            ? 'bg-[#141414] border-[#282828] text-[#555555] hover:text-[#d4d4d4] hover:border-[#444444]'
-            : 'bg-[#161616] border-[#383838] text-amber-400/90 hover:text-amber-300 hover:border-amber-500/60'
-        } disabled:opacity-40`}
-        title={`Deck ${deckId} Cue (Hold to preview, release to snap back)`}
-      >
-        CUE
-      </button>
+          Deck B is deliberately *not* mirrored, even though the deck row above it is (its
+          KEY / SLIP / CUES column is on the left). Mirroring would put each transport key
+          under its own column, but at the cost of the two rows reading in opposite directions:
+          a transport is a sequence of muscle memory, and one that flips when you cross the
+          mixer is the harder thing to use. */}
+      {/* Play / CUE unified container matching mockup */}
+      <div className="flex h-11 w-[88px] shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]">
+        <button
+          type="button"
+          onClick={handleTogglePlay}
+          disabled={!isDeckReady}
+          className={`w-12 ${CELL} flex items-center justify-center transition-all select-none ${
+            isPlayingActive
+              ? ACTIVE
+              : 'bg-[#141414] text-[#777777] border-r-[#282828] hover:text-[#d4d4d4] hover:border-r-[#444444]'
+          }`}
+          title={`Deck ${deckId} Play / Pause (Space / Click)`}
+        >
+          <span className="text-base font-bold leading-none">▶</span>
+        </button>
 
-      {/* Loop / Move: the LOOP and MOVE switches side by side in a column, then the loop-length
-          cluster as its own bordered group. The switches and the cluster used to be one box with
-          a switch row inside it, which made LOOP/MOVE read as the cluster's own tabs; separating
-          them says what they are — two switches over one cluster, not a mode for the box.
-
-          One pair of arrows with two jobs, because a bar this tight cannot afford a second row:
-          LOOP sizes and arms a loop, MOVE beat-jumps the playhead. The number is that job's
-          control too — it toggles the loop under LOOP and cycles the step under MOVE. */}
-      <div
-        role="group"
-        aria-label={`Deck ${deckId} loop and move`}
-        className="flex items-center gap-2 shrink-0"
-      >
-        {/* 18 px each with the row's 8 px gap: the pair fills the 44 px row exactly, which is what
-            keeps their outer edges on the play, CUE and TAP buttons' lines. */}
-        <div className="grid h-11 w-9 shrink-0 grid-rows-2 gap-2">
-          <button
-            type="button"
-            onClick={toggleLoop}
-            aria-pressed={isLoopActive}
-            className={`${SWITCH_BASE} ${isLoopActive ? SWITCH_ON : SWITCH_OFF}`}
-            title={
-              isLoopActive
-                ? `LOOP running (${currentBeats} beats) — click to release it`
-                : `LOOP: arm a ${currentBeats}-beat loop at the playhead`
-            }
-          >
-            loop
-          </button>
-          <button
-            type="button"
-            onClick={toggleMove}
-            aria-pressed={moveOn}
-            className={`${SWITCH_BASE} ${moveOn ? SWITCH_ON : SWITCH_OFF}`}
-            title={
-              moveOn
-                ? 'MOVE on — the arrows beat-jump the playhead (a running loop travels with it), the number cycles the step'
-                : 'MOVE: the arrows beat-jump the playhead by the step (also releases the loop when switched off)'
-            }
-          >
-            move
-          </button>
-        </div>
-
-        {/* 26 px cells at the ends, so the number gets 52 of the 106 — half the group, which is
-            what lets it be set at 16 px and still read from a laptop across the desk. The middle
-            cell carries the dividers as `border-x`, so the three cells and the group's own border
-            are the only lines, and no cell has a box of its own. */}
-        <div className="flex h-11 w-[106px] shrink-0 items-stretch overflow-hidden rounded-[4px] border border-[#2b2b2b] bg-[#141414]">
-          <button
-            type="button"
-            onClick={moveOn ? () => beatJump(-1) : loopHalf}
-            disabled={moveOn ? !deck.track : !deck.track || selectedLoopIdx === 0}
-            className={`w-[26px] shrink-0 flex items-center justify-center text-[#6f6f6f] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors ${ARROW_PRESS}`}
-            aria-label={
-              moveOn
-                ? `Jump the playhead back ${currentBeats} beats`
-                : 'Half loop length'
-            }
-            title={
-              moveOn
-                ? `Jump the playhead back ${currentBeats} beats (a running loop comes with it)`
-                : 'Half loop length (÷2)'
-            }
-          >
-            <span className={TRIANGLE_LEFT} aria-hidden="true" />
-          </button>
-
-          <button
-            type="button"
-            onClick={moveOn ? cycleBeats : toggleLoop}
-            disabled={!deck.track}
-            className={`flex-1 flex items-center justify-center border-x border-[#2b2b2b] transition-colors text-[16px] font-mono font-bold leading-none disabled:opacity-40 ${
-              isLoopActive && !moveOn
-                ? 'bg-accent/25 text-white'
-                : 'hover:bg-[#222222] text-[#5c5c5c] hover:text-[#d4d4d4]'
-            }`}
-            aria-label={
-              moveOn ? `${currentBeats}-beat jump step` : `Loop ${currentBeats} beats`
-            }
-            title={
-              moveOn
-                ? `${currentBeats}-beat jump step — click to cycle the size`
-                : `Loop ${currentBeats} beats (Click to toggle)`
-            }
-          >
-            {currentBeats}
-          </button>
-
-          <button
-            type="button"
-            onClick={moveOn ? () => beatJump(1) : loopDouble}
-            disabled={
-              moveOn ? !deck.track : !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
-            }
-            className={`w-[26px] shrink-0 flex items-center justify-center text-[#6f6f6f] hover:text-[#d4d4d4] hover:bg-[#222222] disabled:opacity-25 transition-colors ${ARROW_PRESS}`}
-            aria-label={
-              moveOn
-                ? `Jump the playhead forward ${currentBeats} beats`
-                : 'Double loop length'
-            }
-            title={
-              moveOn
-                ? `Jump the playhead forward ${currentBeats} beats (a running loop comes with it)`
-                : 'Double loop length (×2)'
-            }
-          >
-            <span className={TRIANGLE_RIGHT} aria-hidden="true" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onPointerDown={handleCueDown}
+          onPointerUp={handleCueUp}
+          onPointerCancel={handleCueUp}
+          onKeyDown={handleCueKeyDown}
+          onKeyUp={handleCueKeyUp}
+          onClick={e => e.preventDefault()}
+          onContextMenu={e => e.preventDefault()}
+          disabled={!isDeckReady}
+          className={`flex-1 ${CELL} flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
+            deck.cuePreviewing
+              ? ACTIVE_KEY
+              : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4]'
+          }`}
+          title={`Deck ${deckId} Cue (Hold to preview, release to snap back)`}
+        >
+          CUE
+        </button>
       </div>
 
-      {/* Tap Tempo Button: TAP (shows 4-tap counter: TAP, 1/4, 2/4, 3/4, 4/4) */}
-      <button
-        type="button"
-        onClick={handleTapTempo}
-        disabled={!deck.track}
-        className={`h-11 min-w-[48px] px-2.5 rounded-md border text-[10.5px] font-bold uppercase tracking-wider flex flex-col items-center justify-center transition-all shadow-sm select-none ${
-          tapCount > 0
-            ? 'bg-[#222222] border-white text-white shadow-[0_0_8px_rgba(255,255,255,0.35)] scale-[0.97]'
-            : 'bg-[#141414] border-[#282828] text-[#666666] hover:text-[#d4d4d4] hover:border-[#444444] disabled:opacity-40'
-        }`}
-        title={`Deck ${deckId} Tap Tempo — Tap 4 times in rhythm to set BPM`}
+      {/* SYNC / TAP dual stacked switch. */}
+      {/* The console's standard control size, exactly as the deck's KEY / SLIP / CUES
+          column uses it: the transport is the bottom row of that column, and a stack that
+          was 62 px wide and 44 tall read as a different family of control. */}
+      <div
+        style={{ width: CONTROL_FRAME_W, height: CONTROL_STACK_H }}
+        className="flex flex-col shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]"
       >
-        <span>TAP</span>
-        {tapCount > 0 && (
-          <span className="text-[8px] font-mono font-bold leading-none text-emerald-400 mt-0.5">
-            {((tapCount - 1) % 4) + 1}/4
-          </span>
-        )}
-      </button>
+        <button
+          type="button"
+          onClick={() => deck.syncTo(otherDeck)}
+          disabled={!deck.track || !otherDeck?.track}
+          style={{ height: CONTROL_H }}
+          className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            deck.syncLocked
+              ? ACTIVE_SWITCH
+              : 'bg-[#141414] text-[#777777] border-b-[#282828] enabled:hover:text-[#d4d4d4] enabled:hover:border-b-[#444444] disabled:cursor-not-allowed'
+          }`}
+          title={`Deck ${deckId} Sync — lock tempo and phase to other deck`}
+        >
+          SYNC
+        </button>
+        <button
+          type="button"
+          onClick={handleTapTempo}
+          disabled={!deck.track}
+          style={{ height: CONTROL_H }}
+          className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            tapCount > 0
+              ? ACTIVE_SWITCH
+              : 'bg-[#141414] text-[#777777] enabled:hover:text-[#d4d4d4] disabled:cursor-not-allowed'
+          }`}
+          title={`Deck ${deckId} Tap Tempo — Tap 4 times in rhythm to set BPM`}
+        >
+          {tapCount > 0 ? (
+            <span className="font-mono text-[8px] text-white font-bold">
+              {((tapCount - 1) % 4) + 1}/4
+            </span>
+          ) : (
+            'TAP'
+          )}
+        </button>
+      </div>
+
+      {/* The slack that splits the row into two jobs: play/cue + SYNC/TAP stay on the left,
+          under the pitch fader, and the loop pair is pushed to the right, under KEY / SLIP /
+          CUES. The row is 316 px of deck column and its keys are 280 px plus four 6 px gaps,
+          so the spacer is 12 px — 24 px between SYNC/TAP and the cluster once the gaps on
+          either side are counted. Kiosk has no width to spend and drops it. */}
+      {!kiosk && <div className="flex-1" aria-hidden="true" />}
+
+      {/* Loop Beat Length Cluster: < 4 >. Wider than the standard frame on purpose — see
+          `LOOP_CLUSTER_W`. The number is the only cell with its own vertical rules, so the
+          cluster reads as \"arrow, count, arrow\" rather than as another two-cell switch. */}
+      <div
+        style={{ width: LOOP_CLUSTER_W }}
+        className="flex h-11 shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]"
+      >
+        <button
+          type="button"
+          onClick={moveOn ? () => beatJump(-1) : loopHalf}
+          disabled={moveOn ? !deck.track : !deck.track || selectedLoopIdx === 0}
+          style={{ width: LOOP_CLUSTER_ARROW_W }}
+          className="shrink-0 flex items-center justify-center bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white transition-colors"
+          aria-label={
+            moveOn
+              ? `Jump the playhead back ${currentBeats} beats`
+              : 'Half loop length'
+          }
+          title={
+            moveOn
+              ? `Jump the playhead back ${currentBeats} beats (a running loop comes with it)`
+              : 'Half loop length (÷2)'
+          }
+        >
+          <span className={TRIANGLE_LEFT} aria-hidden="true" />
+        </button>
+
+        <button
+          type="button"
+          onClick={moveOn ? cycleBeats : toggleLoop}
+          disabled={!deck.track}
+          className={`flex-1 ${CELL} flex items-center justify-center transition-all text-[11px] font-mono font-bold leading-none select-none ${
+            isLoopActive && !moveOn
+              ? ACTIVE_LOOP_COUNT
+              : 'bg-[#101010] text-[#dcdcdc] border-x-[#282828] hover:text-white hover:border-x-[#444444]'
+          }`}
+          aria-label={
+            moveOn ? `${currentBeats}-beat jump step` : `Loop ${currentBeats} beats`
+          }
+          title={
+            moveOn
+              ? `${currentBeats}-beat jump step — click to cycle the size`
+              : `Loop ${currentBeats} beats (Click to toggle)`
+          }
+        >
+          {currentBeats}
+        </button>
+
+        <button
+          type="button"
+          onClick={moveOn ? () => beatJump(1) : loopDouble}
+          disabled={
+            moveOn ? !deck.track : !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
+          }
+          style={{ width: LOOP_CLUSTER_ARROW_W }}
+          className="shrink-0 flex items-center justify-center bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white transition-colors"
+          aria-label={
+            moveOn
+              ? `Jump the playhead forward ${currentBeats} beats`
+              : 'Double loop length'
+          }
+          title={
+            moveOn
+              ? `Jump the playhead forward ${currentBeats} beats (a running loop comes with it)`
+              : 'Double loop length (×2)'
+          }
+        >
+          <span className={TRIANGLE_RIGHT} aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Loop / Move switches stacked on the right of loop length, in the console's
+          standard control box like SYNC / TAP and the deck's KEY / SLIP / CUES. */}
+      <div
+        style={{ width: CONTROL_FRAME_W, height: CONTROL_STACK_H }}
+        className="flex flex-col shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]"
+      >
+        <button
+          type="button"
+          onClick={toggleLoop}
+          aria-pressed={isLoopActive}
+          style={{ height: CONTROL_H }}
+          className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            isLoopActive
+              ? ACTIVE_SWITCH
+              : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
+          }`}
+          title={
+            isLoopActive
+              ? `LOOP running (${currentBeats} beats) — click to release it`
+              : `LOOP: arm a ${currentBeats}-beat loop at the playhead`
+          }
+        >
+          LOOP
+        </button>
+        <button
+          type="button"
+          onClick={toggleMove}
+          aria-pressed={moveOn}
+          style={{ height: CONTROL_H }}
+          className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            moveOn
+              ? ACTIVE_SWITCH
+              : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4]'
+          }`}
+          title={
+            moveOn
+              ? 'MOVE on — the arrows beat-jump the playhead (a running loop travels with it), the number cycles the step'
+              : 'MOVE: the arrows beat-jump the playhead by the step (also releases the loop when switched off)'
+          }
+        >
+          MOVE
+        </button>
+      </div>
     </div>
   )
 }

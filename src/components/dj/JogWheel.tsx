@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
-import { youtubeThumbUrl } from '@/lib/youtube'
+import { useCoverArt } from '@/lib/dj/cover-art'
 
 interface JogWheelProps {
   deck: DeckEngine
@@ -163,8 +163,8 @@ export function JogWheel({
     } catch {}
   }
 
-  // Cover image: either local track cover or YouTube thumbnail
-  const coverUrl = track?.coverUrl || (hasYt && ytDeck?.videoId ? youtubeThumbUrl(ytDeck.videoId) : null)
+  // Cover image: resolved via useCoverArt (returns direct cover, YT thumb, or catalog art)
+  const coverUrl = useCoverArt(track, hasYt ? ytDeck?.videoId : null)
 
   return (
     <div

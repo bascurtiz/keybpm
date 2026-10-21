@@ -14,6 +14,7 @@ import type { Track } from '@/lib/dj/types'
 import { canvasPixelRatio } from '@/lib/canvas-dpr'
 import { consoleProfile } from '@/lib/dj/device-profile'
 import { laneBadge } from '@/lib/dj/lane-badge'
+import { ACTIVE_DECK_A, ACTIVE_DECK_B } from '@/lib/dj/control-state'
 
 interface StackedWaveformsProps {
   deckA: DeckEngine
@@ -469,7 +470,7 @@ export function StackedWaveforms({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`relative overflow-hidden rounded-[3px] border border-[#282828] bg-[#161616] ${className}`}
+      className={`relative overflow-hidden rounded-[3px] border border-[#282828] bg-[#101010] ${className}`}
     >
       {/* Drag & Drop Overlays for Deck A (Top Half) and Deck B (Bottom Half) */}
       {dragOverDeck === 'A' && (
@@ -509,39 +510,40 @@ export function StackedWaveforms({
           themselves stay 24px and carry a wider invisible tap pad, so the visible pair
           does not grow into the waveform while the hit areas do — and their marks are drawn
           at the two `|◀` buttons' 12 px, so the lane's controls read as one set. */}
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-28"
-      >
+      {/* Waveform Zoom Controls (− and + flanking the red playhead needle with fair spacing) */}
+      <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-[146px] flex items-center justify-between z-20 pointer-events-none">
+        {/* Zoom Out (−) on left of playhead */}
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomOut}
           disabled={windowSeconds >= WINDOW_MAX_S}
-          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
-          title="Zoom out (or scroll down over the waveforms)"
+          className={`${TAP_PAD} pointer-events-auto w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 select-none`}
+          title="Zoom out (−) — wider view (or scroll down)"
+          aria-label="Zoom out waveforms"
         >
-          {/* Drawn, not typed, at the same 12 px as the rewind control's icon: a "−" glyph
-              at 12 px is a short thin dash, so this pair read as a smaller control than the
-              two `|◀` buttons beside it even though every box here is 24 px. */}
           <svg
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
             strokeWidth="2.25"
             strokeLinecap="round"
-            className="w-3 h-3"
+            className="w-2.5 h-2.5"
             aria-hidden="true"
           >
             <path d="M3 8h10" />
           </svg>
         </button>
+
+        {/* Zoom In (+) on right of playhead */}
         <button
           type="button"
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomIn}
           disabled={windowSeconds <= WINDOW_MIN_S}
-          className={`${TAP_PAD} max-lg:after:-inset-x-2.5 w-6 h-6 rounded bg-[#141414]/80 border border-[#282828] flex items-center justify-center text-[#888888] hover:text-[#d4d4d4] disabled:opacity-20 shadow-sm backdrop-blur-sm`}
-          title="Zoom in (or scroll up over the waveforms)"
+          className={`${TAP_PAD} pointer-events-auto w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 select-none`}
+          title="Zoom in (+) — closer view (or scroll up)"
+          aria-label="Zoom in waveforms"
         >
           <svg
             viewBox="0 0 16 16"
@@ -549,7 +551,7 @@ export function StackedWaveforms({
             stroke="currentColor"
             strokeWidth="2.25"
             strokeLinecap="round"
-            className="w-3 h-3"
+            className="w-2.5 h-2.5"
             aria-hidden="true"
           >
             <path d="M8 3v10M3 8h10" />
@@ -567,7 +569,7 @@ export function StackedWaveforms({
             deckA.seek(0)
           }}
           disabled={!deckA.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
           title="Rewind to start of Deck A (|◀)"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
@@ -586,7 +588,7 @@ export function StackedWaveforms({
             deckB.seek(0)
           }}
           disabled={!deckB.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414]/90 hover:bg-[#252525] border border-[#282828] hover:border-[#444444] active:bg-[#333333] text-[#888888] hover:text-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
           title="Rewind to start of Deck B (|◀)"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
@@ -668,7 +670,7 @@ export function StackedWaveforms({
           onClick={() => setActiveGridDeckId(prev => (prev === 'A' ? null : 'A'))}
           className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'A'
-              ? 'bg-[#222222] border-emerald-500/70 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
+              ? ACTIVE_DECK_A
               : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
           title="Adjust Deck A Beatgrid"
@@ -733,7 +735,7 @@ export function StackedWaveforms({
           onClick={() => setActiveGridDeckId(prev => (prev === 'B' ? null : 'B'))}
           className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'B'
-              ? 'bg-[#222222] border-purple-500/70 text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
+              ? ACTIVE_DECK_B
               : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
           title="Adjust Deck B Beatgrid"
@@ -970,7 +972,7 @@ function renderDeckLane({
     const halfBox = badge.box / 2
 
     ctx.save()
-    ctx.fillStyle = '#161616'
+    ctx.fillStyle = '#101010'
     ctx.strokeStyle = '#282828'
     ctx.lineWidth = badge.stroke
 
@@ -1107,12 +1109,32 @@ function renderDeckLane({
       if (x1 >= 0 && x1 <= w) ctx.fillRect(x1 - loopEdgeW / 2, topY, loopEdgeW, laneH)
       if (x2 >= 0 && x2 <= w) ctx.fillRect(x2 - loopEdgeW / 2, topY, loopEdgeW, laneH)
 
-      // Center Loop Grab Handle [ ||| ] matching Traktor
+      // Center Loop Handle, labelled with the loop's own length.
+      //
+      // It used to be three grip lines — the same mark for a 1-beat loop as for a 32-beat one,
+      // which meant the lane never said how long the window was; you had to look down at the
+      // transport for the number. The badge is on the thing it describes, so it says it.
+      //
+      // The length is measured against the local beat at the loop's start rather than against
+      // `loop.bars`, because the beat-loop path (`setLoop`) leaves `bars` at 0 — and measured
+      // locally so a loop armed on a drifting grid reports the beats you can actually count.
       if (loopWidth > 32) {
         const midX = (startX + endX) / 2
         const handleW = 28
         const handleH = 14
         const handleY = topY + laneH - handleH - 3
+        const beatLen = deck.beatLengthAt(deck.loop.start)
+        const beats = beatLen > 0 ? (deck.loop.end - deck.loop.start) / beatLen : 0
+        // Below a beat, say `1/2` rather than `0.5` — the console's own loop readouts already
+        // speak in that notation, and a leading `0.` reads as a timecode here.
+        const label =
+          beats >= 1
+            ? String(Math.round(beats))
+            : beats > 0
+              ? `1/${Math.round(1 / beats)}`
+              : ''
+
+        ctx.save()
         ctx.fillStyle = '#14532d'
         ctx.globalAlpha = 0.85
         ctx.beginPath()
@@ -1122,11 +1144,14 @@ function renderDeckLane({
         ctx.lineWidth = 1
         ctx.stroke()
 
-        // Handle grip lines
+        // The count itself, in the deck's loop green so it belongs to the window behind it.
+        ctx.globalAlpha = 1
         ctx.fillStyle = '#86efac'
-        ctx.fillRect(midX - 5, handleY + 3.5, 1.5, 7)
-        ctx.fillRect(midX - 0.75, handleY + 3.5, 1.5, 7)
-        ctx.fillRect(midX + 3.5, handleY + 3.5, 1.5, 7)
+        ctx.font = `700 ${thickBars ? 9 : 8.5}px Inter, ui-sans-serif, system-ui, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(label, midX, handleY + handleH / 2 + 0.5)
+        ctx.restore()
       }
       ctx.globalAlpha = 1
     }
@@ -1176,7 +1201,7 @@ function renderDeckLane({
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(x - 1, topY, 2, laneH)
     ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 9px Inter, ui-sans-serif, sans-serif'
+    ctx.font = 'bold 9px Consolas, monospace'
     ctx.fillText(`${i + 1}`, x + 3, topY + 12)
   })
 }

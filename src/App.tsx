@@ -47,13 +47,30 @@ function NotFound() {
   )
 }
 
+/**
+ * Routes that own the whole window.
+ *
+ * The DJ console is fitted to the viewport at every size (`MixIt`), so a site header
+ * above it would either be covered by the console or cost it a row of transport — on a
+ * phone, the difference between a legible jog wheel and a small one. These pages carry
+ * their own navigation instead: the console's side rail opens the same menu.
+ */
+const FULL_WINDOW_ROUTES = new Set(['/mix-it', '/mixit'])
+
 export default function App() {
   const { pathname } = useLocation()
+  const fullWindow = FULL_WINDOW_ROUTES.has(pathname)
 
   return (
     <div className="min-h-screen">
       <ScrollToTop />
-      <Header />
+      {/* A full-window route keeps the site header from lg up — on a phone it would
+          cost a third of a landscape console — and hides it below, where the console's
+          own side rail carries the same menu. Its `--header-h` is what the console
+          uses to start below the bar. */}
+      <div className={fullWindow ? 'hidden lg:block' : undefined}>
+        <Header />
+      </div>
       <Toast />
       <main>
         {/* Keyed by pathname so a page change re-mounts and replays the
@@ -88,7 +105,7 @@ export default function App() {
 /** Hide footer on Key Tool and Mix it so 1080p can show the full console without scrolling. */
 function AppFooter() {
   const { pathname } = useLocation()
-  if (pathname === '/tool' || pathname === '/mix-it' || pathname === '/mixit') return null
+  if (pathname === '/tool' || FULL_WINDOW_ROUTES.has(pathname)) return null
   return (
     <footer className="mt-12 border-t border-line">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-xs text-text-dim lg:px-8">

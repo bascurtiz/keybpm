@@ -21,48 +21,29 @@ import { useKeepScreenAwake } from '@/lib/wake-lock'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 /**
- * Floor for the stacked waveform band in kiosk mode, in design px: two lanes of 53 px,
- * a tenth more than the two 48 px lanes it used to be, taken from the deck row.
- *
- * The band is the console's *flexible* row — every other row is a fixed height — so
- * this is what it falls back to rather than what it usually is: on a landscape phone it
- * absorbs the rest of the chassis and runs taller than 53 px lanes. Tall enough, at the
- * floor, for a lane's own controls (rewind, downbeat, ±10 ms, GRID) to sit in the
- * corner above the wave without eating it. The desktop band is 290 px, which on a
- * landscape phone would be most of the screen.
+ * Floor for the stacked waveform band in kiosk mode, in design px: two tall lanes of 90 px,
+ * giving the bigger waveform displays prominent height on mobile instead of being squeezed.
  */
-const KIOSK_LANE_BAND_FLOOR_H = 106
+const KIOSK_LANE_BAND_FLOOR_H = 180
 
 /**
- * Ceiling for the same band, in design px: two 136 px lanes.
- *
- * Capped on the *band* rather than on the chassis, because the band is the row that
- * grows. It moves with the deck row: when the mixer took 28 px back from the waveforms
- * the ceiling came down by the same 28, or a tall box would simply have re-inflated the
- * band and the trim would only have applied to the phones that filled their screen. A
- * 16:9 landscape phone fills at ~702 design px, where the band lands at 263 — under this
- * ceiling — and a portrait tablet, where the same fill asks for 1,600 px, is what the
- * ceiling is really there for: it keeps the console from turning into a waveform display.
+ * Ceiling for the same band, in design px: two 145 px lanes.
  */
-const KIOSK_LANE_BAND_MAX_H = 272
+const KIOSK_LANE_BAND_MAX_H = 290
 
 /**
- * Height of the deck row in kiosk mode, in design px — the pitch faders, jog wheels,
- * key and cue columns, and the mixer's EQ, gain and FX block.
+ * Height of the deck and mixer row, in design px.
  *
- * A fixed height rather than a share of the chassis, which is what leaves the band the
- * rest of the screen. The row used to take whatever the fill-to-width chassis had left,
- * which on a 19.5:9 phone was 312 px for a 196 px jog wheel: a fifth more than the
- * decks need, spent on empty space above and below every control, while the waveforms
- * were squeezed into strips. 287 is that 312 less 8%, and still clears the jog wheel
- * with room for the row's padding and the nudge buttons under it.
+ * 250 px is the console's own proportion, not the phone's: the jog, the cue column and
+ * the channel strips all stretch to it, and the row has to be tall enough that the
+ * mixer reads as a column of controls rather than a stack of labels. The shorter row
+ * (236) fitted a phone with a little to spare; the taller one (285) pushed the FX
+ * buttons down into the floor of the mixer column and left nothing under them.
  *
- * This number is also the trim on the waveforms, because the band takes exactly what
- * this row does not: px moved here is px the band loses. It has moved twice for that
- * reason — 250, then 259, then 287 when the waveforms gave 14 px per lane back to the
- * mixer. At 844×390 the band is 139 px over this row, two lanes of 69.5.
+ * It is also the row the waveform band trades against — the band is the flexible one,
+ * so a taller deck row is taken out of the band's height, not out of the console's.
  */
-const KIOSK_DECK_ROW_H = 287
+const KIOSK_DECK_ROW_H = 250
 
 /**
  * Bounds for the kiosk chassis height, in design px, derived from the band's own.
@@ -74,34 +55,47 @@ const KIOSK_DECK_ROW_H = 287
  * them and fills its screen, and a short or unusually wide one lands on the floor and
  * is scaled down to fit instead of clipping a row.
  */
-const KIOSK_MIN_CONSOLE_H = 87 + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + 65
+/** Height of the metadata strip at the top of the chassis, in design px (content-sized). */
+const STRIP_H = 87
+
+/** The chassis' own top and bottom border, in design px (1 px each). */
+const CHASSIS_BORDER_H = 2
+
+/**
+ * `TraktorTransportBar`'s height in design px on a desktop: the 1 px divider, 16 px of air
+ * above the keys, the 44 px keys, and 16 px of air below them (see that component's row).
+ * Kiosk keeps the bar at 56, which is why the bounds below are two pairs rather than one.
+ */
+const DESKTOP_TRANSPORT_H = 77
+
+const KIOSK_MIN_CONSOLE_H = STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + 65
 const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK_LANE_BAND_FLOOR_H)
 
 /**
- * Side band kept clear of the console, per side, in kiosk mode.
+ * The same bounds for the desktop chassis, derived from its own rows rather than from
+ * `KIOSK_MIN_CONSOLE_H`: that constant bakes in the desktop transport height the bar had
+ * before it gained its bottom padding, so reusing it left the chassis 7 px shorter than
+ * the rows' minimum — which `overflow-hidden` turned into a clipped transport bar at the
+ * floor.
  *
- * The menu and fullscreen buttons sit *outside* the chassis (see `ConsoleChrome`),
- * level with the deck load buttons — where the phone's rounded corners and the display
- * cutout cannot clip them. They need `RAIL.gap + RAIL.size` = 52 design px of room each
- * side, which is 4.6% of the chassis width; a band of 5.2vw leaves a few real pixels to
- * spare once the console has taken the rest of the width. On a notched phone the
- * safe-area inset is usually the larger number, and `max()` picks it — the band is
- * never narrower than the notch.
- *
- * This is a deliberate trade: the console gives up about 10% of the screen width on a
- * phone with no inset at all, and almost nothing where the browser already reserved an
- * inset (where the mock-up's black bands come from).
+ * `DESKTOP_MIN_CONSOLE_H` is the sum of the fixed rows and the band's floor: below it the
+ * chassis would have to squeeze the band past its own minimum, so the fit scales the
+ * whole console down instead. The max is the same sum at the band's ceiling, so the band
+ * keeps its designed 290 px on a tall window.
  */
-const KIOSK_SIDE_BAND = 'max(env(safe-area-inset-left), env(safe-area-inset-right), 5.2vw)'
+const DESKTOP_MIN_CONSOLE_H =
+  CHASSIS_BORDER_H + STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + DESKTOP_TRANSPORT_H
+const DESKTOP_MAX_CONSOLE_H =
+  CHASSIS_BORDER_H + STRIP_H + KIOSK_LANE_BAND_MAX_H + KIOSK_DECK_ROW_H + DESKTOP_TRANSPORT_H
 
 /**
- * Build fingerprint rendered next to the version, in the project's own timezone.
+ * The build stamp is rendered from a value the bundler bakes in at build time, so this is
+ * a constant of the bundle rather than of the session: it says when the deploy was made,
+ * which is the question a BETA player has to be able to answer about itself.
  *
- * `__BUILD_DATE__` is baked in at build time, so this cannot simply use the
- * browser's clock: the stamp has to name the build the same way wherever it is
- * read. It is pinned to Europe/Amsterdam rather than UTC so it matches the wall
- * clock of whoever runs the deploy — and carries the `CEST`/`CET` suffix, so the
- * offset is explicit instead of implied, on either side of daylight saving.
+ * It is pinned to Europe/Amsterdam rather than UTC so it matches the wall clock of
+ * whoever runs the deploy — and carries the `CEST`/`CET` suffix, so the offset is
+ * explicit instead of implied, on either side of daylight saving.
  */
 const BUILD_TIME_ZONE = 'Europe/Amsterdam'
 
@@ -122,6 +116,34 @@ const BUILD_STAMP = (() => {
   return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')} ${part('timeZoneName')}`
 })()
 
+/**
+ * Side band kept clear of the console, per side, in kiosk mode.
+ *
+ * The menu and fullscreen buttons sit *outside* the chassis (see `ConsoleChrome`),
+ * level with the deck load buttons — where the phone's rounded corners and the display
+ * cutout cannot clip them. They need `RAIL.gap + RAIL.size` = 52 design px of room each
+ * side, which is 4.6% of the chassis width; a band of 5.2vw leaves a few real pixels to
+ * spare once the console has taken the rest of the width. On a notched phone the
+ * safe-area inset is usually the larger number, and `max()` picks it — the band is
+ * never narrower than the notch.
+ *
+ * This is a deliberate trade: the console gives up about 10% of the screen width on a
+ * phone with no inset at all, and almost nothing where the browser already reserved an
+ * inset (where the mock-up's black bands come from).
+ */
+const KIOSK_SIDE_BAND =
+  'max(env(safe-area-inset-left), env(safe-area-inset-right), min(5.2vw, 56px))'
+
+/**
+ * Ceiling on how large the console is drawn, in design px per CSS px.
+ *
+ * The console fills the viewport on every screen now, so on a wide window it is drawn
+ * larger than the 1024 px it was laid out at — the same thing the design mock-up does on
+ * a 1610 px-wide screenshot. The ceiling is only there so an ultra-wide display gets a
+ * centred console instead of a mixer with 90 px knobs.
+ */
+const MAX_CONSOLE_SCALE = 2
+
 export function MixIt() {
   const engine = getAudioEngine()
   const deckA = engine.decks.A
@@ -139,7 +161,7 @@ export function MixIt() {
   // and the 24 px page padding were taking a third of a 360 px-tall landscape viewport.
   // Read from resize events, not media-query events, so the address bar sliding away
   // (or the keyboard opening) re-fits the console immediately — see `use-viewport.ts`.
-  const { kiosk, portraitPhone } = useViewportMode()
+  const { kiosk, portraitPhone, touch } = useViewportMode()
   // A phone held upright is the wrong shape for a two-deck console: fitted, the
   // controls are too small to hit. So portrait opens on a rotate prompt instead.
   // Landscape fits the whole console (the mock-up's mode); a portrait tablet is wide
@@ -151,11 +173,20 @@ export function MixIt() {
   // rotating mid-task (picking a file, reading the analysis bar) should not throw a
   // full-screen prompt over the thing being used.
   const showRotatePrompt =
-    kiosk && portraitPhone && !portraitOptOut && loadModalDeck === null && analyzingDeck === null
+    portraitPhone && !portraitOptOut && loadModalDeck === null && analyzingDeck === null
   useEffect(() => {
     if (!portraitPhone) setPortraitOptOut(false)
   }, [portraitPhone])
-  const { setBoxRef, setChassisRef, box, chassis, scale } = useConsoleFit()
+  // A desktop draws the console at its own size: 1024 px is the instrument's design
+  // width, and scaling it up to fill a 1600 px window is what made the page read as a
+  // phone console blown up — every label, knob and jog 1.3–1.5× its intended size. A
+  // wide screen gets the console centred with margin around it instead; only kiosk
+  // (a phone, where the console *is* the page and there is no margin to speak of)
+  // still scales up past 1.
+  const { setBoxRef, setChassisRef, box, chassis, scale } = useConsoleFit(
+    CONSOLE_WIDTH,
+    kiosk ? MAX_CONSOLE_SCALE : 1
+  )
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
   // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
   // The toggle lives on the side rail rather than in the console — outside the chassis it
@@ -167,7 +198,7 @@ export function MixIt() {
   // file picker and keyboard take the screen away from fullscreen, which is what brought
   // the address bar back over the console. While any of them is up, the console asks for
   // fullscreen again on the next tap — see `useFullscreenKeeper`.
-  useFullscreenKeeper(kiosk && (loadModalDeck !== null || analyzingDeck !== null || activeFxDeck !== null))
+  useFullscreenKeeper(touch && (loadModalDeck !== null || analyzingDeck !== null || activeFxDeck !== null))
 
   /**
    * Rotating a phone is not a user gesture, so the browser will usually refuse a
@@ -178,9 +209,9 @@ export function MixIt() {
    */
   const wasPortrait = useRef(portraitPhone)
   useEffect(() => {
-    if (wasPortrait.current && !portraitPhone && kiosk) void enterFullscreen()
+    if (wasPortrait.current && !portraitPhone) void enterFullscreen()
     wasPortrait.current = portraitPhone
-  }, [portraitPhone, kiosk])
+  }, [portraitPhone])
 
   // Per-deck load generation so a finishing older analysis can't clear a newer one.
   const loadGenRef = useRef({ A: 0, B: 0 })
@@ -212,9 +243,9 @@ export function MixIt() {
   }, [deckA, deckB])
 
   // A phone that dims mid-set is a phone that also starts throttling; see `wake-lock.ts`.
-  // Only in kiosk (touch) layout: a desktop browser has no such problem and no reason to
+  // Only where there is a finger: a desktop browser has no such problem and no reason to
   // hold someone's screen on.
-  useKeepScreenAwake(kiosk && playing)
+  useKeepScreenAwake(touch && playing)
 
   const handleFileSelected = async (
     targetDeckId: 'A' | 'B',
@@ -343,17 +374,35 @@ export function MixIt() {
 
   const spinnerColor = analyzingDeck === 'A' ? '#34d399' : '#a855f7'
 
-  // Kiosk layout: the chassis is measured against the box it is put in and scaled to
-  // fit both axes, so the whole console is visible at its own proportions.
-  // No clipping in kiosk: the rail buttons hang outside the box, into the side band.
-  // Nothing else can overflow — the chassis fits the box exactly and clips itself.
-  const boxClass = !kiosk
-    ? 'mt-4 w-full overflow-x-auto pb-2 flex justify-center'
-    : 'relative min-w-0 flex-1 min-h-0'
+  // The chassis is measured against the box it is put in and scaled to fit both axes, so
+  // the whole console is visible at its own proportions.
+  // No clipping: the rail buttons hang outside the box, into the side band. Nothing else
+  // can overflow — the chassis fits the box exactly and clips itself.
+  const boxClass = 'relative min-w-0 flex-1 min-h-0'
 
-  const chassisClass = !kiosk
-    ? 'w-[1120px] max-w-full bg-[#1C1C1C] rounded-xl border border-[#282828] shadow-2xl overflow-hidden flex flex-col shrink-0'
-    : 'absolute left-1/2 top-1/2 shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col'
+  /**
+   * The chassis hangs from the top of its box on a desktop, and stays centred in it in
+   * kiosk mode.
+   *
+   * Centring a console that is shorter than the space it was given (692 design px is the
+   * ceiling on the waveform band) left it floating in the middle of the window with a band
+   * of empty page above it. A desktop page reads top-down — heading, description, then the
+   * instrument — so the console is anchored under the description and the space it does not
+   * need stays below it, where it is not mistaken for a margin the console failed to fill.
+   * On a phone the console *is* the page and fills the screen, so centring is a no-op there
+   * and the rail it hangs in (`railTop`, below) is still computed from that same centre.
+   */
+  const chassisClass = `absolute left-1/2 shrink-0 bg-[#1C1C1C] overflow-hidden flex flex-col ${
+    kiosk ? 'top-1/2' : 'top-0'
+  } ${
+    // One outline around the whole console, the same `surface` treatment the Key Tool
+    // cards and every other panel on the site use (1 px `--line`, card radius), so the
+    // instrument reads as one object on the page instead of a slab whose edges are
+    // defined only by where its rows happen to stop. Desktop only: on a phone the
+    // console fills the screen edge to edge (see `kioskDesignH`), and a border there
+    // would inset the instrument from the glass for no reason.
+    kiosk ? '' : 'border border-line rounded-card'
+  }`
 
   /**
    * Height the kiosk chassis is laid out at, in design px.
@@ -378,23 +427,40 @@ export function MixIt() {
    * `height` attribute — i.e. how tall the previous frame drew it — and the fit would
    * measure that instead of the layout.
    */
-  const kioskDesignH = !kiosk
-    ? undefined
-    : Math.min(
-        KIOSK_MAX_CONSOLE_H,
-        Math.max(
-          KIOSK_MIN_CONSOLE_H,
-          box.w > 0 && box.h > 0 ? Math.round((box.h * CONSOLE_WIDTH) / box.w) : KIOSK_MIN_CONSOLE_H
-        )
-      )
+  const kioskDesignH = Math.min(
+    KIOSK_MAX_CONSOLE_H,
+    Math.max(
+      KIOSK_MIN_CONSOLE_H,
+      box.w > 0 && box.h > 0 ? Math.round((box.h * CONSOLE_WIDTH) / box.w) : KIOSK_MIN_CONSOLE_H
+    )
+  )
 
-  const chassisStyle = !kiosk
-    ? undefined
-    : {
-        width: CONSOLE_WIDTH,
-        height: kioskDesignH,
-        transform: `translate(-50%, -50%) scale(${scale})`,
-      }
+  /**
+   * Height the chassis is laid out at, in design px.
+   *
+   * Kiosk keeps `kioskDesignH`: there the fit is width-bound, so the height that makes the
+   * 1024 px console fill the screen is the one that matters. A desktop draws the console
+   * at 1× (see the `maxScale` argument), which means design px *are* CSS px — so filling
+   * the window vertically means taking the box height directly, and the flexible waveform
+   * band absorbs it up to `DESKTOP_MAX_CONSOLE_H`. Without this the desktop console stayed
+   * at its minimum height and floated in the middle of a 900 px window, and below that
+   * minimum the band was pushed past its floor and the transport clipped.
+   */
+  const designH =
+    kiosk || box.h <= 0
+      ? kioskDesignH
+      : Math.min(DESKTOP_MAX_CONSOLE_H, Math.max(DESKTOP_MIN_CONSOLE_H, Math.round(box.h)))
+
+  const chassisStyle = {
+    width: CONSOLE_WIDTH,
+    height: designH,
+    // The origin is the corner the transform anchors against: centre for the kiosk
+    // `translate(-50%, -50%)`, top-centre for the desktop `translate(-50%, 0)`. With a
+    // centre origin the desktop console would shrink towards its middle — a scaled-down
+    // console drifts down by `(1 - scale) · height / 2` and hangs out of the box.
+    transformOrigin: kiosk ? '50% 50%' : '50% 0',
+    transform: `translate(-50%, ${kiosk ? '-50%' : '0'}) scale(${scale})`,
+  }
 
   // Rail placement: the chassis is centred in the box and scaled, so a button's offset is
   // the chassis half-width plus the rail gap, all in *scaled* design px. Negative on the
@@ -422,78 +488,84 @@ export function MixIt() {
   const safeEdge = KIOSK_SIDE_BAND
 
   return (
+    // Full-bleed, but not over the site: from lg up the header keeps its row and the
+    // console takes everything below it; on a phone the bar is hidden and the console
+    // starts at the top edge. `bottom-0` rather than a height, so the row the header
+    // takes is whatever it actually measured.
     <div
-      className={
-        kiosk
-          ? 'fixed inset-x-0 top-0 z-30 flex h-[100dvh] flex-col overflow-hidden bg-bg select-none text-text'
-          : 'flex flex-col min-h-[calc(100vh-var(--header-h,64px))] bg-bg select-none text-text'
-      }
-      style={
-        kiosk
-          ? {
-              paddingLeft: safeEdge,
-              paddingRight: safeEdge,
-              // Only a real cutout at the top costs space: in landscape the notch is on
-              // the side (handled above) and this resolves to 0, so the whole height
-              // goes to the console. There is no bar above it either: the two controls
-              // the console does draw (menu, fullscreen) sit on the side rail, where
-              // they cost the fit nothing, rather than in a row worth ~38 px of it.
-              paddingTop: 'env(safe-area-inset-top)',
-            }
-          : undefined
-      }
+      className="fixed inset-x-0 top-0 bottom-0 z-30 flex flex-col overflow-hidden bg-bg select-none text-text lg:top-[var(--header-h,64px)]"
+      style={{
+        // A wide screen has the site header and no rail, so the console goes right to
+        // the window edge; the band is only there to park the rail buttons in.
+        paddingLeft: kiosk ? safeEdge : 0,
+        paddingRight: kiosk ? safeEdge : 0,
+        // Only a real cutout at the top costs space: in landscape the notch is on the
+        // side (handled above) and this resolves to 0, so the whole height goes to the
+        // console. There is no bar above it either: the two controls the console does
+        // draw (menu, fullscreen) sit on the side rail, where they cost the fit
+        // nothing, rather than in a row worth ~38 px of it.
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
     >
       {/* Main DJ Console Workspace - Compact hardware layout matching real DJ controllers */}
-      <main
-        className={
-          kiosk
-            ? 'relative flex-1 flex flex-col min-h-0 min-w-0'
-            : 'flex-1 flex flex-col max-w-[1160px] w-full mx-auto px-4 py-6'
-        }
-      >
+      <main className="relative flex-1 flex flex-col min-h-0 min-w-0">
         {/* Page Title Row — desktop only: in kiosk mode every row above the console
-            costs transport space, which is the scarcest thing on a phone. */}
+            costs transport space, which is the scarcest thing on a phone. On the desktop
+            it is `shrink-0`, so the console below takes the height that is left and the
+            header never competes with the chassis for the same pixels. */}
+        {/* The console below is full-bleed, but the title row is not: it uses the same
+            container as Key Tool (`max-w-[1400px]`, 12 px side padding, 24 px top
+            padding) so the two pages' headings and descriptions sit on the same
+            baseline grid. A full-bleed title row put "Mix it!" 100 px to the left of
+            every other page's heading. */}
         {!kiosk && (
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-bold text-white tracking-wide">Mix it!</h1>
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">
-              Beta
-            </span>
-            {/* Plain greyscale text, no chip chrome, committed or not: the dirty state is
-                provenance, not a warning to read at a glance, and a bordered badge next to
-                the title competed with the deck colours for attention. It still shows in the
-                tooltip. */}
-            <span
-              className="text-[10px] font-mono font-medium tracking-wider tabular-nums text-text-muted"
-              title={[
-                `Version: ${__APP_VERSION__}`,
-                `Built:   ${BUILD_STAMP}`,
-                `Commit:  ${__GIT_SHA__}`,
-                `Branch:  ${__GIT_BRANCH__}`,
-                __GIT_DIRTY__ ? 'Note:    built with uncommitted changes' : null,
-              ]
-                .filter(Boolean)
-                .join('\n')}
-            >
-              v{__APP_VERSION__} · {BUILD_STAMP}
-            </span>
+          <div className="mx-auto flex w-full max-w-[1400px] shrink-0 flex-wrap items-baseline justify-between gap-2 px-3 pt-6">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-white">Mix it!</h1>
+              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">
+                Beta
+              </span>
+              {/* Plain greyscale text, no chip chrome, committed or not: the dirty state is
+                  provenance, not a warning to read at a glance, and a bordered badge next to
+                  the title competed with the deck colours for attention. It still shows in the
+                  tooltip. */}
+              <span
+                className="text-[10px] font-mono font-medium tracking-wider tabular-nums text-text-muted"
+                title={[
+                  `Version: ${__APP_VERSION__}`,
+                  `Built:   ${BUILD_STAMP}`,
+                  `Commit:  ${__GIT_SHA__}`,
+                  `Branch:  ${__GIT_BRANCH__}`,
+                  __GIT_DIRTY__ ? 'Note:    built with uncommitted changes' : null,
+                ]
+                  .filter(Boolean)
+                  .join('\n')}
+              >
+                v{__APP_VERSION__} · {BUILD_STAMP}
+              </span>
+            </div>
+            <p className="text-xs text-text-muted text-right">
+              Drop a track on each deck, and audition quickly in the mix.
+            </p>
           </div>
-          <p className="text-xs text-text-muted text-right">
-            Drop a track on each deck, and audition quickly in the mix.
-          </p>
-        </div>
         )}
 
         {/* Safari: the console's audio paths are not supported there (see `isSafari`). */}
-        <BrowserNotice className={kiosk ? 'mx-1 mt-1 shrink-0' : 'mt-3'} />
+        <BrowserNotice className="mx-1 mt-1 shrink-0" />
+
+        {/* Space under the description before the console, desktop only: 16 px, the gap Key
+            Tool puts between its title row and its tools (the page's 8 px column gap plus
+            `.kt-tools`' own 8 px `margin-top`), which is also the `mt-4` Browse and Mix
+            Finder use under their headings. It is a spacer in the column rather than
+            padding on the box below, because the box is what `useConsoleFit` measures —
+            padding on it would be counted as room to draw in, and the chassis is
+            absolutely positioned inside it, so the offset has to come from the layout. */}
+        {!kiosk && <div aria-hidden className="h-4 shrink-0" />}
 
         {/* Error notification banner if any */}
         {errorMsg && (
           <div
-            className={`${
-              kiosk ? 'absolute left-2 right-2 top-2 z-30' : 'mt-4'
-            } p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between backdrop-blur-sm`}
+            className="absolute left-2 right-2 top-2 z-30 p-2.5 rounded-lg bg-bad/10 border border-bad/30 text-bad text-xs flex items-center justify-between backdrop-blur-sm"
           >
             <span>{errorMsg}</span>
             <button
@@ -506,10 +578,10 @@ export function MixIt() {
           </div>
         )}
 
-        {/* Single Seamless Traktor DJ Hardware Chassis. In kiosk mode the console is
-            the page: it is measured against the viewport and scaled or panned to fit. */}
-        <div ref={kiosk ? setBoxRef : undefined} className={boxClass}>
-          <div ref={kiosk ? setChassisRef : undefined} className={chassisClass} style={chassisStyle}>
+        {/* Single Seamless Traktor DJ Hardware Chassis. The console is the page: it is
+            measured against the viewport and scaled to fit. */}
+        <div ref={setBoxRef} className={boxClass}>
+          <div ref={setChassisRef} className={chassisClass} style={chassisStyle}>
             {/* YouTube VJ decks - hidden for now */}
             {/* <YouTubeVideoOverlay
               crossfade={engine.crossfade}
@@ -529,17 +601,11 @@ export function MixIt() {
               activeFxDeck={activeFxDeck}
             />
 
-            {/* 2. OPTIONAL FX DRAWER. Desktop gives it a row of its own. In kiosk it
-                floats over the metadata strip instead: the rows there are already at
-                their floors, and a drawer that took a row would clip the jog wheel. */}
+            {/* 2. OPTIONAL FX DRAWER. It floats over the metadata strip rather than taking
+                a row of its own: the rows are already at their floors, and a drawer that
+                took a row would clip the jog wheel. */}
             {activeFxDeck && (
-              <div
-                className={
-                  kiosk
-                    ? 'absolute inset-x-0 top-0 z-40 shadow-[0_10px_20px_rgba(0,0,0,0.55)]'
-                    : undefined
-                }
-              >
+              <div className="absolute inset-x-0 top-0 z-40 shadow-[0_10px_20px_rgba(0,0,0,0.55)]">
                 <TraktorFxDrawer
                   deck={activeFxDeck === 'A' ? deckA : deckB}
                   deckId={activeFxDeck}
@@ -554,15 +620,13 @@ export function MixIt() {
                 Same arrangement on both sides of the breakpoint — the lanes are the
                 instrument's horizon line, and a phone that buried them in the mixer
                 column had to bend one deck's controls around the other's. What changes
-                in kiosk is only the height: 290 design px is a comfortable band on a
-                desktop and more than half of a landscape phone's screen, so on a phone it
-                is the row that takes what the fixed rows leave and the console goes back to
+                in the layout is only its height: 290 design px is a comfortable band on a
+                wide screen and more than half of a landscape phone's screen, so it is the
+                row that takes what the fixed rows leave and the console goes back to
                 filling the screen — `KIOSK_LANE_BAND_FLOOR_H` is only its floor. */}
             <div
-              className={`w-full border-b border-[#282828] bg-[#161616] ${
-                kiosk ? 'min-h-0 flex-1' : 'h-[290px] shrink-0'
-              }`}
-              style={kiosk ? { minHeight: KIOSK_LANE_BAND_FLOOR_H } : undefined}
+              className="w-full min-h-0 flex-1 border-b border-[#282828] bg-[#101010]"
+              style={{ minHeight: KIOSK_LANE_BAND_FLOOR_H }}
             >
               <StackedWaveforms
                 deckA={deckA}
@@ -573,19 +637,22 @@ export function MixIt() {
               />
             </div>
 
-            {/* 4. MAIN CONSOLE SURFACE: DECK A (GREEN) | 2-COLUMN MIXER | DECK B (PURPLE) */}
+            {/* 4. MAIN CONSOLE SURFACE: DECK A | MIXER | DECK B */}
             <div
-              className={`grid grid-cols-[1fr_auto_1fr] items-stretch justify-center px-3 py-2 bg-[#1C1C1C] gap-4 ${
-                kiosk ? 'shrink-0' : 'h-[280px]'
+              className={`flex shrink-0 items-center justify-center bg-[#1C1C1C] ${
+                // The wide layout is the roomier of the two: the components' desktop
+                // variants are sized for this padding, and swapping it for the phone's
+                // tighter one would leave them short of the chassis width.
+                kiosk ? 'px-2.5 py-2.5 gap-2.5' : 'px-[14px] py-2.5 gap-[14px]'
               }`}
-              style={kiosk ? { height: KIOSK_DECK_ROW_H } : undefined}
+              style={{ height: KIOSK_DECK_ROW_H }}
             >
               {/* Deck A Control Section (Green) */}
               <div
                 onDrop={e => onDrop('A', e)}
                 onDragOver={e => onDragOver('A', e)}
                 onDragLeave={onDragLeave}
-                className={`flex items-stretch justify-center h-full transition-all rounded-[4px] ${
+                className={`flex items-center h-full transition-all rounded-[4px] shrink-0 ${
                   dragOverDeck === 'A' ? 'ring-1 ring-emerald-500 bg-emerald-500/5' : ''
                 }`}
               >
@@ -599,10 +666,9 @@ export function MixIt() {
                 />
               </div>
 
-              {/* Central 5-Column Traktor Mixer: filters over the FX block, both decks' EQ
-                  and faders either side. Same columns at every size — see `TraktorMixer`. */}
-              <div className="flex items-stretch h-full justify-center w-[380px]">
-                <TraktorMixer engine={engine} className="w-full" />
+              {/* Central 5-Column Traktor Mixer */}
+              <div className="flex items-stretch h-full justify-center shrink-0">
+                <TraktorMixer engine={engine} className="h-full" />
               </div>
 
               {/* Deck B Control Section (Purple) */}
@@ -610,7 +676,7 @@ export function MixIt() {
                 onDrop={e => onDrop('B', e)}
                 onDragOver={e => onDragOver('B', e)}
                 onDragLeave={onDragLeave}
-                className={`flex items-stretch justify-center h-full transition-all rounded-[4px] ${
+                className={`flex items-center h-full transition-all rounded-[4px] shrink-0 ${
                   dragOverDeck === 'B' ? 'ring-1 ring-purple-500 bg-purple-500/5' : ''
                 }`}
               >
@@ -626,7 +692,7 @@ export function MixIt() {
             </div>
 
             {/* 5. BOTTOM TRANSPORT BAR: PLAY / CUE / LOOP < 4 BEATS > | CROSSFADER */}
-            <TraktorTransportBar engine={engine} className={kiosk ? 'shrink-0' : undefined} />
+            <TraktorTransportBar engine={engine} className="shrink-0" />
           </div>
 
           {/* The console's only chrome: menu and fullscreen, outside the chassis, level
