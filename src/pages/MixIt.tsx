@@ -14,7 +14,7 @@ import { ConsoleChrome, RAIL } from '@/components/dj/ConsoleChrome'
 import { LoadTrackModal } from '@/components/dj/LoadTrackModal'
 import { BrowserNotice } from '@/components/BrowserNotice'
 import { useViewportMode } from '@/lib/use-viewport'
-import { useConsoleFit, CONSOLE_WIDTH } from '@/lib/dj/use-console-fit'
+import { useConsoleFit, CONSOLE_WIDTH, KIOSK_CONSOLE_WIDTH } from '@/lib/dj/use-console-fit'
 import { useFullscreen, useFullscreenKeeper, enterFullscreen } from '@/lib/fullscreen'
 import { useKeepScreenAwake } from '@/lib/wake-lock'
 // import { YouTubeVideoOverlay } from '@/components/dj/YouTubeVideoOverlay'
@@ -177,14 +177,19 @@ export function MixIt() {
   useEffect(() => {
     if (!portraitPhone) setPortraitOptOut(false)
   }, [portraitPhone])
-  // A desktop draws the console at its own size: 1024 px is the instrument's design
+  // A desktop draws the console at its own size: 1190 px is the instrument's design
   // width, and scaling it up to fill a 1600 px window is what made the page read as a
   // phone console blown up — every label, knob and jog 1.3–1.5× its intended size. A
   // wide screen gets the console centred with margin around it instead; only kiosk
   // (a phone, where the console *is* the page and there is no margin to speak of)
   // still scales up past 1.
+  //
+  // Kiosk keeps its own design width: it fits the console to the phone's width, so the
+  // desktop's wider chassis would only shrink every control on a screen that cannot
+  // spare the pixels. See `KIOSK_CONSOLE_WIDTH`.
+  const consoleWidth = kiosk ? KIOSK_CONSOLE_WIDTH : CONSOLE_WIDTH
   const { setBoxRef, setChassisRef, box, chassis, scale } = useConsoleFit(
-    CONSOLE_WIDTH,
+    consoleWidth,
     kiosk ? MAX_CONSOLE_SCALE : 1
   )
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
@@ -431,7 +436,7 @@ export function MixIt() {
     KIOSK_MAX_CONSOLE_H,
     Math.max(
       KIOSK_MIN_CONSOLE_H,
-      box.w > 0 && box.h > 0 ? Math.round((box.h * CONSOLE_WIDTH) / box.w) : KIOSK_MIN_CONSOLE_H
+      box.w > 0 && box.h > 0 ? Math.round((box.h * consoleWidth) / box.w) : KIOSK_MIN_CONSOLE_H
     )
   )
 
@@ -452,7 +457,7 @@ export function MixIt() {
       : Math.min(DESKTOP_MAX_CONSOLE_H, Math.max(DESKTOP_MIN_CONSOLE_H, Math.round(box.h)))
 
   const chassisStyle = {
-    width: CONSOLE_WIDTH,
+    width: consoleWidth,
     height: designH,
     // The origin is the corner the transform anchors against: centre for the kiosk
     // `translate(-50%, -50%)`, top-centre for the desktop `translate(-50%, 0)`. With a
@@ -465,7 +470,7 @@ export function MixIt() {
   // Rail placement: the chassis is centred in the box and scaled, so a button's offset is
   // the chassis half-width plus the rail gap, all in *scaled* design px. Negative on the
   // left when the console fills the box — that is the side band it draws into.
-  const chassisHalf = (CONSOLE_WIDTH * scale) / 2
+  const chassisHalf = (consoleWidth * scale) / 2
   // Placed against the chassis as *measured* rather than as computed: the two agree —
   // `useConsoleFit` reads the same element this file gives a height to — but the
   // measured one is what the rail is actually centred against.

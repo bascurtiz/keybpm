@@ -131,16 +131,21 @@ export function TraktorDeck({
   return (
     <div
       className={`flex items-center ${
-        kiosk ? 'gap-2.5' : 'gap-[14px]'
+        kiosk ? 'gap-2.5' : 'gap-[27px]'
       } h-full select-none shrink-0 ${isOuterLeft ? 'flex-row' : 'flex-row-reverse'}`}
     >
       {/* ================= 1. OUTER EDGE: PITCH FADER SECTION ================= */}
-      {/* 62 px with 4 px of side padding: the readout and the − / + strip are 52 px wide in a
-          52 px well, so the column is as tight as it can be around them. Widened once for air
-          and put back — the pitch fader reads as a column of gauges, and a column of gauges
-          wants its scale at the edge, unlike the filter/FX block, which needed the room. */}
+      {/* 66 px on a desktop, 4 px of it side padding: the readout and the − / + strip are 58 px
+          wide in that well. It was 62 on the 1040 px console — as tight as it could be around
+          its controls — and took 4 px of the deck's 150 px widening because the column of
+          gauges was the most compressed part of the deck. The other 26 px went to the air on
+          either side of the jog, which is what separates the pitch column from the platter and
+          the platter from the key column at the new width. Kiosk keeps 62: there is no spare
+          width on a phone. */}
       <div
-        className="flex flex-col items-center justify-between h-full py-2 px-1 w-[62px] shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none"
+        className={`flex flex-col items-center justify-between h-full py-2 px-1 shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none ${
+          kiosk ? 'w-[62px]' : 'w-[66px]'
+        }`}
       >
         {/* Pitch Rate Readout & Reset to 0%. A readout, not a key: the value sits on the
             console's darkest surface without a frame, so it reads as a printed number until
@@ -208,16 +213,24 @@ export function TraktorDeck({
 
       {/* ================= 2. CENTER: JOG WHEEL & NUDGE BUTTONS ================= */}
       {/* The nudge pair sits in the jog block's corners, not 4 px inside them. The block is
-          exactly the jog's 168 px, so at `left-1` the 24 px buttons were pinned against the
+          exactly the jog's own square, so at `left-1` the 24 px buttons were pinned against the
           platter's outer ring — a circle inscribed in a square leaves its corners empty, and
           the outer inch of that diagonal is where they belong. Cornering them moves each one
           4 px out and 4 px down, which is 5.7 px of clearance from the ring where there was
           a hairline. */}
+      {/* The platter is 212 on a phone and 168 on a desktop. Kiosk's deck row was 42 px
+          narrower than the chassis it sits in — the row centred its columns and left 21 px of
+          dead margin each side, which is exactly the width a phone cannot spare — so the jog
+          took it, and then took the rest of the kiosk console's own widening (see
+          `KIOSK_CONSOLE_WIDTH`): the wheel a thumb actually turns is the control that can use
+          the room, and on a height-limited phone screen it comes out about 13 % larger than it
+          was. The desktop console is already laid out at its full width and binds on nothing,
+          so it keeps 168. */}
       <div className="relative flex items-center justify-center shrink-0">
         <JogWheel
           deck={deck}
           deckId={deckId}
-          size={168}
+          size={kiosk ? 212 : 168}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />

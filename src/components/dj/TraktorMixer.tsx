@@ -135,7 +135,13 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       className={`flex items-stretch gap-2 px-2 py-1.5 bg-[#1C1C1C] rounded-lg border border-[#282828] select-none h-full shadow-inner shrink-0 ${className}`}
     >
       {/* ================= 1. DECK A CHANNEL FADER ================= */}
-      <div className="flex flex-col items-center justify-between py-1 w-9 shrink-0">
+      {/* Column widths are the console's width budget: on a desktop the outer fader columns
+          are 44 (was 36), the EQ columns 52 (was 40) and the filter/FX panel 186 (was 136),
+          which is the mixer's share of the deck row's 150 px widening — 428 in total. Kiosk
+          has its own, smaller set (40 / 44 / 142, 360 in total): the phone's console is too
+          short to bind on width, so its columns can grow with the design without costing
+          anything, and a phone's knobs are reached by a thumb that benefits from the room. */}
+      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-10' : 'w-11'}`}>
         <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-1 leading-none">
           A
         </span>
@@ -157,7 +163,11 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       </div>
 
       {/* ================= 2. DECK A EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
-      <div className="flex flex-col justify-between items-center py-0.5 w-10 shrink-0">
+      <div
+        className={`flex flex-col justify-between items-center py-0.5 shrink-0 ${
+          kiosk ? 'w-11' : 'w-[52px]'
+        }`}
+      >
         <EqKnobItem
           label="GAIN"
           knob={
@@ -223,17 +233,19 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       {/* ================= 3. CENTER PANEL (FILTERS + FX) ================= */}
       <div
         className={`relative flex flex-col items-center py-2 bg-[#161616] rounded-md border border-[#282828] ${
-          kiosk ? 'w-[128px]' : 'w-[136px]'
+          kiosk ? 'w-[142px]' : 'w-[186px]'
         } shrink-0 h-full`}
       >
         {/* Top: Filter Knobs A & B.
 
             The pair is inset from the panel walls: at the row's original `px-0.5` the
             outer knob (and its ● FILTER caption, which is the wider of the two) sat 5 px
-            from the panel's border and read as touching it. `px-3` in a 136 px panel puts
+            from the panel's border and read as touching it. `px-3` in the 186 px panel puts
             them 13 px from the border and 14.6 px for the caption — the pair stays spread
             by `justify-between`, and the wider panel is what turns the extra width into air
-            around the knobs rather than a wider gap between them. */}
+            around the knobs rather than a wider gap between them. The deck row's 150 px is
+            split between this panel (+50, to 186) and the four channel columns (+40), so the
+            pair gains air here while the EQ and fader columns gain theirs beside it. */}
         <div className="flex items-center justify-between w-full px-3">
           <div className="flex flex-col items-center">
             <FilterKnob
@@ -398,7 +410,11 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       </div>
 
       {/* ================= 4. DECK B EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
-      <div className="flex flex-col justify-between items-center py-0.5 w-10 shrink-0">
+      <div
+        className={`flex flex-col justify-between items-center py-0.5 shrink-0 ${
+          kiosk ? 'w-11' : 'w-[52px]'
+        }`}
+      >
         <EqKnobItem
           label="GAIN"
           knob={
@@ -462,7 +478,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       </div>
 
       {/* ================= 5. DECK B CHANNEL FADER ================= */}
-      <div className="flex flex-col items-center justify-between py-1 w-9 shrink-0">
+      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-10' : 'w-11'}`}>
         <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider mb-1 leading-none">
           B
         </span>

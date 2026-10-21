@@ -1,15 +1,46 @@
 import { useLayoutEffect, useState } from 'react'
 
 /**
- * Width the DJ chassis is laid out at, in CSS px.
+ * Width the DJ chassis is laid out at on a desktop, in CSS px.
  *
  * Not a free number: the deck row's three columns have to fit inside it with the row's own
- * 14 px padding. The deck columns are 322 and the mixer 338 — the filter/FX panel is the one
- * section that was widened (to 136), so 322 + 14 + 338 + 14 + 322 + 28 padding + 2 of chassis
- * border = 1040. Change a column and this follows; leave it behind and the row overflows the
- * chassis, which `overflow-hidden` turns into a clipped edge control.
+ * 14 px padding. Both deck columns are 352 and the mixer 428 — the filter/FX panel is the
+ * section that carries most of the width (186), and the deck's air around the jog is what
+ * grew on the outsides. So 352 + 14 + 428 + 14 + 352 + 28 padding + 2 of chassis border =
+ * 1190. Change a column and this follows; leave it behind and the row overflows the chassis,
+ * which `overflow-hidden` turns into a clipped edge control.
+ *
+ * The console was drawn at 1040 until the deck row was widened by 150 px: at that width the
+ * mixer's five columns and the two jogs were pressed together, and the small gap between a
+ * deck's key column and the mixer read as one continuous block. A desktop window has the room
+ * — the console is drawn at 1× and centred, so the extra width is real estate, not scale — and
+ * every control stays the size it was designed at. Only the containers grew: the mixer's outer
+ * columns and filter/FX panel, and the air on either side of each jog.
  */
-export const CONSOLE_WIDTH = 1040
+export const CONSOLE_WIDTH = 1190
+
+/**
+ * Width the chassis is laid out at in kiosk (phone) mode, in CSS px.
+ *
+ * Deliberately *not* `CONSOLE_WIDTH`: kiosk draws the console edge to edge, sized for the phone
+ * rather than for the desktop window, and it lays its deck row out with 2.5 px gaps and a much
+ * narrower mixer panel (see the kiosk branches in `TraktorDeck` / `TraktorMixer`).
+ *
+ * 1118 is the width at which the console's proportions match a landscape phone's. A phone screen
+ * is wider than the console is tall-relative-to-wide (a 900×412 window is ~2.2:1, the console at
+ * 1040 × 582 is ~1.8:1), so the fit is limited by *height*: the console filled the screen top to
+ * bottom and stopped at about 82 % of its width, leaving dark bands either side — width the phone
+ * owned and the instrument could not reach. Widening the design, and the content with it (bigger
+ * platters, wider mixer columns), converts that spare width into larger controls: the scale is
+ * still set by the height, so nothing is drawn smaller to pay for it. A tablet in landscape is
+ * limited by width instead and fills it either way.
+ *
+ * This width is the design of the phone console, so it is coupled to the kiosk layout: the deck
+ * is 358 (62 pitch + 10 + 212 jog + 10 + 64 keys) and the mixer 360 (40 / 44 / 142 / 44 / 40
+ * plus 32 of gaps, 16 of padding and 2 of border), which with the row's own 10 px gaps and 10 px
+ * padding comes to the chassis' 1116 px content box. Change a kiosk column and this follows.
+ */
+export const KIOSK_CONSOLE_WIDTH = 1118
 
 interface ConsoleFitResult {
   /** Attach to the element that defines the available space. */
@@ -58,7 +89,7 @@ interface ConsoleFitResult {
  * on navigation and disappear again.
  */
 export function useConsoleFit(
-  designWidth = CONSOLE_WIDTH,
+  designWidth: number = CONSOLE_WIDTH,
   maxScale = 1
 ): ConsoleFitResult {
   const [boxEl, setBoxEl] = useState<HTMLDivElement | null>(null)

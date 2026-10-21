@@ -248,9 +248,11 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
         // for the keys to crowd.
         //
         // 14 px of side padding, matching the deck row: the deck row's three columns
-        // (322 + 338 + 322 plus two 14 px gaps) fit its content box exactly, so the two rows
+        // (352 + 428 + 352 plus two 14 px gaps) fit its content box exactly, so the two rows
         // start their columns at the same x and the transport groups land on the deck columns
-        // above without a fudge.
+        // above without a fudge. Widening the console by 150 px widens all three, so the
+        // padding stays 14 and the leftover between the three transport groups grows to
+        // roughly 77 px a side — the crossfader cluster keeps its own width and stays centred.
         kiosk ? 'px-2.5 h-[56px]' : 'px-[14px] h-[77px] pt-4 pb-4'
       } flex items-center justify-between gap-1.5 select-none ${className}`}
     >
@@ -600,7 +602,7 @@ function DeckTransport({
 
   return (
     <div
-      className={`flex items-center gap-1.5 ${kiosk ? '' : 'w-[316px]'}`}
+      className={`flex items-center gap-1.5 ${kiosk ? '' : 'w-[346px]'}`}
     >
       {/* Both decks read left to right in the same order — play/cue, SYNC/TAP, loop length,
           LOOP/MOVE — so the row is the same sequence under either hand.
@@ -693,9 +695,12 @@ function DeckTransport({
 
       {/* The slack that splits the row into two jobs: play/cue + SYNC/TAP stay on the left,
           under the pitch fader, and the loop pair is pushed to the right, under KEY / SLIP /
-          CUES. The row is 316 px of deck column and its keys are 280 px plus four 6 px gaps,
-          so the spacer is 12 px — 24 px between SYNC/TAP and the cluster once the gaps on
-          either side are counted. Kiosk has no width to spend and drops it. */}
+          CUES. The row is 346 px of deck column and its keys are 280 px plus four 6 px gaps,
+          so the spacer is 42 px — 54 px between SYNC/TAP and the cluster once the gaps on
+          either side are counted. The deck row's widening went into this spacer, not into the
+          keys: the transport is a sequence of fixed-size switches, and stretching them was what
+          made the earlier 62 px stack read as a different family of control. Kiosk has no
+          width to spend and drops the spacer. */}
       {!kiosk && <div className="flex-1" aria-hidden="true" />}
 
       {/* Loop Beat Length Cluster: < 4 >. Wider than the standard frame on purpose — see
