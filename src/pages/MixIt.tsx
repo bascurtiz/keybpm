@@ -51,7 +51,7 @@ const KIOSK_DECK_ROW_H = 250
  */
 /** Height of the metadata strip at the top of the chassis, in design px (content-sized). */
 const DESKTOP_STRIP_H = 98
-const STRIP_H = 87
+const STRIP_H = 99
 
 /** The chassis' own top and bottom border, in design px (1 px each). */
 const CHASSIS_BORDER_H = 2
@@ -62,11 +62,12 @@ const DESKTOP_WAVEFORM_H = 270
 /**
  * `TraktorTransportBar`'s height in design px on a desktop: the 1 px divider, 16 px of air
  * above the keys, the 44 px keys, and 16 px of air below them (77 px total).
- * Kiosk keeps the bar at 56, which is why the bounds below are two pairs rather than one.
+ * Kiosk keeps 70 px (8 px top air, 46 px keys, 16 px bottom air matching the top header's breathing room).
  */
 const DESKTOP_TRANSPORT_H = 77
+const KIOSK_TRANSPORT_H = 70
 
-const KIOSK_MIN_CONSOLE_H = STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + 65
+const KIOSK_MIN_CONSOLE_H = STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + KIOSK_TRANSPORT_H
 const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK_LANE_BAND_FLOOR_H)
 
 /**
@@ -500,6 +501,7 @@ export function MixIt() {
         // draw (menu, fullscreen) sit on the side rail, where they cost the fit
         // nothing, rather than in a row worth ~38 px of it.
         paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
       {/* Main DJ Console Workspace - Compact hardware layout matching real DJ controllers */}

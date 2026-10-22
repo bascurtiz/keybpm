@@ -419,34 +419,7 @@ export function StackedWaveforms({
         thickBars,
       })
 
-      // Virtual FLUX Mode Playhead Needles (Green). The offset is measured from the same
-      // position the lane is centred on — `audiblePosition`, not the read head — or the
-      // ghost would sit a keylock-latency away from the red needle it is drawn against.
-      if (deckA.fluxMode) {
-        const ghostXA = Math.round(centerPlayheadX + (deckA.fluxPosition - deckA.audiblePosition) / laneSecPerPx(secPerPx, deckA.rate))
-        if (ghostXA >= 0 && ghostXA <= w) {
-          ctx.fillStyle = '#22c55e'
-          ctx.shadowColor = '#22c55e'
-          ctx.shadowBlur = 4
-          ctx.fillRect(ghostXA, 0, 1.5, halfH)
-          ctx.fillRect(ghostXA - 2, 0, 5.5, 3)
-          ctx.fillRect(ghostXA - 2, Math.round(halfH - 3), 5.5, 3)
-          ctx.shadowBlur = 0
-        }
-      }
 
-      if (deckB.fluxMode) {
-        const ghostXB = Math.round(centerPlayheadX + (deckB.fluxPosition - deckB.audiblePosition) / laneSecPerPx(secPerPx, deckB.rate))
-        if (ghostXB >= 0 && ghostXB <= w) {
-          ctx.fillStyle = '#22c55e'
-          ctx.shadowColor = '#22c55e'
-          ctx.shadowBlur = 4
-          ctx.fillRect(ghostXB, halfH, 1.5, halfH)
-          ctx.fillRect(ghostXB - 2, Math.round(halfH), 5.5, 3)
-          ctx.fillRect(ghostXB - 2, h - 3, 5.5, 3)
-          ctx.shadowBlur = 0
-        }
-      }
 
       // Traktor Red Center Playhead Needle
       ctx.shadowBlur = 0

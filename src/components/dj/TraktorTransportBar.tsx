@@ -244,17 +244,10 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
         // same on both sides instead of the row splitting whatever was left over — the
         // earlier 70 px bar put 9 px above the keys and 17 px below once the 8 px of bottom
         // padding was counted.
-        // Kiosk keeps 56 px flat: there the console fills the screen and has no outline
-        // for the keys to crowd.
-        //
-        // 14 px of side padding, matching the deck row: the deck row's three columns
-        // (352 + 428 + 352 plus two 14 px gaps) fit its content box exactly, so the two rows
-        // start their columns at the same x and the transport groups land on the deck columns
-        // above without a fudge. Widening the console by 150 px widens all three, so the
-        // padding stays 14 and the leftover between the three transport groups grows to
-        // roughly 77 px a side — the crossfader cluster keeps its own width and stays centred.
+        // Kiosk gives 16 px of bottom air to match the top header's breathing room on mobile
+        // (70 px = 8 px top air + 46 px keys + 16 px bottom padding).
         kiosk
-          ? 'px-2.5 h-[56px] justify-between gap-1.5'
+          ? 'px-2.5 h-[70px] pt-2 pb-4 justify-between gap-1.5'
           : 'px-[14px] h-[77px] pt-4 pb-4 justify-center gap-[24px]'
       } flex items-center select-none ${className}`}
     >
