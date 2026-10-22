@@ -151,13 +151,13 @@ export function FilterKnob({
             opacity="0.75"
           />
 
-          {/* Inner Knob Body: Dark hardware gray #3b3b3b */}
+          {/* Inner Knob Body: Hardware gray #505050 */}
           <circle
             cx="25"
             cy="25"
             r="13.5"
-            fill="#3b3b3b"
-            stroke="#2c2c2c"
+            fill="#505050"
+            stroke="#383838"
             strokeWidth="1.5"
             className="transition-colors"
           />

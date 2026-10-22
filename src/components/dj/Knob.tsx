@@ -229,8 +229,8 @@ export function Knob({
             cx={c}
             cy={c}
             r={27}
-            fill={variant === 'dark' ? '#1e2025' : '#3b3b3b'}
-            stroke={variant === 'dark' ? (isTurned ? '#474a56' : '#363842') : '#2c2c2c'}
+            fill={variant === 'dark' ? '#1e2025' : '#505050'}
+            stroke={variant === 'dark' ? (isTurned ? '#474a56' : '#363842') : '#383838'}
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
           />

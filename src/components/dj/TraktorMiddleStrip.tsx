@@ -377,7 +377,7 @@ function DeckHeader({
             </h2>
             {deck.fluxMode && (
               <span
-                className="h-[17px] px-1.5 rounded-[3px] border border-[#282828] bg-[#101010] text-[#d9a06a] text-[8.5px] font-bold uppercase tracking-wider shrink-0 leading-none flex items-center justify-center select-none shadow-inner"
+                className={`h-[17px] px-1.5 rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider shrink-0 leading-none flex items-center justify-center select-none animate-pulse ${ACTIVE_KEY}`}
                 title="SLIP Mode is active: phrasing is preserved during cues, loops and FX"
               >
                 SLIP
@@ -392,7 +392,7 @@ function DeckHeader({
                 onClick={onToggleFx}
                 className={`h-[17px] px-1.5 rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider transition-all shrink-0 ${
                   fxActive || (deck.fxType !== 'off' && deck.fxWet > 0)
-                    ? ACTIVE_KEY
+                    ? `${ACTIVE_KEY} animate-pulse`
                     : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
                 }`}
                 title={`Deck ${deckId} FX: ${deck.fxType !== 'off' && deck.fxWet > 0 ? `${deck.fxType.toUpperCase()} active` : 'Click to toggle FX drawer'}`}

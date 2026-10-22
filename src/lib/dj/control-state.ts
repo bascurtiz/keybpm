@@ -50,21 +50,32 @@
  * Deck identity is the other colour axis: the beatgrid buttons that belong to a deck light up in
  * that deck's colour, and the loop-length readout uses the same legend green as `ACTIVE_SWITCH`.
  */
-export const ACTIVE = 'bg-[#101010] text-white border-[#282828]'
+export const ACTIVE =
+  'bg-[#101010] text-white !border-white shadow-[inset_0_0_6px_rgba(255,255,255,0.4),inset_0_0_2px_rgba(255,255,255,0.5)]'
 
 /**
- * The warm orange on state: KEY, CUE, SLIP, SYNC, TAP, MOVE, AUTO, and FX controls.
- *
- * Lights in warm orange (#d9a06a). Neutral recessed fill (#101010), grey border (#282828), no glow.
+ * Active play button state: matching the console's darker recessed background (#101010)
+ * with crisp white play glyph, solid white border outline, and inward-only glow.
  */
-export const ACTIVE_KEY = 'bg-[#101010] text-[#d9a06a] border-[#282828]'
+export const ACTIVE_PLAY =
+  'bg-[#101010] text-white !border-white shadow-[inset_0_0_6px_rgba(255,255,255,0.4),inset_0_0_2px_rgba(255,255,255,0.5)]'
+
+/**
+ * The white active state:
+ * KEY, CUE, SLIP, SYNC, TAP, MOVE, AUTO, LOOP, and FX controls.
+ *
+ * Crisp pure white text, solid white outline border, darker recessed background (#101010),
+ * and an inward-only glow (no outer shadow bleed).
+ */
+export const ACTIVE_KEY =
+  'bg-[#101010] text-white !border-white shadow-[inset_0_0_6px_rgba(255,255,255,0.4),inset_0_0_2px_rgba(255,255,255,0.5)]'
 
 /**
  * The performance switch state (e.g. LOOP).
  *
- * A soft mint legend (`#7fc79b`) on the same recessed surface as everything else.
+ * Same active state as ACTIVE_KEY.
  */
-export const ACTIVE_SWITCH = 'bg-[#101010] text-[#7fc79b] border-[#282828]'
+export const ACTIVE_SWITCH = ACTIVE_KEY
 
 /**
  * Geometry lock for a control that sits inside a shared frame: 1 px of border on every
@@ -76,25 +87,9 @@ export const CELL = 'border border-transparent'
 /**
  * The loop-length readout while a loop is running.
  *
- * Every other cell on the transport row names an action, so the standard surface underneath it
- * says nothing; this one *states a value*, and the value is the loop that is playing. The value
- * therefore changes colour rather than gaining a frame: the digits take the same legend green as
- * `ACTIVE_SWITCH`, so the count and the LOOP key beside it are one state seen twice.
- *
- * A frame is deliberately absent — the LOOP key next door already carries one while the loop
- * runs, so outlining the count as well made two lit rectangles describe one state, and the count
- * is not the thing you press to release it. The label carries the state here; the key carries
- * the control. The fill stays the transport row's own surface, so the number reads as printed on
- * the panel and only its ink changes. The surface is stated explicitly rather than inherited:
- * the cell sits inside the loop cluster's #141414 frame, and leaving the fill off the active
- * branch let that lighter frame show through, so the running count read as a raised block while
- * its own neighbours stayed dark. `#101010` is the same step the idle count uses, so engaging a
- * loop changes nothing but the digits.
- *
- * Console green rather than the deck accents' emerald — this is console state, not deck identity.
- * `CELL` still supplies a transparent border, so switching the state cannot move the label.
+ * Digit illuminates in vibrant emerald green (#34d399).
  */
-export const ACTIVE_LOOP_COUNT = 'bg-[#101010] text-[#7fc79b]'
+export const ACTIVE_LOOP_COUNT = 'bg-[#101010] text-emerald-400 border-x-[#282828]'
 
 /** Deck A's accent, in the same outline-and-glow shape as `ACTIVE`. */
 export const ACTIVE_DECK_A =

@@ -5,7 +5,7 @@ import { Fader } from './Fader'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 import { useViewportMode } from '@/lib/use-viewport'
 import { CONTROL_W, CONTROL_FRAME_W, CONTROL_H, CONTROL_STACK_H } from '@/lib/dj/control-size'
-import { ACTIVE, ACTIVE_KEY, ACTIVE_LOOP_COUNT, ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
+import { ACTIVE_KEY, ACTIVE_LOOP_COUNT, ACTIVE_PLAY, ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
 
 interface TraktorTransportBarProps {
   engine: AudioEngine
@@ -290,7 +290,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             onClick={() => pressCrossfadeArrow('left')}
             className={`flex items-center justify-center w-6 h-7 rounded transition-all select-none ${CELL} ${
               isFading === 'left'
-                ? ACTIVE
+                ? `${ACTIVE_KEY} animate-pulse`
                 : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white'
             }`}
             title={
@@ -327,7 +327,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             onClick={() => pressCrossfadeArrow('right')}
             className={`flex items-center justify-center w-6 h-7 rounded transition-all select-none ${CELL} ${
               isFading === 'right'
-                ? ACTIVE
+                ? `${ACTIVE_KEY} animate-pulse`
                 : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white'
             }`}
             title={
@@ -469,12 +469,7 @@ function DeckTransport({
    * dropping it is a one-line change.
    */
   const toggleMove = () => {
-    if (moveOn) {
-      setMoveOn(false)
-      if (deck.loop) deck.exitLoop()
-    } else {
-      setMoveOn(true)
-    }
+    setMoveOn(v => !v)
   }
 
   const loopHalf = () => {
@@ -616,9 +611,9 @@ function DeckTransport({
             type="button"
             onClick={handleTogglePlay}
             disabled={!isDeckReady}
-            className={`w-12 ${CELL} flex items-center justify-center transition-all select-none ${
+            className={`w-12 ${CELL} rounded-l-[2px] flex items-center justify-center transition-all select-none ${
               isPlayingActive
-                ? ACTIVE
+                ? ACTIVE_PLAY
                 : 'bg-[#141414] text-[#777777] border-r-[#282828] hover:text-[#d4d4d4] hover:border-r-[#444444]'
             }`}
             title={`Deck ${deckId} Play / Pause (Space / Click)`}
@@ -636,7 +631,7 @@ function DeckTransport({
             onClick={e => e.preventDefault()}
             onContextMenu={e => e.preventDefault()}
             disabled={!isDeckReady}
-            className={`flex-1 ${CELL} flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
+            className={`flex-1 ${CELL} rounded-r-[2px] flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
               deck.cuePreviewing
                 ? ACTIVE_KEY
                 : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4]'
@@ -724,7 +719,7 @@ function DeckTransport({
             onClick={moveOn ? cycleBeats : toggleLoop}
             disabled={!deck.track}
             className={`flex-1 ${CELL} flex items-center justify-center transition-all text-[11px] font-mono font-bold leading-none select-none ${
-              isLoopActive && !moveOn
+              isLoopActive
                 ? ACTIVE_LOOP_COUNT
                 : 'bg-[#101010] text-[#dcdcdc] border-x-[#282828] hover:text-white hover:border-x-[#444444]'
             }`}
@@ -799,7 +794,7 @@ function DeckTransport({
             title={
               moveOn
                 ? 'MOVE on — the arrows beat-jump the playhead (a running loop travels with it), the number cycles the step'
-                : 'MOVE: the arrows beat-jump the playhead by the step (also releases the loop when switched off)'
+                : 'MOVE: the arrows beat-jump the playhead by the step'
             }
           >
             MOVE

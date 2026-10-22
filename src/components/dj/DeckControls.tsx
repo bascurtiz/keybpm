@@ -368,9 +368,9 @@ export function DeckControls({
             {/* Central Recessed Fader Slot */}
             <div className="w-[5px] h-full bg-[#0a0b0e] border border-[#23252a] rounded-full shadow-inner pointer-events-none" />
 
-            {/* DJ Fader Cap (Dark hardware gray #3b3b3b with white indicator) */}
+            {/* DJ Fader Cap (Hardware gray #505050 with white indicator) */}
             <div
-              className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-4 rounded-[2px] bg-[#3b3b3b] border border-[#2c2c2c] shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-20 pointer-events-none"
+              className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-4 rounded-[2px] bg-[#505050] border border-[#383838] shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-20 pointer-events-none"
               style={{ top: `${faderPositionPct}%` }}
             >
               {/* White horizontal indicator stripe */}
