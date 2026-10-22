@@ -6,7 +6,7 @@ import { shiftCamelot, findKeySyncShift, areKeysCompatible } from '@/lib/camelot
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 import { useViewportMode } from '@/lib/use-viewport'
 import { CONTROL_W, CONTROL_H } from '@/lib/dj/control-size'
-import { ACTIVE, ACTIVE_KEY, ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
+import { ACTIVE, ACTIVE_KEY } from '@/lib/dj/control-state'
 
 interface TraktorDeckProps {
   deck: DeckEngine
@@ -131,32 +131,25 @@ export function TraktorDeck({
   return (
     <div
       className={`flex items-center ${
-        kiosk ? 'gap-2.5' : 'gap-[27px]'
+        kiosk ? 'gap-2.5' : 'gap-[24px]'
       } h-full select-none shrink-0 ${isOuterLeft ? 'flex-row' : 'flex-row-reverse'}`}
     >
       {/* ================= 1. OUTER EDGE: PITCH FADER SECTION ================= */}
       {/* 66 px on a desktop, 4 px of it side padding: the readout and the − / + strip are 58 px
-          wide in that well. It was 62 on the 1040 px console — as tight as it could be around
-          its controls — and took 4 px of the deck's 150 px widening because the column of
-          gauges was the most compressed part of the deck. The other 26 px went to the air on
-          either side of the jog, which is what separates the pitch column from the platter and
-          the platter from the key column at the new width. Kiosk keeps 62: there is no spare
-          width on a phone. */}
+          wide in that well. Kiosk keeps 62. */}
       <div
         className={`flex flex-col items-center justify-between h-full py-2 px-1 shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none ${
           kiosk ? 'w-[62px]' : 'w-[66px]'
         }`}
       >
-        {/* Pitch Rate Readout & Reset to 0%. A readout, not a key: the value sits on the
-            console's darkest surface without a frame, so it reads as a printed number until
-            you click it. The centred state says so in white type, not with a border. */}
+        {/* Pitch Rate Readout & Reset to 0%. */}
         <button
           type="button"
           onClick={() => {
             deck.setRate(1)
             youtubeBridge.setPlaybackRate(deckId, 1)
           }}
-          className="w-full h-5 rounded-[5px] bg-[#101010] text-[9px] font-mono font-bold flex items-center justify-center tabular-nums tracking-tight text-[#dcdcdc] hover:text-white transition-all select-none"
+          className="w-full h-[22px] rounded-[3px] bg-[#101010] text-[9px] font-mono font-bold flex items-center justify-center tabular-nums tracking-tight text-[#dcdcdc] hover:text-white transition-all select-none"
           title="Click to reset pitch to 0.0%"
         >
           {pitchPercent >= 0 ? `+${pitchPercent.toFixed(1)}%` : `${pitchPercent.toFixed(1)}%`}
@@ -180,57 +173,61 @@ export function TraktorDeck({
               youtubeBridge.setPlaybackRate(deckId, r)
             }}
             accentColor={accentColor}
-            className="w-6 h-[140px]"
+            className={`w-6 ${kiosk ? 'h-[140px]' : 'h-[155px]'}`}
           />
         </div>
 
-        {/* Pitch bend − / +. The strip itself is flat on the console's darkest surface, but
-            the two keys keep their frames: they are buttons, and at 9 px the border is the only
-            thing saying so next to the bare readout above. The range key that used to sit under
-            this pair is gone — the fader is fixed at ±10 % (see PITCH_RANGE), so there is no
-            setting left to show. */}
-        <div className="flex flex-col w-full rounded-[5px] bg-[#101010] overflow-hidden">
-          <div className="flex items-stretch w-full h-5 rounded-[4px] border border-[#282828] overflow-hidden">
-            <button
-              type="button"
-              onClick={() => stepPitchBpm(-0.1)}
-              className="flex-1 border-r border-[#282828] bg-[#141414] text-[11px] font-bold text-[#dcdcdc] hover:text-white hover:border-r-[#444444] flex items-center justify-center active:text-white transition-all select-none"
-              title="Tempo down (-0.1 BPM)"
+        {/* Pitch bend − / + */}
+        <div className="flex items-center justify-between w-full px-0.5">
+          <button
+            type="button"
+            onClick={() => stepPitchBpm(-0.1)}
+            disabled={!deck.track}
+            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            title="Tempo down (-0.1 BPM)"
+            aria-label="Tempo down"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              className="w-2.5 h-2.5"
+              aria-hidden="true"
             >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={() => stepPitchBpm(0.1)}
-              className="flex-1 bg-[#141414] text-[11px] font-bold text-[#dcdcdc] hover:text-white flex items-center justify-center active:text-white transition-all select-none"
-              title="Tempo up (+0.1 BPM)"
+              <path d="M3 8h10" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => stepPitchBpm(0.1)}
+            disabled={!deck.track}
+            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            title="Tempo up (+0.1 BPM)"
+            aria-label="Tempo up"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              className="w-2.5 h-2.5"
+              aria-hidden="true"
             >
-              +
-            </button>
-          </div>
+              <path d="M8 3v10M3 8h10" />
+            </svg>
+          </button>
         </div>
       </div>
 
       {/* ================= 2. CENTER: JOG WHEEL & NUDGE BUTTONS ================= */}
-      {/* The nudge pair sits in the jog block's corners, not 4 px inside them. The block is
-          exactly the jog's own square, so at `left-1` the 24 px buttons were pinned against the
-          platter's outer ring — a circle inscribed in a square leaves its corners empty, and
-          the outer inch of that diagonal is where they belong. Cornering them moves each one
-          4 px out and 4 px down, which is 5.7 px of clearance from the ring where there was
-          a hairline. */}
-      {/* The platter is 212 on a phone and 168 on a desktop. Kiosk's deck row was 42 px
-          narrower than the chassis it sits in — the row centred its columns and left 21 px of
-          dead margin each side, which is exactly the width a phone cannot spare — so the jog
-          took it, and then took the rest of the kiosk console's own widening (see
-          `KIOSK_CONSOLE_WIDTH`): the wheel a thumb actually turns is the control that can use
-          the room, and on a height-limited phone screen it comes out about 13 % larger than it
-          was. The desktop console is already laid out at its full width and binds on nothing,
-          so it keeps 168. */}
       <div className="relative flex items-center justify-center shrink-0">
         <JogWheel
           deck={deck}
           deckId={deckId}
-          size={kiosk ? 212 : 168}
+          size={kiosk ? 212 : 184}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />
@@ -279,62 +276,84 @@ export function TraktorDeck({
         className="flex flex-col items-center h-full py-2 px-1 w-[64px] shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none"
         title={`Deck ${deckId} Controls`}
       >
-        {/* Top: Key Transpose Stepper [- 0 +] and KEY Button unified container */}
-        <div className="flex flex-col w-full rounded-[3px] border border-[#282828] bg-[#141414] overflow-hidden shrink-0">
-          {/* Key Transpose Stepper: [- 0 +] */}
-          <div className="flex items-center w-full h-[22px] border-b border-[#282828]" title="Key Transpose (-6 to +6 semitones)">
-            <button
-              type="button"
-              onClick={() => deck.setKeyShift(Math.max(-6, deck.keyShift - 1))}
-              disabled={!deck.track || deck.keyShift <= -6}
-              className="flex-1 h-full text-[12px] font-bold text-[#777777] hover:text-[#d4d4d4] active:text-white disabled:opacity-25 transition-all flex items-center justify-center select-none"
-              title="Transpose Key -1 semitone"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={() => deck.resetKeyShift()}
-              disabled={!deck.track}
-              className={`w-[18px] h-full bg-[#101010] border-x border-[#282828] font-mono text-[9px] font-bold leading-none select-none transition-colors shadow-inner flex items-center justify-center shrink-0 ${
-                deck.keyShift !== 0
-                  ? 'text-white'
-                  : 'text-[#dcdcdc] enabled:hover:text-white'
-              }`}
-              title="Click to reset Key shift to 0"
-            >
-              {deck.keyShift !== 0
-                ? deck.keyShift > 0
-                  ? `+${deck.keyShift}`
-                  : `${deck.keyShift}`
-                : '0'}
-            </button>
-            <button
-              type="button"
-              onClick={() => deck.setKeyShift(Math.min(6, deck.keyShift + 1))}
-              disabled={!deck.track || deck.keyShift >= 6}
-              className="flex-1 h-full text-[12px] font-bold text-[#777777] hover:text-[#d4d4d4] active:text-white disabled:opacity-25 transition-all flex items-center justify-center select-none"
-              title="Transpose Key +1 semitone"
-            >
-              +
-            </button>
-          </div>
-
-          {/* KEY SYNC Button */}
+        {/* Top: Key Transpose Stepper [- 0 +] */}
+        <div className="flex items-center justify-between w-full h-[22px] shrink-0" title="Key Transpose (-6 to +6 semitones)">
           <button
             type="button"
-            onClick={handleKeySync}
-            disabled={!deck.track || !otherDeck?.track}
-            className={`h-[22px] w-full ${CELL} text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
-              isKeySynced
-                ? ACTIVE_KEY
-                : 'bg-[#141414] text-[#777777] enabled:hover:text-[#d4d4d4] disabled:cursor-not-allowed'
-            }`}
-            title={`KEY SYNC\nHarmonically matches this deck's key to ${otherDeck?.track ? `Deck ${deckId === 'A' ? 'B' : 'A'}` : 'other deck'}.`}
+            onClick={() => deck.setKeyShift(Math.max(-6, deck.keyShift - 1))}
+            disabled={!deck.track || deck.keyShift <= -6}
+            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            title="Transpose Key -1 semitone"
+            aria-label="Transpose Key down"
           >
-            KEY
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              className="w-2.5 h-2.5"
+              aria-hidden="true"
+            >
+              <path d="M3 8h10" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => deck.resetKeyShift()}
+            disabled={!deck.track}
+            className={`flex-1 h-[22px] mx-0.5 rounded-[3px] bg-[#101010] font-mono text-[9px] font-bold leading-none select-none transition-colors shadow-inner flex items-center justify-center shrink-0 ${
+              deck.keyShift !== 0
+                ? 'text-white'
+                : 'text-[#dcdcdc] enabled:hover:text-white'
+            }`}
+            title="Click to reset Key shift to 0"
+          >
+            {deck.keyShift !== 0
+              ? deck.keyShift > 0
+                ? `+${deck.keyShift}`
+                : `${deck.keyShift}`
+              : '0'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => deck.setKeyShift(Math.min(6, deck.keyShift + 1))}
+            disabled={!deck.track || deck.keyShift >= 6}
+            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            title="Transpose Key +1 semitone"
+            aria-label="Transpose Key up"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              className="w-2.5 h-2.5"
+              aria-hidden="true"
+            >
+              <path d="M8 3v10M3 8h10" />
+            </svg>
           </button>
         </div>
+
+        {/* KEY SYNC Button */}
+        <button
+          type="button"
+          onClick={handleKeySync}
+          disabled={!deck.track || !otherDeck?.track}
+          style={{ width: CONTROL_W }}
+          className={`h-6 mt-1.5 rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
+            isKeySynced
+              ? ACTIVE_KEY
+              : 'bg-[#141414] text-[#777777] border-[#282828] enabled:hover:text-[#d4d4d4] enabled:hover:border-[#444444] disabled:cursor-not-allowed'
+          }`}
+          title={`KEY SYNC\nHarmonically matches this deck's key to ${otherDeck?.track ? `Deck ${deckId === 'A' ? 'B' : 'A'}` : 'other deck'}.`}
+        >
+          KEY
+        </button>
 
         {/* Middle: SLIP Mode Toggle Button centered between KEY and CUES */}
         <div className="flex-1 flex items-center justify-center w-full my-1">
@@ -342,9 +361,9 @@ export function TraktorDeck({
             type="button"
             onClick={() => deck.toggleFluxMode()}
             style={{ width: CONTROL_W }}
-            className={`h-[22px] rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
+            className={`h-6 rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
               deck.fluxMode
-                ? ACTIVE_SWITCH
+                ? ACTIVE_KEY
                 : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={`SLIP MODE (${deck.fluxMode ? 'ON' : 'OFF'})\nTimeline continues in background during cues, loops and FX, snapping back on release.`}
@@ -355,18 +374,9 @@ export function TraktorDeck({
 
         {/* Bottom: CUES label + 4 HOT CUE PADS bottom-aligned */}
         <div className="flex flex-col items-center w-full mt-auto shrink-0">
-          {/* 8 px under the caption, not 4: at `mb-1` the word sat closer to the pad frame
-              than the pads sit to the column's own border, so it read as part of the frame
-              rather than a heading over it. The block is `mt-auto` and the SLIP row above
-              is `flex-1`, so the extra 4 px comes out of the SLIP band and the pads stay
-              where they are. */}
-          <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider mb-2 leading-none select-none">
+          <span className="text-[8.5px] font-semibold text-[#777777] uppercase tracking-wider mb-1.5 leading-none select-none">
             CUES
           </span>
-          {/* No `overflow-hidden` here: the clear-cue badge hangs off the top-right corner of
-              its pad, and a clipping frame cut it down to the sliver that made it read as
-              part of the pad's border. The corner cells round themselves instead (below),
-              which is what the clip was standing in for. */}
           <div className="flex flex-col w-full shrink-0 rounded-[3px] border border-[#282828] bg-[#141414]">
             {[0, 1, 2, 3].map((i, idx) => {
               const cueTime = deck.hotCues[i]
@@ -375,7 +385,7 @@ export function TraktorDeck({
               return (
                 <div
                   key={i}
-                  style={{ height: CONTROL_H }}
+                  style={{ height: kiosk ? CONTROL_H : 24 }}
                   className={`relative group/cue w-full shrink-0 ${idx < 3 ? 'border-b border-[#282828]' : ''}`}
                 >
                   <button

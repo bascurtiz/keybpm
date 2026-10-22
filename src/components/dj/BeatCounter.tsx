@@ -69,11 +69,11 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
 
   return (
     <div
-      className={`w-full flex flex-col justify-center px-1.5 py-1 rounded bg-[#101010] border border-[#282828] shadow-inner select-none ${className}`}
+      className={`w-full flex flex-col justify-center px-2 py-1 rounded bg-[#101010] border border-[#282828] shadow-inner select-none ${className}`}
       title="4-Beat Metronome Bar Counter (Deck A: Green, Deck B: Purple)"
     >
       {/* Deck A 4-beat metronome row */}
-      <div className="grid grid-cols-4 gap-1.5 h-[8px] w-full">
+      <div className="grid grid-cols-4 gap-1.5 h-[9px] w-full">
         {[0, 1, 2, 3].map(i => (
           <div
             key={i}
@@ -86,7 +86,7 @@ export function BeatCounter({ deckA, deckB, className = '' }: BeatCounterProps) 
       </div>
 
       {/* Deck B 4-beat metronome row */}
-      <div className="grid grid-cols-4 gap-1.5 h-[8px] w-full mt-1">
+      <div className="grid grid-cols-4 gap-1.5 h-[9px] w-full mt-1">
         {[0, 1, 2, 3].map(i => (
           <div
             key={i}

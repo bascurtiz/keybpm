@@ -151,13 +151,13 @@ export function FilterKnob({
             opacity="0.75"
           />
 
-          {/* Inner Knob Body: Beatport DJ slate gray #58585a */}
+          {/* Inner Knob Body: Dark hardware gray #3b3b3b */}
           <circle
             cx="25"
             cy="25"
             r="13.5"
-            fill="#58585a"
-            stroke="#3c3d42"
+            fill="#3b3b3b"
+            stroke="#2c2c2c"
             strokeWidth="1.5"
             className="transition-colors"
           />
@@ -178,7 +178,7 @@ export function FilterKnob({
       </div>
 
       {/* Label: ● FILTER matching capital Inter font */}
-      <span className="font-sans text-[7.5px] font-bold tracking-wider text-zinc-400 uppercase select-none flex items-center justify-center gap-1 leading-none mt-0.5">
+      <span className="font-sans text-[7.5px] font-bold tracking-wider text-[#777777] uppercase select-none flex items-center justify-center gap-1 leading-none mt-0.5">
         <button
           type="button"
           onClick={e => {

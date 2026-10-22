@@ -310,11 +310,11 @@ export function Fader({
         )}
       </div>
 
-      {/* Fader Handle / Cap (Hardware gray cap #505050 with bright white center indicator line) - scaled 25% bigger */}
+      {/* Fader Handle / Cap (Dark hardware gray #3b3b3b with bright white center indicator line) - scaled 25% bigger */}
       <div
         ref={handleRef}
         aria-hidden
-        className={`absolute rounded-[2px] bg-[#505050] border border-[#383838] shadow-md flex items-center justify-center pointer-events-none z-20 ${
+        className={`absolute rounded-[2px] bg-[#3b3b3b] border border-[#2c2c2c] shadow-md flex items-center justify-center pointer-events-none z-20 ${
           vertical
             ? 'left-1/2 w-[34px] h-[18px] -translate-x-1/2 translate-y-1/2'
             : 'top-1/2 w-[18px] h-[30px] -translate-x-1/2 -translate-y-1/2'

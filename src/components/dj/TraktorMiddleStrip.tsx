@@ -12,7 +12,7 @@ import { Knob } from './Knob'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 // import { MixRenderButton } from './MixRenderButton'
 import { useCoverArt } from '@/lib/dj/cover-art'
-import { ACTIVE, ACTIVE_SWITCH } from '@/lib/dj/control-state'
+import { ACTIVE, ACTIVE_KEY } from '@/lib/dj/control-state'
 
 interface TraktorMiddleStripProps {
   engine: AudioEngine
@@ -154,7 +154,7 @@ export function TraktorMiddleStrip({
         <div className="flex shrink-0 flex-col items-center justify-center gap-1.5 px-4 py-1">
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-semibold text-[#888888] uppercase tracking-wider">
+              <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider">
                 MASTER BPM
               </span>
               <div className="mt-0.5 flex items-center gap-1.5">
@@ -183,12 +183,12 @@ export function TraktorMiddleStrip({
                       if (!isNaN(val) && val > 0) engine.setMasterBpm(val)
                       setIsEditingMasterBpm(false)
                     }}
-                    className="w-16 bg-black border border-white text-white font-mono text-[13px] font-bold text-center rounded px-0.5 outline-none"
+                    className="w-16 bg-black border border-white text-white font-mono text-[14px] font-bold text-center rounded px-0.5 outline-none"
                   />
                 ) : (
                   <span
                     onClick={() => setIsEditingMasterBpm(true)}
-                    className="text-[14px] font-mono font-bold leading-none text-[#dcdcdc] hover:text-white hover:underline cursor-pointer tabular-nums"
+                    className="text-[16px] font-mono font-bold leading-none text-[#dcdcdc] hover:text-white hover:underline cursor-pointer tabular-nums"
                     title="Click to overrule Master BPM"
                   >
                     {masterBpm.toFixed(2)}
@@ -196,7 +196,7 @@ export function TraktorMiddleStrip({
                 )}
                 <span title="Master Volume / Gain" className="flex items-center">
                   <Knob
-                    size={18}
+                    size={22}
                     min={0}
                     max={1}
                     defaultValue={0.9}
@@ -208,16 +208,16 @@ export function TraktorMiddleStrip({
               </div>
             </div>
 
-            <div className="h-7 w-px bg-[#252525]" />
+            <div className="h-8 w-px bg-[#252525]" />
 
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-semibold text-[#888888] uppercase tracking-wider">
+              <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider">
                 KEY NOTATION
               </span>
               <select
                 value={keyMode}
                 onChange={e => handleKeyModeChange(e.target.value as WheelMode)}
-                className="mt-0.5 h-5 w-[82px] px-1.5 bg-[#141414] hover:bg-[#1a1a1a] border border-[#282828] hover:border-[#444444] rounded text-[10px] font-bold text-[#d4d4d4] focus:text-white focus:border-zinc-500 outline-none cursor-pointer transition-colors text-center"
+                className="mt-0.5 h-6 w-[88px] px-1.5 bg-[#141414] hover:bg-[#1a1a1a] border border-[#282828] hover:border-[#444444] rounded text-[11px] font-bold text-[#d4d4d4] focus:text-white focus:border-zinc-500 outline-none cursor-pointer transition-colors text-center"
                 title="Key notation preference"
               >
                 <option value="camelot" className="bg-[#141414] text-white">Camelot</option>
@@ -233,7 +233,7 @@ export function TraktorMiddleStrip({
             <button
               type="button"
               onClick={() => engine.toggleSnapMode()}
-              className={`h-[22px] w-[22px] shrink-0 rounded-[3px] border text-[9px] font-bold flex items-center justify-center transition-all select-none ${
+              className={`h-6 w-6 shrink-0 rounded-[3px] border text-[10px] font-bold flex items-center justify-center transition-all select-none ${
                 engine.snapMode
                   ? ACTIVE
                   : 'bg-[#141414] border-[#282828] text-[#777777] hover:border-[#444444] hover:text-[#d4d4d4]'
@@ -243,14 +243,14 @@ export function TraktorMiddleStrip({
               S
             </button>
 
-            <div className="w-[131px] shrink-0">
+            <div className="w-[142px] shrink-0">
               <BeatCounter deckA={deckA} deckB={deckB} className="w-full" />
             </div>
 
             <button
               type="button"
               onClick={() => engine.toggleQuantMode()}
-              className={`h-[22px] w-[22px] shrink-0 rounded-[3px] border text-[9px] font-bold flex items-center justify-center transition-all select-none ${
+              className={`h-6 w-6 shrink-0 rounded-[3px] border text-[10px] font-bold flex items-center justify-center transition-all select-none ${
                 engine.quantMode
                   ? ACTIVE
                   : 'bg-[#141414] border-[#282828] text-[#777777] hover:border-[#444444] hover:text-[#d4d4d4]'
@@ -334,14 +334,14 @@ function DeckHeader({
     // stays left-to-right on both sides: a mirrored title line reads backwards down the
     // console, and the deck you are not looking at is the one you need at a glance.
     <div
-      className={`flex min-w-0 items-center gap-2.5 bg-[#1C1C1C] px-3 py-2.5 ${
+      className={`flex min-w-0 items-center gap-3 bg-[#1C1C1C] px-3.5 py-3 ${
         side === 'right' ? 'flex-row-reverse' : ''
       }`}
     >
       {/* Artwork Square */}
       <div
         onClick={onLoadClick}
-        className="relative h-10 w-10 shrink-0 rounded-[3px] overflow-hidden bg-[#161616] border border-[#282828] cursor-pointer group shadow-sm"
+        className="relative h-[50px] w-[50px] shrink-0 rounded-[4px] overflow-hidden bg-[#161616] border border-[#282828] cursor-pointer group shadow-sm"
         title={`Deck ${deckId} Artwork (Click to load track)`}
       >
         {displayCover ? (
@@ -352,32 +352,32 @@ function DeckHeader({
           />
         ) : (
           <div
-            className="h-full w-full flex items-center justify-center text-xs font-bold"
+            className="h-full w-full flex items-center justify-center text-sm font-bold"
             style={{ color: accentColor }}
           >
             {deckId}
           </div>
         )}
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-          <span className="text-[8px] font-bold uppercase tracking-wider text-white">Load</span>
+          <span className="text-[9px] font-bold uppercase tracking-wider text-white">Load</span>
         </div>
       </div>
 
       {/* Track Info (Title, FX, Time, BPM, Key, Artist, Mini Waveform) */}
       <div className="min-w-0 flex-1">
         {/* Row 1: Title (left) | FX, Time (right) */}
-        <div className="flex h-[18px] items-center justify-between gap-1.5">
+        <div className="flex h-5 items-center justify-between gap-1.5">
           <div className="flex min-w-0 items-center gap-1.5 flex-1">
             <h2
               onClick={onLoadClick}
-              className="text-[13px] font-bold text-white truncate cursor-pointer hover:text-zinc-300 leading-none"
+              className="text-[15px] font-bold text-white truncate cursor-pointer hover:text-zinc-300 leading-none"
               title={isLoaded ? `${displayTitle} - ${displayArtist}` : 'Click to load track'}
             >
               {displayTitle}
             </h2>
             {deck.fluxMode && (
               <span
-                className="px-1 py-0.5 rounded-[2px] text-[7.5px] font-sans font-bold tracking-wider uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.4)] shrink-0 leading-none"
+                className="h-[17px] px-1.5 rounded-[3px] border border-[#282828] bg-[#101010] text-[#d9a06a] text-[8.5px] font-bold uppercase tracking-wider shrink-0 leading-none flex items-center justify-center select-none shadow-inner"
                 title="SLIP Mode is active: phrasing is preserved during cues, loops and FX"
               >
                 SLIP
@@ -390,25 +390,25 @@ function DeckHeader({
               <button
                 type="button"
                 onClick={onToggleFx}
-                className={`h-[14px] px-1 rounded-[2px] border text-[8px] font-bold uppercase tracking-wider transition-all shrink-0 ${
-                  fxActive
-                    ? ACTIVE_SWITCH
+                className={`h-[17px] px-1.5 rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider transition-all shrink-0 ${
+                  fxActive || (deck.fxType !== 'off' && deck.fxWet > 0)
+                    ? ACTIVE_KEY
                     : 'bg-[#141414] text-[#666666] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
                 }`}
-                title={`Deck ${deckId} FX drawer`}
+                title={`Deck ${deckId} FX: ${deck.fxType !== 'off' && deck.fxWet > 0 ? `${deck.fxType.toUpperCase()} active` : 'Click to toggle FX drawer'}`}
               >
                 FX
               </button>
             )}
-            <span ref={timeRef} className="text-[10px] font-mono text-zinc-300 tabular-nums shrink-0 leading-none">
+            <span ref={timeRef} className="text-[11.5px] font-mono text-zinc-300 tabular-nums shrink-0 leading-none">
               0:00 / 0:00
             </span>
           </div>
         </div>
 
         {/* Row 2: Artist (left) | BPM, Key (right) */}
-        <div className="mt-1 flex h-4 items-center justify-between gap-1 text-[10px] text-zinc-400">
-          <p className="truncate text-zinc-400 font-medium text-[11px] flex-1 min-w-0">
+        <div className="mt-1 flex h-[18px] items-center justify-between gap-1 text-zinc-400">
+          <p className="truncate text-zinc-400 font-medium text-[12.5px] flex-1 min-w-0">
             {displayArtist}
           </p>
 
@@ -439,14 +439,14 @@ function DeckHeader({
                     if (!isNaN(val) && val > 0) deck.setTrackBpm(val)
                     setIsEditingBpm(false)
                   }}
-                  className="w-14 bg-black border border-white text-white font-mono text-[10px] font-bold text-center rounded px-0.5 outline-none"
+                  className="w-14 bg-black border border-white text-white font-mono text-[11px] font-bold text-center rounded px-0.5 outline-none"
                 />
               ) : (
                 <span
                   onClick={() => {
                     if (deck.track) setIsEditingBpm(true)
                   }}
-                  className={`font-bold text-white font-mono text-[11.5px] tabular-nums leading-none ${
+                  className={`font-bold text-white font-mono text-[13px] tabular-nums leading-none ${
                     deck.track ? 'hover:underline hover:text-accent cursor-pointer' : ''
                   }`}
                   title={
@@ -494,9 +494,14 @@ function DeckHeader({
                     {effectiveCamelot ? formatKeyDisplay(effectiveCamelot, keyMode) : '---'}
                   </span>
                   {deck.keyShift !== 0 && (
-                    <span className="text-amber-400 font-mono font-bold text-[9px] tabular-nums">
+                    <button
+                      type="button"
+                      onClick={() => deck.resetKeyShift()}
+                      className="h-[17px] min-w-[18px] px-1 bg-[#101010] border border-[#282828] rounded-[3px] font-mono text-[9px] font-bold leading-none text-white flex items-center justify-center shrink-0 select-none cursor-pointer hover:border-[#444444] transition-colors shadow-inner"
+                      title={`Key shifted by ${deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift} semitones (click to reset)`}
+                    >
                       {deck.keyShift > 0 ? `+${deck.keyShift}` : deck.keyShift}
-                    </span>
+                    </button>
                   )}
                 </div>
               )}

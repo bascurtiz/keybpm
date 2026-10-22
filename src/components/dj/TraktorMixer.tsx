@@ -5,7 +5,7 @@ import { FilterKnob } from './FilterKnob'
 import { Fader } from './Fader'
 import { useViewportMode } from '@/lib/use-viewport'
 import { CONTROL_FRAME_W, CONTROL_H } from '@/lib/dj/control-size'
-import { ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
+import { ACTIVE_KEY, CELL } from '@/lib/dj/control-state'
 
 interface TraktorMixerProps {
   engine: AudioEngine
@@ -18,9 +18,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const deckB = engine.decks.B
   const [, setVer] = useState(0)
 
-  const knobSize = 38
-  const filterSize = 42
-  const faderClass = 'w-6 h-[140px]'
+  const knobSize = kiosk ? 38 : 42
+  const filterSize = kiosk ? 38 : 42
+  const faderClass = kiosk ? 'w-6 h-[140px]' : 'w-6 h-[155px]'
 
   useEffect(() => {
     const unE = engine.subscribe(() => setVer(v => v + 1))
@@ -142,7 +142,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           short to bind on width, so its columns can grow with the design without costing
           anything, and a phone's knobs are reached by a thumb that benefits from the room. */}
       <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-10' : 'w-11'}`}>
-        <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider mb-1 leading-none">
+        <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-wider mb-1 leading-none">
           A
         </span>
         <div className="flex items-center justify-center my-auto">
@@ -232,21 +232,10 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       {/* ================= 3. CENTER PANEL (FILTERS + FX) ================= */}
       <div
-        className={`relative flex flex-col items-center py-2 bg-[#161616] rounded-md border border-[#282828] ${
-          kiosk ? 'w-[142px]' : 'w-[186px]'
-        } shrink-0 h-full`}
+        className="relative flex flex-col items-center py-2 bg-[#161616] rounded-md border border-[#282828] w-[142px] shrink-0 h-full"
       >
-        {/* Top: Filter Knobs A & B.
-
-            The pair is inset from the panel walls: at the row's original `px-0.5` the
-            outer knob (and its ● FILTER caption, which is the wider of the two) sat 5 px
-            from the panel's border and read as touching it. `px-3` in the 186 px panel puts
-            them 13 px from the border and 14.6 px for the caption — the pair stays spread
-            by `justify-between`, and the wider panel is what turns the extra width into air
-            around the knobs rather than a wider gap between them. The deck row's 150 px is
-            split between this panel (+50, to 186) and the four channel columns (+40), so the
-            pair gains air here while the EQ and fader columns gain theirs beside it. */}
-        <div className="flex items-center justify-between w-full px-3">
+        {/* Top: Filter Knobs A & B */}
+        <div className="flex items-center justify-center gap-3.5 w-full px-2">
           <div className="flex flex-col items-center">
             <FilterKnob
               size={filterSize}
@@ -266,20 +255,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           </div>
         </div>
 
-        {/* FX module: target assignment, routing bracket and the four performance buttons.
-            Centred in the space under the filters rather than pinned to the floor of the
-            column: hanging it off the bottom left a dead gap above it that made the mixer
-            look like it had lost a row. It is centred on that space rather than on the
-            panel because the panel is short — centre the panel and the FX label lands on
-            the FILTER captions above it.
-
-            The module then sits a little below that centre (`mt-4`, an 8 px shift for a
-            16 px top margin): with the box centred, the margin is split between the two
-            sides of the free space, so it reads as part of the gap above the FX label.
-            Pure centring left the group floating too high, close enough to the FILTER
-            captions to look attached to them. */}
+        {/* FX module: target assignment, routing bracket and the four performance buttons. */}
         <div className="flex flex-1 min-h-0 w-full items-center justify-center">
-        <div className="flex flex-col items-center w-full max-w-[109px] mt-4">
+        <div className="flex flex-col items-center w-full max-w-[109px] mt-2">
           {/* Same caption as the deck's CUES label: 8.5 px, #888888, tracking-wider. The
               FX group is the second labelled cluster on the console, and at 7 px with
               wider tracking it read as a smaller, different class of heading. */}
@@ -287,7 +265,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               word was nearer the A / MST / B row than the row is to the panel's border. The
               module is centred in the space under the filters, so the extra 4 px comes out
               of that centring, not out of the FX buttons. */}
-          <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider mb-2 leading-none select-none">
+          <span className="text-[8.5px] font-semibold text-[#777777] uppercase tracking-wider mb-2 leading-none select-none">
             FX
           </span>
           <div className="grid grid-cols-3 gap-1 w-full">
@@ -297,7 +275,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               style={{ height: CONTROL_H }}
               className={`rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
                 fxAssign === 'A'
-                  ? ACTIVE_SWITCH
+                  ? ACTIVE_KEY
                   : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
               title="Assign FX to Deck A"
@@ -310,7 +288,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               style={{ height: CONTROL_H }}
               className={`rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
                 fxAssign === 'MST'
-                  ? ACTIVE_SWITCH
+                  ? ACTIVE_KEY
                   : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
               title="Assign FX to Master"
@@ -323,7 +301,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               style={{ height: CONTROL_H }}
               className={`rounded-[3px] border text-[8px] font-bold uppercase tracking-wider transition-all flex items-center justify-center ${
                 fxAssign === 'B'
-                  ? ACTIVE_SWITCH
+                  ? ACTIVE_KEY
                   : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
               title="Assign FX to Deck B"
@@ -357,7 +335,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
                 style={{ height: CONTROL_H }}
                 className={`w-full ${CELL} text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
                   isEchoActive
-                    ? ACTIVE_SWITCH
+                    ? ACTIVE_KEY
                     : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
                 }`}
                 title="Toggle Echo effect"
@@ -368,7 +346,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
                 type="button"
                 onClick={triggerBrake}
                 style={{ height: CONTROL_H }}
-                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-[#d9a06a] text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
                 title="Vinyl Brake stop effect"
               >
                 BRK
@@ -386,7 +364,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
                 style={{ height: CONTROL_H }}
                 className={`w-full ${CELL} text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
                   isReverbActive
-                    ? ACTIVE_SWITCH
+                    ? ACTIVE_KEY
                     : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
                 }`}
                 title="Toggle Reverb effect"
@@ -397,7 +375,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
                 type="button"
                 onClick={triggerCutter}
                 style={{ height: CONTROL_H }}
-                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-[#d9a06a] text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
                 title="SCR — forward cutter: plays the chop sample at this deck's tempo"
               >
                 SCR
@@ -479,7 +457,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       {/* ================= 5. DECK B CHANNEL FADER ================= */}
       <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-10' : 'w-11'}`}>
-        <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider mb-1 leading-none">
+        <span className="text-[12px] font-bold text-purple-400 uppercase tracking-wider mb-1 leading-none">
           B
         </span>
         <div className="flex items-center justify-center my-auto">
@@ -505,7 +483,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 function EqKnobItem({ label, knob }: { label: string; knob: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center">
-      <span className="text-[7px] font-sans font-bold text-zinc-400 uppercase tracking-widest mb-0.5">
+      <span className="text-[7.5px] font-sans font-bold text-[#777777] uppercase tracking-widest mb-0.5">
         {label}
       </span>
       {knob}

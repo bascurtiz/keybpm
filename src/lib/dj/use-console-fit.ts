@@ -4,10 +4,9 @@ import { useLayoutEffect, useState } from 'react'
  * Width the DJ chassis is laid out at on a desktop, in CSS px.
  *
  * Not a free number: the deck row's three columns have to fit inside it with the row's own
- * 14 px padding. Both deck columns are 352 and the mixer 428 — the filter/FX panel is the
- * section that carries most of the width (186), and the deck's air around the jog is what
- * grew on the outsides. So 352 + 14 + 428 + 14 + 352 + 28 padding + 2 of chassis border =
- * 1190. Change a column and this follows; leave it behind and the row overflows the chassis,
+ * 14 px padding. Both deck columns are 362 and the mixer 384 — the filter/FX panel is 142 px,
+ * and the deck jog has room on either side. So 362 + 24 + 384 + 24 + 362 + 28 padding + 2 of chassis border =
+ * 1186 (+4 slack to 1190). Change a column and this follows; leave it behind and the row overflows the chassis,
  * which `overflow-hidden` turns into a clipped edge control.
  *
  * The console was drawn at 1040 until the deck row was widened by 150 px: at that width the

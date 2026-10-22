@@ -53,23 +53,16 @@
 export const ACTIVE = 'bg-[#101010] text-white border-[#282828]'
 
 /**
- * The warm on state: the deck's KEY and the transport's CUE.
+ * The warm orange on state: KEY, CUE, SLIP, SYNC, TAP, MOVE, AUTO, and FX controls.
  *
- * Both act on the track you have loaded rather than on the mix — one shifts its pitch, the other
- * is its start point — so they share a colour and it is not the performance green. It is a muted
- * sand rather than an amber: the two keys have to be findable without lighting up the corner of
- * the console, and a pastel reads as a lamp behind a printed legend rather than a painted key.
- *
- * Neutral fill, grey border, no glow — the same recessed key as `ACTIVE`; only the legend is warm.
+ * Lights in warm orange (#d9a06a). Neutral recessed fill (#101010), grey border (#282828), no glow.
  */
 export const ACTIVE_KEY = 'bg-[#101010] text-[#d9a06a] border-[#282828]'
 
 /**
- * The performance on state: SYNC, TAP, SLIP, LOOP, MOVE, ECHO, RVRB, the FX assign row and AUTO.
+ * The performance switch state (e.g. LOOP).
  *
- * A soft mint legend (`#7fc79b`) on the same recessed surface as everything else. The green is
- * light enough to read at 8.5 px on a near-black key and quiet enough that six of them can be
- * engaged at once without the row turning into a colour block.
+ * A soft mint legend (`#7fc79b`) on the same recessed surface as everything else.
  */
 export const ACTIVE_SWITCH = 'bg-[#101010] text-[#7fc79b] border-[#282828]'
 

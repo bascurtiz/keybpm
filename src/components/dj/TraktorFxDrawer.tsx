@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { DeckEngine } from '@/lib/dj/deck-engine'
 import type { FxType } from '@/lib/dj/types'
 import { Knob } from './Knob'
-import { ACTIVE_SWITCH } from '@/lib/dj/control-state'
+import { ACTIVE_KEY } from '@/lib/dj/control-state'
 
 interface TraktorFxDrawerProps {
   deck: DeckEngine
@@ -49,7 +49,7 @@ export function TraktorFxDrawer({
               onClick={() => deck.setFx(type)}
               className={`px-2 py-0.5 text-[9px] font-bold rounded border transition-colors ${
                 deck.fxType === type
-                  ? ACTIVE_SWITCH
+                  ? ACTIVE_KEY
                   : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
             >
@@ -68,7 +68,7 @@ export function TraktorFxDrawer({
               onClick={() => deck.setFxBeats(b)}
               className={`px-1.5 py-0.5 rounded font-mono font-bold border transition-colors ${
                 deck.fxBeats === b
-                  ? ACTIVE_SWITCH
+                  ? ACTIVE_KEY
                   : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
               }`}
             >

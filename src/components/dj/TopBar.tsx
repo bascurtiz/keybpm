@@ -214,12 +214,14 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
                         >
                           {shiftCamelot(deckA.track.key.camelot, deckA.keyShift)}
                         </span>{' '}
-                        <span
-                          className="text-amber-400 font-semibold"
-                          title={`Key shifted by ${deckA.keyShift > 0 ? `+${deckA.keyShift}` : deckA.keyShift} semitones`}
+                        <button
+                          type="button"
+                          onClick={() => deckA.resetKeyShift()}
+                          className="h-[17px] min-w-[18px] px-1 bg-[#101010] border border-[#282828] rounded-[3px] font-mono text-[9px] font-bold leading-none text-white inline-flex items-center justify-center shrink-0 select-none cursor-pointer hover:border-[#444444] transition-colors shadow-inner"
+                          title={`Key shifted by ${deckA.keyShift > 0 ? `+${deckA.keyShift}` : deckA.keyShift} semitones (click to reset)`}
                         >
                           {deckA.keyShift > 0 ? `+${deckA.keyShift}` : deckA.keyShift}
-                        </span>
+                        </button>
                       </>
                     ) : (
                       <span
@@ -374,12 +376,14 @@ export function TopBar({ engine, onLoadTrackClick }: TopBarProps) {
                         >
                           {shiftCamelot(deckB.track.key.camelot, deckB.keyShift)}
                         </span>{' '}
-                        <span
-                          className="text-amber-400 font-semibold"
-                          title={`Key shifted by ${deckB.keyShift > 0 ? `+${deckB.keyShift}` : deckB.keyShift} semitones`}
+                        <button
+                          type="button"
+                          onClick={() => deckB.resetKeyShift()}
+                          className="h-[17px] min-w-[18px] px-1 bg-[#101010] border border-[#282828] rounded-[3px] font-mono text-[9px] font-bold leading-none text-white inline-flex items-center justify-center shrink-0 select-none cursor-pointer hover:border-[#444444] transition-colors shadow-inner"
+                          title={`Key shifted by ${deckB.keyShift > 0 ? `+${deckB.keyShift}` : deckB.keyShift} semitones (click to reset)`}
                         >
                           {deckB.keyShift > 0 ? `+${deckB.keyShift}` : deckB.keyShift}
-                        </span>
+                        </button>
                       </>
                     ) : (
                       <span

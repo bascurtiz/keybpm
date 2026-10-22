@@ -33,16 +33,10 @@ const KIOSK_LANE_BAND_MAX_H = 290
 
 /**
  * Height of the deck and mixer row, in design px.
- *
- * 250 px is the console's own proportion, not the phone's: the jog, the cue column and
- * the channel strips all stretch to it, and the row has to be tall enough that the
- * mixer reads as a column of controls rather than a stack of labels. The shorter row
- * (236) fitted a phone with a little to spare; the taller one (285) pushed the FX
- * buttons down into the floor of the mixer column and left nothing under them.
- *
- * It is also the row the waveform band trades against — the band is the flexible one,
- * so a taller deck row is taken out of the band's height, not out of the console's.
+ * On desktop, this is 270 px so that the mixer elements are larger and the
+ * deck row matches the height of the waveform section.
  */
+const DESKTOP_DECK_ROW_H = 270
 const KIOSK_DECK_ROW_H = 250
 
 /**
@@ -56,14 +50,18 @@ const KIOSK_DECK_ROW_H = 250
  * is scaled down to fit instead of clipping a row.
  */
 /** Height of the metadata strip at the top of the chassis, in design px (content-sized). */
+const DESKTOP_STRIP_H = 98
 const STRIP_H = 87
 
 /** The chassis' own top and bottom border, in design px (1 px each). */
 const CHASSIS_BORDER_H = 2
 
+/** Height of the stacked waveform section on desktop, matching the deck and mixer row. */
+const DESKTOP_WAVEFORM_H = 270
+
 /**
  * `TraktorTransportBar`'s height in design px on a desktop: the 1 px divider, 16 px of air
- * above the keys, the 44 px keys, and 16 px of air below them (see that component's row).
+ * above the keys, the 44 px keys, and 16 px of air below them (77 px total).
  * Kiosk keeps the bar at 56, which is why the bounds below are two pairs rather than one.
  */
 const DESKTOP_TRANSPORT_H = 77
@@ -72,21 +70,13 @@ const KIOSK_MIN_CONSOLE_H = STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H
 const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK_LANE_BAND_FLOOR_H)
 
 /**
- * The same bounds for the desktop chassis, derived from its own rows rather than from
- * `KIOSK_MIN_CONSOLE_H`: that constant bakes in the desktop transport height the bar had
- * before it gained its bottom padding, so reusing it left the chassis 7 px shorter than
- * the rows' minimum — which `overflow-hidden` turned into a clipped transport bar at the
- * floor.
- *
- * `DESKTOP_MIN_CONSOLE_H` is the sum of the fixed rows and the band's floor: below it the
- * chassis would have to squeeze the band past its own minimum, so the fit scales the
- * whole console down instead. The max is the same sum at the band's ceiling, so the band
- * keeps its designed 290 px on a tall window.
+ * Bounds for the desktop chassis.
+ * Desktop matches the waveform section and mixer row at 270 px each.
  */
 const DESKTOP_MIN_CONSOLE_H =
-  CHASSIS_BORDER_H + STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + DESKTOP_TRANSPORT_H
+  CHASSIS_BORDER_H + DESKTOP_STRIP_H + KIOSK_LANE_BAND_FLOOR_H + DESKTOP_DECK_ROW_H + DESKTOP_TRANSPORT_H
 const DESKTOP_MAX_CONSOLE_H =
-  CHASSIS_BORDER_H + STRIP_H + KIOSK_LANE_BAND_MAX_H + KIOSK_DECK_ROW_H + DESKTOP_TRANSPORT_H
+  CHASSIS_BORDER_H + DESKTOP_STRIP_H + DESKTOP_WAVEFORM_H + DESKTOP_DECK_ROW_H + DESKTOP_TRANSPORT_H
 
 /**
  * The build stamp is rendered from a value the bundler bakes in at build time, so this is
@@ -630,8 +620,13 @@ export function MixIt() {
                 row that takes what the fixed rows leave and the console goes back to
                 filling the screen — `KIOSK_LANE_BAND_FLOOR_H` is only its floor. */}
             <div
-              className="w-full min-h-0 flex-1 border-b border-[#282828] bg-[#101010]"
-              style={{ minHeight: KIOSK_LANE_BAND_FLOOR_H }}
+              className={`w-full min-h-0 border-b border-[#282828] bg-[#101010] ${
+                kiosk ? 'flex-1' : 'shrink-0'
+              }`}
+              style={{
+                height: kiosk ? undefined : DESKTOP_WAVEFORM_H,
+                minHeight: KIOSK_LANE_BAND_FLOOR_H,
+              }}
             >
               <StackedWaveforms
                 deckA={deckA}
@@ -648,9 +643,9 @@ export function MixIt() {
                 // The wide layout is the roomier of the two: the components' desktop
                 // variants are sized for this padding, and swapping it for the phone's
                 // tighter one would leave them short of the chassis width.
-                kiosk ? 'px-2.5 py-2.5 gap-2.5' : 'px-[14px] py-2.5 gap-[14px]'
+                kiosk ? 'px-2.5 py-2.5 gap-2.5' : 'px-[14px] py-2 gap-[24px]'
               }`}
-              style={{ height: KIOSK_DECK_ROW_H }}
+              style={{ height: kiosk ? KIOSK_DECK_ROW_H : DESKTOP_DECK_ROW_H }}
             >
               {/* Deck A Control Section (Green) */}
               <div

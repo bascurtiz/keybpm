@@ -55,7 +55,7 @@ const DOWNBEAT_STRIPE = '#f4f4f5'
 
 /**
  * The lane's grid tools — Set Downbeat, the ±10 ms nudges and the GRID dropdown — share one
- * body: the same 24 px height, a solid #1c1c1c fill, a #282828 hairline and the grey the GRID
+ * body: the same 24 px height, a solid #141414 fill, a #282828 hairline and the grey the GRID
  * label already used. They sit in a row beside the waveform and are read as one cluster, so
  * they are held together here instead of drifting apart one className at a time (the nudge was
  * a translucent #141414 pill, which made the trio look like three unrelated widgets).
@@ -63,7 +63,7 @@ const DOWNBEAT_STRIPE = '#f4f4f5'
  * The 24 px is the rewind button's height (`w-6 h-6`) on the other end of these lanes: the two
  * ends of the lane are the same furniture, so they are the same size.
  */
-const GRID_TOOL_BOX = 'h-6 rounded border border-[#282828] bg-[#1c1c1c] shadow-sm'
+const GRID_TOOL_BOX = 'h-6 rounded border border-[#282828] bg-[#141414] shadow-sm'
 const GRID_TOOL_TEXT = 'text-[#888888] hover:text-[#d4d4d4]'
 
 /**
@@ -598,9 +598,8 @@ export function StackedWaveforms({
       </div>
 
       {/* Deck A Right: SET DOWNBEAT & GRID A controls */}
-      {/*          The downbeat anchor and the ±10ms nudge belong together — the anchor is what the nudge
-          fine-tunes — so they keep the row's 6px. GRID is a different kind of control again and
-          takes one extra step on top of it (ml-1.5, 12px total). */}
+      {/* Both the downbeat anchor on the left and the GRID dropdown on the right take an extra
+          spacing step (mr-1.5 and ml-1.5, 12px total) away from the central ±10ms nudge pair. */}
       <div className="absolute top-1.5 right-2 z-10 flex items-center gap-1.5">
         <button
           type="button"
@@ -610,7 +609,7 @@ export function StackedWaveforms({
             deckA.setBeat1AtPosition()
           }}
           disabled={!deckA.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 mr-1.5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
           aria-label="Set downbeat (beat 1) at the playhead"
         >
@@ -671,7 +670,7 @@ export function StackedWaveforms({
           className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'A'
               ? ACTIVE_DECK_A
-              : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
+              : 'bg-[#141414] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
           title="Adjust Deck A Beatgrid"
         >
@@ -690,7 +689,7 @@ export function StackedWaveforms({
             deckB.setBeat1AtPosition()
           }}
           disabled={!deckB.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-0.5 mr-1.5 px-2.5 ${GRID_TOOL_BOX} ${GRID_TOOL_TEXT} hover:border-[#444444] transition-colors flex items-center gap-[3px] disabled:opacity-20 disabled:pointer-events-none`}
           title="Set Downbeat (Beat 1) at playhead"
           aria-label="Set downbeat (beat 1) at the playhead"
         >
@@ -736,7 +735,7 @@ export function StackedWaveforms({
           className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'B'
               ? ACTIVE_DECK_B
-              : 'bg-[#1c1c1c] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
+              : 'bg-[#141414] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
           }`}
           title="Adjust Deck B Beatgrid"
         >

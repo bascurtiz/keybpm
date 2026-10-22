@@ -229,8 +229,8 @@ export function Knob({
             cx={c}
             cy={c}
             r={27}
-            fill={variant === 'dark' ? '#1e2025' : '#58585a'}
-            stroke={variant === 'dark' ? (isTurned ? '#474a56' : '#363842') : '#3c3d42'}
+            fill={variant === 'dark' ? '#1e2025' : '#3b3b3b'}
+            stroke={variant === 'dark' ? (isTurned ? '#474a56' : '#363842') : '#2c2c2c'}
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
           />
@@ -263,7 +263,7 @@ export function Knob({
 
       {label && (
         <span
-          className={`font-sans text-[7.5px] font-bold tracking-wider text-zinc-400 uppercase select-none flex items-center justify-center gap-1 leading-none ${
+          className={`font-sans text-[7.5px] font-bold tracking-wider text-[#777777] uppercase select-none flex items-center justify-center gap-1 leading-none ${
             isRow ? '' : 'mt-0.5'
           }`}
         >
