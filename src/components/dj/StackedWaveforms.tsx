@@ -328,8 +328,16 @@ export function StackedWaveforms({
     if (!ctx) return
 
     let raf = 0
+    let frame = 0
     let drawn = 0
     let rect = { width: 0, height: 0 }
+
+    // Re-measure immediately whenever the canvas or its container changes size
+    const ro = new ResizeObserver(() => {
+      rect = { width: 0, height: 0 }
+    })
+    ro.observe(canvas)
+
     // Both lanes, grid, peaks and playhead are cleared and redrawn in full; on a phone that is
     // half the frame budget of the console, so the hand-held profile draws every second frame.
     const profile = consoleProfile()
@@ -341,9 +349,11 @@ export function StackedWaveforms({
     const thickBars = !profile.handheld
     const tick = () => {
       raf = requestAnimationFrame(tick)
+      frame++
       // The cadence is counted in *drawn* frames, not animation frames: with a stride of two an
       // `% 8` on the animation-frame counter would land only on the frames that are skipped.
-      if (drawn++ % stride !== 0) return
+      if (frame % stride !== 0) return
+      drawn++
       // A layout read, not a paint: the lanes are re-measured a few times a second instead of
       // sixty. The box only changes when the viewport does, and this canvas lives inside a
       // chassis scaled by a transform, so the read also has to be cheap enough that it does not
@@ -435,7 +445,10 @@ export function StackedWaveforms({
     }
 
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [deckA, deckB, windowSeconds])
 
   return (
@@ -1090,27 +1103,38 @@ function renderDeckLane({
       // The length is measured against the local beat at the loop's start rather than against
       // `loop.bars`, because the beat-loop path (`setLoop`) leaves `bars` at 0 — and measured
       // locally so a loop armed on a drifting grid reports the beats you can actually count.
-      if (loopWidth > 32) {
-        const midX = (startX + endX) / 2
-        const handleW = 28
-        const handleH = 14
-        const handleY = topY + laneH - handleH - 3
-        const beatLen = deck.beatLengthAt(deck.loop.start)
-        const beats = beatLen > 0 ? (deck.loop.end - deck.loop.start) / beatLen : 0
-        // Below a beat, say `1/2` rather than `0.5` — the console's own loop readouts already
-        // speak in that notation, and a leading `0.` reads as a timecode here.
-        const label =
-          beats >= 1
-            ? String(Math.round(beats))
-            : beats > 0
-              ? `1/${Math.round(1 / beats)}`
-              : ''
+      const beatLen = deck.beatLengthAt(deck.loop.start)
+      const beats = beatLen > 0 ? (deck.loop.end - deck.loop.start) / beatLen : 0
+      // Below a beat, say `1/2` rather than `0.5` — the console's own loop readouts already
+      // speak in that notation, and a leading `0.` reads as a timecode here.
+      const label =
+        beats >= 1
+          ? String(Math.round(beats))
+          : beats > 0
+            ? `1/${Math.round(1 / beats)}`
+            : ''
 
+      // Measure font & text so the chip wraps the number with balanced padding instead of
+      // drawing a stretched wide pill on mobile screens.
+      const fontSize = thickBars ? 9 : 8.5
+      const fontStr = `700 ${fontSize}px Inter, ui-sans-serif, system-ui, sans-serif`
+      ctx.font = fontStr
+      const textW = label ? ctx.measureText(label).width : 0
+
+      // Proportional chip sizing: height is 12.5px (mobile) / 14px (desktop).
+      // Width fits the text tightly (8-10px padding total) so "4" is a compact badge.
+      const handleH = thickBars ? 14 : 12.5
+      const handleW = label ? Math.max(handleH + 2, Math.round(textW + (thickBars ? 10 : 8))) : 16
+      const handleY = topY + laneH - handleH - (thickBars ? 3 : 2)
+      const midX = (startX + endX) / 2
+
+      if (loopWidth > handleW + 4 && label) {
+        const radius = Math.min(3.5, handleH / 3)
         ctx.save()
         ctx.fillStyle = '#14532d'
         ctx.globalAlpha = 0.85
         ctx.beginPath()
-        ctx.roundRect(midX - handleW / 2, handleY, handleW, handleH, 4)
+        ctx.roundRect(midX - handleW / 2, handleY, handleW, handleH, radius)
         ctx.fill()
         ctx.strokeStyle = '#22c55e'
         ctx.lineWidth = 1
@@ -1119,7 +1143,7 @@ function renderDeckLane({
         // The count itself, in the deck's loop green so it belongs to the window behind it.
         ctx.globalAlpha = 1
         ctx.fillStyle = '#86efac'
-        ctx.font = `700 ${thickBars ? 9 : 8.5}px Inter, ui-sans-serif, system-ui, sans-serif`
+        ctx.font = fontStr
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(label, midX, handleY + handleH / 2 + 0.5)
