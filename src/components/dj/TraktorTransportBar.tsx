@@ -245,19 +245,21 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
         // earlier 70 px bar put 9 px above the keys and 17 px below once the 8 px of bottom
         // padding was counted.
         // Kiosk gives 16 px of bottom air to match the top header's breathing room on mobile
-        // (70 px = 8 px top air + 46 px keys + 16 px bottom padding).
+        // (82 px = 1 px divider + 12 px top air + 52 px keys + 16 px bottom padding). The keys
+        // are 52 — CONTROL_W — because a phone's transport is tapped blind, and at 46 px the
+        // play button was the smallest thing a thumb had to find on the row.
         kiosk
-          ? 'px-2.5 h-[70px] pt-2 pb-4 justify-between gap-1.5'
+          ? 'px-2.5 h-[82px] pt-3 pb-4 justify-between gap-1.5'
           : 'px-[14px] h-[77px] pt-4 pb-4 justify-center gap-[24px]'
       } flex items-center select-none ${className}`}
     >
       {/* ================= DECK A TRANSPORT (LEFT) ================= */}
-      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[364px]' : 'w-[362px]'}`}>
+      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[358px]' : 'w-[362px]'}`}>
         <DeckTransport deck={deckA} otherDeck={deckB} deckId="A" />
       </div>
 
       {/* ================= CENTER: AUTO | CROSSFADER | FADE LENGTH ================= */}
-      <div className={`flex items-center justify-center shrink-0 ${kiosk ? 'w-[350px] gap-1.5' : 'w-[384px] gap-1.5'}`}>
+      <div className={`flex items-center justify-center shrink-0 ${kiosk ? 'w-[402px] gap-1.5' : 'w-[384px] gap-1.5'}`}>
         <button
           type="button"
           onClick={toggleAuto}
@@ -277,7 +279,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
           AUTO
         </button>
 
-        <div className={`${kiosk ? 'w-[188px]' : 'w-[200px]'} h-11 flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]`}>
+        <div className={`${kiosk ? 'w-[224px] h-[52px]' : 'w-[200px] h-11'} flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]`}>
           <button
             type="button"
             onClick={() => pressCrossfadeArrow('left')}
@@ -312,7 +314,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
               engine.setCrossfade(v)
             }}
             label="Crossfader"
-            className={`h-6 ${kiosk ? 'w-[124px] max-w-[124px]' : 'w-[136px] max-w-[136px]'}`}
+            className={kiosk ? 'h-8 w-[152px] max-w-[152px]' : 'h-6 w-[136px] max-w-[136px]'}
           />
 
           <button
@@ -348,7 +350,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       </div>
 
       {/* ================= DECK B TRANSPORT (RIGHT) ================= */}
-      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[364px]' : 'w-[362px]'}`}>
+      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[358px]' : 'w-[362px]'}`}>
         <DeckTransport deck={deckB} otherDeck={deckA} deckId="B" />
       </div>
     </div>
@@ -399,6 +401,8 @@ function DeckTransport({
   const isPlaying = deck.playing
   const isLoopActive = Boolean(deck.loop)
   const { kiosk } = useViewportMode()
+  /** Height of the transport's key row: 44 px on a desktop, a thumb's 52 px on a phone. */
+  const keyH = kiosk ? 'h-[52px]' : 'h-11'
 
   // 4-Tap Tempo System
   const tapTimesRef = useRef<number[]>([])
@@ -612,25 +616,28 @@ function DeckTransport({
   return (
     <div
       className={`flex items-center ${
-        kiosk ? 'w-[364px] gap-1.5' : `w-[362px] ${deckId === 'A' ? 'pr-[5px]' : 'pr-[6px]'}`
+        kiosk ? 'w-[358px] gap-1.5' : `w-[362px] ${deckId === 'A' ? 'pr-[5px]' : 'pr-[6px]'}`
       }`}
     >
       {/* Left Cluster: Play/Cue + Sync/Tap */}
       <div className={`flex items-center shrink-0 ${kiosk ? 'gap-1.5' : 'gap-[14px]'}`}>
-        {/* Play & CUE standalone rounded buttons */}
-        <div className="flex h-11 w-[100px] shrink-0 items-stretch gap-1">
+        {/* Play & CUE standalone rounded buttons. Kiosk runs them side by side at the key row's
+            height: play grows to 56 px, and CUE becomes a full-height key the width of SYNC
+            with its label turned 90° — the two keys a thumb hits while cueing, made tall enough
+            to find without looking. */}
+        <div className={`flex shrink-0 items-stretch gap-1 ${keyH} ${kiosk ? 'w-[112px]' : 'w-[100px]'}`}>
           <button
             type="button"
             onClick={handleTogglePlay}
             disabled={!isDeckReady}
-            className={`w-12 h-full rounded-[3px] border flex items-center justify-center transition-all select-none ${
+            className={`${kiosk ? 'w-[56px]' : 'w-12'} h-full rounded-[3px] border flex items-center justify-center transition-all select-none ${
               isPlayingActive
                 ? ACTIVE_PLAY
                 : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={`Deck ${deckId} Play / Pause (Space / Click)`}
           >
-            <span className="text-base font-bold leading-none">▶</span>
+            <span className={`${kiosk ? 'text-lg' : 'text-base'} font-bold leading-none`}>▶</span>
           </button>
 
           <button
@@ -643,7 +650,9 @@ function DeckTransport({
             onClick={e => e.preventDefault()}
             onContextMenu={e => e.preventDefault()}
             disabled={!isDeckReady}
-            className={`flex-1 h-full rounded-[3px] border flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
+            className={`${
+              kiosk ? 'w-[52px] shrink-0 [writing-mode:vertical-rl] rotate-180' : 'flex-1'
+            } h-full rounded-[3px] border flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
               deck.cuePreviewing
                 ? ACTIVE_KEY
                 : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -657,7 +666,7 @@ function DeckTransport({
         {/* SYNC / TAP dual stacked standalone buttons */}
         <div
           style={{ width: CONTROL_W }}
-          className="flex flex-col shrink-0 h-11 gap-1"
+          className={`flex flex-col shrink-0 gap-1 ${keyH}`}
         >
           <button
             type="button"
@@ -701,8 +710,8 @@ function DeckTransport({
       <div className={`flex items-center shrink-0 ${kiosk ? 'gap-1.5' : 'gap-[14px]'}`}>
         {/* Loop Beat Length Cluster: < 4 > standalone elements matching - and + buttons */}
         <div
-          style={{ width: LOOP_CLUSTER_W }}
-          className="flex h-11 shrink-0 items-stretch gap-1"
+          style={{ width: kiosk ? 104 : LOOP_CLUSTER_W }}
+          className={`flex shrink-0 items-stretch gap-1 ${keyH}`}
         >
           <button
             type="button"
@@ -771,7 +780,7 @@ function DeckTransport({
         {/* Loop / Move standalone stacked buttons */}
         <div
           style={{ width: CONTROL_W }}
-          className="flex flex-col shrink-0 h-11 gap-1"
+          className={`flex flex-col shrink-0 gap-1 ${keyH}`}
         >
           <button
             type="button"

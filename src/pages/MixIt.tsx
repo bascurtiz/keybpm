@@ -21,15 +21,19 @@ import { useKeepScreenAwake } from '@/lib/wake-lock'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 
 /**
- * Floor for the stacked waveform band in kiosk mode, in design px: two tall lanes of 90 px,
- * giving the bigger waveform displays prominent height on mobile instead of being squeezed.
+ * Floor for the stacked waveform band in kiosk mode, in design px: two lanes of 72 px.
+ *
+ * The band is the console's pressure valve on a phone: it gives height back to the deck row and
+ * the transport, where a thumb has to find a knob or a key, rather than to the waveforms, which
+ * are read rather than pressed. 145 is what a landscape phone leaves once the deck row has its
+ * 250 and the transport its 82 — a lane is still tall enough to read a drop coming.
  */
-const KIOSK_LANE_BAND_FLOOR_H = 180
+const KIOSK_LANE_BAND_FLOOR_H = 145
 
 /**
- * Ceiling for the same band, in design px: two 145 px lanes.
+ * Ceiling for the same band, in design px: two 125 px lanes.
  */
-const KIOSK_LANE_BAND_MAX_H = 290
+const KIOSK_LANE_BAND_MAX_H = 250
 
 /**
  * Height of the deck and mixer row, in design px.
@@ -37,14 +41,22 @@ const KIOSK_LANE_BAND_MAX_H = 290
  * deck row matches the height of the waveform section.
  */
 const DESKTOP_DECK_ROW_H = 270
+/**
+ * The phone's deck and mixer row, in design px.
+ *
+ * Still 250: the row's height was not what the phone was short of. Its width was — so the kiosk
+ * layout widened the pitch well and the mixer instead, and took the jog down to 220 to pay for
+ * it, which is also what gives the platter air above and below. The 50 px EQ and filter knobs
+ * fit in the same 250 (three knobs plus captions are 191 px).
+ */
 const KIOSK_DECK_ROW_H = 250
 
 /**
  * Bounds for the kiosk chassis height, in design px, derived from the band's own.
  *
- * The metadata strip (~87 px) and the transport bar (~65 px) are content-sized and the
- * two rows between them are constants, so the console at the band's floor is 545 px and
- * the ceiling is exactly as much taller as the band is allowed to be. This is the pair
+ * The metadata strip (99 px) and the transport bar (82 px) are fixed and the deck row between
+ * them is a constant too, so the console at the band's floor is 576 px and the ceiling is
+ * exactly as much taller as the band is allowed to be. This is the pair
  * `kioskDesignH` clamps the fill-to-width height into: a landscape phone lands inside
  * them and fills its screen, and a short or unusually wide one lands on the floor and
  * is scaled down to fit instead of clipping a row.
@@ -62,10 +74,16 @@ const DESKTOP_WAVEFORM_H = 270
 /**
  * `TraktorTransportBar`'s height in design px on a desktop: the 1 px divider, 16 px of air
  * above the keys, the 44 px keys, and 16 px of air below them (77 px total).
- * Kiosk keeps 70 px (8 px top air, 46 px keys, 16 px bottom air matching the top header's breathing room).
+ * Kiosk is 82 px: 12 px of top air, the 52 px keys, and 16 px of bottom air matching the top
+ * header's breathing room.
  */
 const DESKTOP_TRANSPORT_H = 77
-const KIOSK_TRANSPORT_H = 70
+/**
+ * The phone's transport bar, in design px: 1 px divider + 12 px air + 52 px keys + 16 px air
+ * (see `TraktorTransportBar`). Must stay in step with the bar's own `h-[82px]`, since this
+ * constant is what the chassis adds up when it decides how much height the band gets.
+ */
+const KIOSK_TRANSPORT_H = 82
 
 const KIOSK_MIN_CONSOLE_H = STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + KIOSK_TRANSPORT_H
 const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK_LANE_BAND_FLOOR_H)

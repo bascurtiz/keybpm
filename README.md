@@ -372,31 +372,33 @@ The stretch/build/render logic is `src/lib/dj/mix-timeline.ts`, `offline-stretch
 ### The phone console
 
 Below 1024 px the console replaces the page and is fitted to the viewport by
-`use-console-fit.ts`: the chassis keeps its 1120 px hardware geometry and a transform scales
+`use-console-fit.ts`: the chassis keeps its 1156 px hardware geometry and a transform scales
 it, because reflowing a two-deck controller for a 360 px phone shrinks every control below
 a tappable size. The layout is then arranged so that scale is as large as the screen allows.
 On a landscape phone the fit is **width-bound**, so the console is given the height that makes
-1120 design px fill the box — it fills the screen edge to edge. That height is clamped
+1156 design px fill the box — it fills the screen edge to edge. That height is clamped
 (`KIOSK_MIN_CONSOLE_H`..`KIOSK_MAX_CONSOLE_H`), and it is spent by one row: everything but the
 waveform band is a fixed height, so the band takes the remainder. Making the *band* the flexible
-row is what bought the waveforms their share — the deck row used to be the flexible one, and on
+row is what bought the controls their size — the deck row used to be the flexible one, and on
 a 19.5:9 phone it took 312 design px for a 196 px jog wheel. A few things differ between the
 desktop and phone arrangements:
 
+- The **phone's controls are sized for a thumb, not scaled down from the desktop's.** The deck
+  grows a 64 px pitch well with a 40 px fader cap, and its platter shrinks from 236 to 220 of
+  the row's 250 — so the jog sits *inside* the row with air around it rather than filling it.
+  The mixer's own columns widen to 36 / 54 / 172 / 54 / 36 (402 px in all) to carry 50 px EQ
+  and filter knobs, and the transport bar is 82 px tall for a 52 px key row: play is 56 px, and
+  CUE is a full-height key the width of SYNC with its label turned 90°, reading bottom to top.
 - The **waveform band absorbs the leftover height**, between a floor of
-  `KIOSK_LANE_BAND_FLOOR_H` (two 53 px lanes) and a ceiling of
-  `KIOSK_LANE_BAND_MAX_H` (two 136 px lanes). It keeps the full width and every
-  control — rewind to start, set downbeat, ±10 ms nudge and the GRID dropdowns. A landscape
-  phone lands inside those bounds: at 844×390 the band is 139 design px, two lanes of 69.5,
-  and at 667×375 it is 263, two lanes of 131.5. The ceiling is set on the band so that a tall
-  box cannot turn the console into a waveform display, and it moves with the deck row, so a
-  trim on the waveforms applies to every screen rather than only to the ones filling theirs.
-  The deck row below it is a fixed `KIOSK_DECK_ROW_H` — 8% less than the height the filling
-  chassis used to hand it, and still comfortably more than the 196 px jog wheel — so the mixer
-  still shows its filters and FX block, the decks keep their EQ, and sync stays where it is.
-  That row is also the waveform's counterweight: the band takes exactly the height it does not,
-  so a trim on the waveforms is expressed as px given back here — 28 of them, two lanes of 14
-  — and that is the room the mixer now spends between its knobs and buttons.
+  `KIOSK_LANE_BAND_FLOOR_H` (two 72 px lanes) and a ceiling of
+  `KIOSK_LANE_BAND_MAX_H` (two 125 px lanes). It keeps the full width and every
+  control — rewind to start, set downbeat, ±10 ms nudge and the GRID dropdowns. The ceiling is
+  set on the band so that a tall box cannot turn the console into a waveform display, and it
+  moves with the deck row, so a trim on the waveforms applies to every screen rather than only
+  to the ones filling theirs. The deck row below it is a fixed `KIOSK_DECK_ROW_H` of 250 — the
+  platter's row, and the waveform's counterweight: the band takes exactly the height the fixed
+  rows leave, so a trim on the waveforms is height the console above and below them spends
+  instead.
 - The **empty-lane A/B badge is drawn at its design size through the chassis scale**
   (`laneBadge(laneH, uiScale)`), so it shrinks with the console exactly like the A/B on the
   artwork squares. A fixed size was the one mark on the waveform that did not, and on a phone

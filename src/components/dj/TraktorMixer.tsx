@@ -18,8 +18,12 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const deckB = engine.decks.B
   const [, setVer] = useState(0)
 
-  const knobSize = kiosk ? 40 : 42
-  const filterSize = kiosk ? 40 : 42
+  // Kiosk draws its knobs at 50 px: on a phone the EQ and filter are the controls a set is
+  // actually mixed with, and the deck row's 250 has the room for them (three 50 px knobs and
+  // their captions are 191 px). They matched the desktop's 40/42 and read as trim pots next to
+  // the platters.
+  const knobSize = kiosk ? 50 : 42
+  const filterSize = kiosk ? 50 : 42
   const faderClass = kiosk ? 'w-6 h-[148px]' : 'w-6 h-[155px]'
 
   useEffect(() => {
@@ -138,8 +142,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       {/* Column widths are the console's width budget: on a desktop the outer fader columns
           are 44 (was 36), the EQ columns 52 (was 40) and the filter/FX panel 186 (was 136),
           which is the mixer's share of the deck row's 150 px widening — 428 in total. Kiosk
-          has its own set (36 / 44 / 142, 350 in total) with the faders drawn inward toward
-          the EQ columns, giving larger platters on mobile. */}
+          has its own set (36 / 54 / 172, 402 in total) with the faders drawn inward toward
+          the EQ columns: the phone's width goes to the 50 px knobs in the middle, which is
+          where the mix happens, and to the wider filter/FX panel between them. */}
       <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-9' : 'w-11'}`}>
         <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-wider mb-1 leading-none">
           A
@@ -164,7 +169,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       {/* ================= 2. DECK A EQ COLUMN (HI, MID, LOW) ================= */}
       <div
         className={`flex flex-col justify-between items-center ${
-          kiosk ? 'py-1 w-11' : 'py-0.5 w-[52px]'
+          kiosk ? 'py-1 w-[54px]' : 'py-0.5 w-[52px]'
         } shrink-0`}
       >
         {!kiosk && (
@@ -233,10 +238,12 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       {/* ================= 3. CENTER PANEL (FILTERS + FX) ================= */}
       <div
-        className="relative flex flex-col items-center py-2 bg-[#161616] rounded-md border border-[#282828] w-[142px] shrink-0 h-full"
+        className={`relative flex flex-col items-center py-2 bg-[#161616] rounded-md border border-[#282828] shrink-0 h-full ${
+          kiosk ? 'w-[172px]' : 'w-[142px]'
+        }`}
       >
         {/* Top: Filter Knobs A & B */}
-        <div className="flex items-center justify-center gap-3.5 w-full px-2">
+        <div className={`flex items-center justify-center w-full px-2 ${kiosk ? 'gap-6' : 'gap-3.5'}`}>
           <div className="flex flex-col items-center">
             <FilterKnob
               size={filterSize}
@@ -258,7 +265,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
         {/* FX module: target assignment, routing bracket and the four performance buttons. */}
         <div className="flex flex-1 min-h-0 w-full items-center justify-center">
-        <div className="flex flex-col items-center w-full max-w-[109px] mt-2">
+        <div className={`flex flex-col items-center w-full mt-2 ${kiosk ? 'max-w-[120px]' : 'max-w-[109px]'}`}>
           {/* Same caption as the deck's CUES label: 8.5 px, #888888, tracking-wider. The
               FX group is the second labelled cluster on the console, and at 7 px with
               wider tracking it read as a smaller, different class of heading. */}
@@ -324,7 +331,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
           </svg>
 
           {/* Performance FX 2x2 Grid: Standalone rounded buttons matching A/MST/B */}
-          <div className="grid grid-cols-2 gap-1 w-full" style={{ maxWidth: 104 }}>
+          <div className="grid grid-cols-2 gap-1 w-full" style={{ maxWidth: kiosk ? 116 : 104 }}>
             <button
               type="button"
               onClick={toggleEcho}
@@ -378,7 +385,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       {/* ================= 4. DECK B EQ COLUMN (HI, MID, LOW) ================= */}
       <div
         className={`flex flex-col justify-between items-center ${
-          kiosk ? 'py-1 w-11' : 'py-0.5 w-[52px]'
+          kiosk ? 'py-1 w-[54px]' : 'py-0.5 w-[52px]'
         } shrink-0`}
       >
         {!kiosk && (

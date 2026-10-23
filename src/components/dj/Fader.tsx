@@ -20,6 +20,14 @@ interface FaderProps {
   accentColor?: string
   analyser?: AnalyserNode
   invert?: boolean
+  /**
+   * Width of a vertical fader's cap, in design px.
+   *
+   * The cap is what reads as the fader's size — the track is 8 px and disappears behind it —
+   * so a column that wants a chunkier pitch fader (the phone console's) widens the cap rather
+   * than the slot. Defaults to the pitch strip's own 34 px on the desktop console.
+   */
+  capWidth?: number
 }
 
 function clamp01(v: number): number {
@@ -45,6 +53,7 @@ export function Fader({
   accentColor,
   analyser,
   invert = false,
+  capWidth = 34,
 }: FaderProps) {
   const vertical = orientation === 'vertical'
   const range = max - min
@@ -316,12 +325,12 @@ export function Fader({
         aria-hidden
         className={`absolute rounded-[2px] bg-[#505050] border border-[#383838] shadow-md flex items-center justify-center pointer-events-none z-20 ${
           vertical
-            ? 'left-1/2 w-[34px] h-[18px] -translate-x-1/2 translate-y-1/2'
+            ? 'left-1/2 h-[18px] -translate-x-1/2 translate-y-1/2'
             : 'top-1/2 w-[18px] h-[30px] -translate-x-1/2 -translate-y-1/2'
         }`}
         style={
           vertical
-            ? { bottom: `${norm * 100}%` }
+            ? { bottom: `${norm * 100}%`, width: capWidth }
             : { left: `${norm * 100}%` }
         }
       >

@@ -136,10 +136,11 @@ export function TraktorDeck({
     >
       {/* ================= 1. OUTER EDGE: PITCH FADER SECTION ================= */}
       {/* 66 px on a desktop, 4 px of it side padding: the readout and the − / + strip are 58 px
-          wide in that well. Kiosk keeps a sleeker 54 px to allow larger platters. */}
+          wide in that well. Kiosk keeps a wider 64 px well so the fader's cap reads as hardware
+          under a thumb; the deck row pays for it by shrinking the jog (see `JogWheel`'s size). */}
       <div
         className={`flex flex-col items-center justify-between h-full py-2 px-1 shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none ${
-          kiosk ? 'w-[54px]' : 'w-[66px]'
+          kiosk ? 'w-[64px]' : 'w-[66px]'
         }`}
       >
         {/* Pitch Rate Readout & Reset to 0%. */}
@@ -173,6 +174,7 @@ export function TraktorDeck({
               youtubeBridge.setPlaybackRate(deckId, r)
             }}
             accentColor={accentColor}
+            capWidth={kiosk ? 40 : 34}
             className={`w-6 ${kiosk ? 'h-[148px]' : 'h-[155px]'}`}
           />
         </div>
@@ -223,11 +225,15 @@ export function TraktorDeck({
       </div>
 
       {/* ================= 2. CENTER: JOG WHEEL & NUDGE BUTTONS ================= */}
+      {/* The platter is the console's largest single shape, and on a phone it used to fill the
+          deck row: 236 of its 250 design px. Kiosk draws it at 220, so it sits inside the row
+          with real air around it, and its share of the widened console goes to the pitch well
+          on one side and to the mixer's 50 px knobs on the other. */}
       <div className="relative flex items-center justify-center shrink-0">
         <JogWheel
           deck={deck}
           deckId={deckId}
-          size={kiosk ? 236 : 184}
+          size={kiosk ? 220 : 184}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />
