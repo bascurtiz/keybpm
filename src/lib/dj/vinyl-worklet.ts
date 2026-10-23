@@ -173,6 +173,11 @@ class VinylPlayer extends AudioWorkletProcessor {
         this.loop = d.loop
           ? { s: d.loop.start * this.bufferRate, e: d.loop.end * this.bufferRate }
           : null;
+        if (this.loop && this.loop.e > this.loop.s && (this.pos >= this.loop.e || this.pos < this.loop.s)) {
+          const loopLen = this.loop.e - this.loop.s;
+          const delta = Math.max(0, this.pos - this.loop.s);
+          this.pos = this.loop.s + (delta % loopLen);
+        }
         if (wasEngaged && !this.slipEngaged()) this.slipRelease();
         break;
       }
@@ -334,7 +339,13 @@ class VinylPlayer extends AudioWorkletProcessor {
 
     for (let i = start; i < frames; i++) {
       if (this.loop && step > 0 && this.pos >= this.loop.e) {
-        this.pos = this.loop.s + (this.pos - this.loop.e);
+        const loopLen = this.loop.e - this.loop.s;
+        if (loopLen > 0) {
+          const delta = this.pos - this.loop.s;
+          this.pos = this.loop.s + (delta % loopLen);
+        } else {
+          this.pos = this.loop.s;
+        }
       }
       if (this.pos < 0) this.pos = 0;
       if (this.pos > this.length - 1) this.pos = this.length - 1;

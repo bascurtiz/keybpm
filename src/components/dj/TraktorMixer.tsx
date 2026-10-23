@@ -4,8 +4,8 @@ import { Knob } from './Knob'
 import { FilterKnob } from './FilterKnob'
 import { Fader } from './Fader'
 import { useViewportMode } from '@/lib/use-viewport'
-import { CONTROL_FRAME_W, CONTROL_H } from '@/lib/dj/control-size'
-import { ACTIVE_KEY, CELL } from '@/lib/dj/control-state'
+import { CONTROL_H } from '@/lib/dj/control-size'
+import { ACTIVE_KEY } from '@/lib/dj/control-state'
 
 interface TraktorMixerProps {
   engine: AudioEngine
@@ -322,65 +322,52 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <line x1="52" y1="1" x2="52" y2="10" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
           </svg>
 
-          {/* Performance FX Columns: [ECHO+BRK] and [RVRB+SCR] tight pairs */}
-          <div className="flex items-stretch gap-px w-full" style={{ maxWidth: CONTROL_FRAME_W * 2 + 1 }}>
-            {/* Left: ECHO & BRK unified container */}
-            <div
-              style={{ width: CONTROL_FRAME_W }}
-              className="flex flex-col shrink-0 rounded-[3px] border border-[#282828] bg-[#141414] overflow-hidden"
+          {/* Performance FX 2x2 Grid: Standalone rounded buttons matching A/MST/B */}
+          <div className="grid grid-cols-2 gap-1 w-full" style={{ maxWidth: 104 }}>
+            <button
+              type="button"
+              onClick={toggleEcho}
+              style={{ height: CONTROL_H }}
+              className={`rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
+                isEchoActive
+                  ? ACTIVE_KEY
+                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Toggle Echo effect"
             >
-              <button
-                type="button"
-                onClick={toggleEcho}
-                style={{ height: CONTROL_H }}
-                className={`w-full ${CELL} text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
-                  isEchoActive
-                    ? ACTIVE_KEY
-                    : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
-                }`}
-                title="Toggle Echo effect"
-              >
-                ECHO
-              </button>
-              <button
-                type="button"
-                onClick={triggerBrake}
-                style={{ height: CONTROL_H }}
-                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
-                title="Vinyl Brake stop effect"
-              >
-                BRK
-              </button>
-            </div>
-
-            {/* Right: RVRB & SCR unified container */}
-            <div
-              style={{ width: CONTROL_FRAME_W }}
-              className="flex flex-col shrink-0 rounded-[3px] border border-[#282828] bg-[#141414] overflow-hidden"
+              ECHO
+            </button>
+            <button
+              type="button"
+              onClick={toggleReverb}
+              style={{ height: CONTROL_H }}
+              className={`rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
+                isReverbActive
+                  ? ACTIVE_KEY
+                  : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
+              }`}
+              title="Toggle Reverb effect"
             >
-              <button
-                type="button"
-                onClick={toggleReverb}
-                style={{ height: CONTROL_H }}
-                className={`w-full ${CELL} text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
-                  isReverbActive
-                    ? ACTIVE_KEY
-                    : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
-                }`}
-                title="Toggle Reverb effect"
-              >
-                RVRB
-              </button>
-              <button
-                type="button"
-                onClick={triggerCutter}
-                style={{ height: CONTROL_H }}
-                className="w-full bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
-                title="SCR — forward cutter: plays the chop sample at this deck's tempo"
-              >
-                SCR
-              </button>
-            </div>
+              RVRB
+            </button>
+            <button
+              type="button"
+              onClick={triggerBrake}
+              style={{ height: CONTROL_H }}
+              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+              title="Vinyl Brake stop effect"
+            >
+              BRK
+            </button>
+            <button
+              type="button"
+              onClick={triggerCutter}
+              style={{ height: CONTROL_H }}
+              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+              title="SCR — forward cutter: plays the chop sample at this deck's tempo"
+            >
+              SCR
+            </button>
           </div>
         </div>
         </div>

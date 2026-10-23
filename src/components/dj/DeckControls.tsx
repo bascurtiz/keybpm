@@ -673,7 +673,11 @@ export function DeckControls({
                 &lt;
               </button>
               <span className="font-sans text-[9px] font-bold text-zinc-300 truncate">
-                {currentLoopBars >= 1 ? currentLoopBars : `1/${Math.round(1 / currentLoopBars)}`}
+                {currentLoopBars >= 0.875
+                  ? Math.round(currentLoopBars)
+                  : Math.round(1 / currentLoopBars) > 1
+                    ? `1/${Math.round(1 / currentLoopBars)}`
+                    : '1'}
               </span>
               <button
                 type="button"
@@ -725,7 +729,13 @@ export function DeckControls({
                 title={deck.loop ? 'Exit Loop' : `Activate ${currentLoopBars}-bar Loop`}
               >
                 <span>↺</span>
-                <span className="truncate">{currentLoopBars >= 1 ? currentLoopBars : `1/${Math.round(1 / currentLoopBars)}`}</span>
+                <span className="truncate">
+                  {currentLoopBars >= 0.875
+                    ? Math.round(currentLoopBars)
+                    : Math.round(1 / currentLoopBars) > 1
+                      ? `1/${Math.round(1 / currentLoopBars)}`
+                      : '1'}
+                </span>
               </button>
               <div
                 className="flex flex-col border-l w-2.5 h-full shrink-0"

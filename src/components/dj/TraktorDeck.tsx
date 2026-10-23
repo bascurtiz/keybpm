@@ -183,7 +183,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => stepPitchBpm(-0.1)}
             disabled={!deck.track}
-            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Tempo down (-0.1 BPM)"
             aria-label="Tempo down"
           >
@@ -203,7 +203,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => stepPitchBpm(0.1)}
             disabled={!deck.track}
-            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Tempo up (+0.1 BPM)"
             aria-label="Tempo up"
           >
@@ -282,7 +282,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => deck.setKeyShift(Math.max(-6, deck.keyShift - 1))}
             disabled={!deck.track || deck.keyShift <= -6}
-            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Transpose Key -1 semitone"
             aria-label="Transpose Key down"
           >
@@ -321,7 +321,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => deck.setKeyShift(Math.min(6, deck.keyShift + 1))}
             disabled={!deck.track || deck.keyShift >= 6}
-            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Transpose Key +1 semitone"
             aria-label="Transpose Key up"
           >
@@ -377,16 +377,16 @@ export function TraktorDeck({
           <span className="text-[8.5px] font-semibold text-[#777777] uppercase tracking-wider mb-1.5 leading-none select-none">
             CUES
           </span>
-          <div className="flex flex-col w-full shrink-0 rounded-[3px] border border-[#282828] bg-[#141414]">
-            {[0, 1, 2, 3].map((i, idx) => {
+          <div className="flex flex-col gap-1 w-full shrink-0 items-center">
+            {[0, 1, 2, 3].map((i) => {
               const cueTime = deck.hotCues[i]
               const hasCue = cueTime !== null
               const isWaiting = deck.waitingCueIndex === i
               return (
                 <div
                   key={i}
-                  style={{ height: kiosk ? CONTROL_H : 24 }}
-                  className={`relative group/cue w-full shrink-0 ${idx < 3 ? 'border-b border-[#282828]' : ''}`}
+                  style={{ width: CONTROL_W, height: kiosk ? 20 : CONTROL_H }}
+                  className="relative group/cue shrink-0"
                 >
                   <button
                     type="button"
@@ -409,14 +409,12 @@ export function TraktorDeck({
                       e.preventDefault()
                       if (hasCue) deck.clearHotCue(i)
                     }}
-                    className={`w-full h-full border font-mono text-[10px] font-bold flex items-center justify-center transition-all select-none ${
-                      idx === 0 ? 'rounded-t-[2px]' : idx === 3 ? 'rounded-b-[2px]' : ''
-                    } ${
+                    className={`w-full h-full rounded-[3px] border font-mono text-[10px] font-bold flex items-center justify-center transition-all select-none ${
                       isWaiting
-                        ? 'border-transparent bg-[#141414] text-white animate-pulse'
+                        ? 'border-white bg-[#141414] text-white animate-pulse'
                         : hasCue
                         ? ACTIVE
-                        : 'border-transparent bg-[#141414] text-[#777777] hover:text-[#d4d4d4]'
+                        : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
                     }`}
                     title={
                       hasCue

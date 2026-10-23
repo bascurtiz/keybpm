@@ -63,7 +63,7 @@ const DOWNBEAT_STRIPE = '#f4f4f5'
  * The 24 px is the rewind button's height (`w-6 h-6`) on the other end of these lanes: the two
  * ends of the lane are the same furniture, so they are the same size.
  */
-const GRID_TOOL_BOX = 'h-6 rounded border border-[#282828] bg-[#141414] shadow-sm'
+const GRID_TOOL_BOX = 'h-6 rounded border border-[#282828] bg-[#141414] shadow-sm select-none active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)]'
 const GRID_TOOL_TEXT = 'text-[#888888] hover:text-[#d4d4d4]'
 
 /**
@@ -504,7 +504,7 @@ export function StackedWaveforms({
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomOut}
           disabled={windowSeconds >= WINDOW_MAX_S}
-          className={`${TAP_PAD} pointer-events-auto w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 select-none`}
+          className={`${TAP_PAD} pointer-events-auto w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 select-none`}
           title="Zoom out (−) — wider view (or scroll down)"
           aria-label="Zoom out waveforms"
         >
@@ -527,7 +527,7 @@ export function StackedWaveforms({
           onPointerDown={e => e.stopPropagation()}
           onClick={zoomIn}
           disabled={windowSeconds <= WINDOW_MIN_S}
-          className={`${TAP_PAD} pointer-events-auto w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 select-none`}
+          className={`${TAP_PAD} pointer-events-auto w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 select-none`}
           title="Zoom in (+) — closer view (or scroll up)"
           aria-label="Zoom in waveforms"
         >
@@ -555,7 +555,7 @@ export function StackedWaveforms({
             deckA.seek(0)
           }}
           disabled={!deckA.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
           title="Rewind to start of Deck A (|◀)"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
@@ -574,7 +574,7 @@ export function StackedWaveforms({
             deckB.seek(0)
           }}
           disabled={!deckB.track}
-          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
+          className={`${TAP_PAD} max-lg:after:-inset-x-1.5 w-6 h-6 rounded bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm backdrop-blur-sm disabled:opacity-20 disabled:pointer-events-none`}
           title="Rewind to start of Deck B (|◀)"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3" aria-hidden="true">
@@ -656,7 +656,7 @@ export function StackedWaveforms({
           className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'A'
               ? ACTIVE_DECK_A
-              : 'bg-[#141414] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
+              : 'bg-[#141414] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)]'
           }`}
           title="Adjust Deck A Beatgrid"
         >
@@ -721,7 +721,7 @@ export function StackedWaveforms({
           className={`${TAP_PAD} max-lg:after:-inset-x-0.5 ml-1.5 h-6 px-2 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors shadow-sm flex items-center gap-1 ${
             activeGridDeckId === 'B'
               ? ACTIVE_DECK_B
-              : 'bg-[#141414] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444]'
+              : 'bg-[#141414] border-[#282828] text-[#888888] hover:text-[#d4d4d4] hover:border-[#444444] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)]'
           }`}
           title="Adjust Deck B Beatgrid"
         >
@@ -811,7 +811,7 @@ export function StackedWaveforms({
               type="button"
               onClick={e => activeGridDeck.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)}
               disabled={!activeGridDeck.track}
-              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white active:text-white active:border-white active:bg-[#101010] font-mono text-[10px] font-bold disabled:opacity-30"
               title="Shift beatgrid left 10ms (Shift-click for 2ms fine step)"
             >
               ◀ 10ms
@@ -820,7 +820,7 @@ export function StackedWaveforms({
               type="button"
               onClick={e => activeGridDeck.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)}
               disabled={!activeGridDeck.track}
-              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white active:text-white active:border-white active:bg-[#101010] font-mono text-[10px] font-bold disabled:opacity-30"
               title="Shift beatgrid right 10ms (Shift-click for 2ms fine step)"
             >
               10ms ▶
@@ -836,7 +836,7 @@ export function StackedWaveforms({
               type="button"
               onClick={() => activeGridDeck.adjustGridBpm(-0.1)}
               disabled={!activeGridDeck.track}
-              className="h-5 w-5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[11px] font-bold disabled:opacity-30 flex items-center justify-center"
+              className="h-5 w-5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white active:text-white active:border-white active:bg-[#101010] font-mono text-[11px] font-bold disabled:opacity-30 flex items-center justify-center"
               title="Compress grid: −0.1 BPM"
             >
               −
@@ -845,7 +845,7 @@ export function StackedWaveforms({
               type="button"
               onClick={() => activeGridDeck.adjustGridBpm(0.1)}
               disabled={!activeGridDeck.track}
-              className="h-5 w-5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[11px] font-bold disabled:opacity-30 flex items-center justify-center"
+              className="h-5 w-5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white active:text-white active:border-white active:bg-[#101010] font-mono text-[11px] font-bold disabled:opacity-30 flex items-center justify-center"
               title="Stretch grid: +0.1 BPM"
             >
               +
@@ -1107,12 +1107,13 @@ function renderDeckLane({
       const beats = beatLen > 0 ? (deck.loop.end - deck.loop.start) / beatLen : 0
       // Below a beat, say `1/2` rather than `0.5` — the console's own loop readouts already
       // speak in that notation, and a leading `0.` reads as a timecode here.
-      const label =
-        beats >= 1
-          ? String(Math.round(beats))
-          : beats > 0
-            ? `1/${Math.round(1 / beats)}`
-            : ''
+      let label = ''
+      if (beats >= 0.875) {
+        label = String(Math.round(beats))
+      } else if (beats > 0) {
+        const denom = Math.round(1 / beats)
+        label = denom > 1 ? `1/${denom}` : '1'
+      }
 
       // Measure font & text so the chip wraps the number with balanced padding instead of
       // drawing a stretched wide pill on mobile screens.

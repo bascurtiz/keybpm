@@ -50,25 +50,22 @@
  * Deck identity is the other colour axis: the beatgrid buttons that belong to a deck light up in
  * that deck's colour, and the loop-length readout uses the same legend green as `ACTIVE_SWITCH`.
  */
-export const ACTIVE =
-  'bg-[#101010] text-white !border-white shadow-[inset_0_0_6px_rgba(255,255,255,0.4),inset_0_0_2px_rgba(255,255,255,0.5)]'
+export const ACTIVE = 'bg-[#101010] text-white !border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
 
 /**
  * Active play button state: matching the console's darker recessed background (#101010)
- * with crisp white play glyph, solid white border outline, and inward-only glow.
+ * with crisp white play glyph, solid white border outline, and subtle soft glow.
  */
-export const ACTIVE_PLAY =
-  'bg-[#101010] text-white !border-white shadow-[inset_0_0_6px_rgba(255,255,255,0.4),inset_0_0_2px_rgba(255,255,255,0.5)]'
+export const ACTIVE_PLAY = 'bg-[#101010] text-white !border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
 
 /**
  * The white active state:
  * KEY, CUE, SLIP, SYNC, TAP, MOVE, AUTO, LOOP, and FX controls.
  *
- * Crisp pure white text, solid white outline border, darker recessed background (#101010),
- * and an inward-only glow (no outer shadow bleed).
+ * Crisp pure white text, solid white outline border, darker recessed background (#101010)
+ * and subtle soft glow fx.
  */
-export const ACTIVE_KEY =
-  'bg-[#101010] text-white !border-white shadow-[inset_0_0_6px_rgba(255,255,255,0.4),inset_0_0_2px_rgba(255,255,255,0.5)]'
+export const ACTIVE_KEY = 'bg-[#101010] text-white !border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
 
 /**
  * The performance switch state (e.g. LOOP).
@@ -89,7 +86,7 @@ export const CELL = 'border border-transparent'
  *
  * Digit illuminates in vibrant emerald green (#34d399).
  */
-export const ACTIVE_LOOP_COUNT = 'bg-[#101010] text-emerald-400 border-x-[#282828]'
+export const ACTIVE_LOOP_COUNT = 'bg-[#101010] text-emerald-400 border-[#282828]'
 
 /** Deck A's accent, in the same outline-and-glow shape as `ACTIVE`. */
 export const ACTIVE_DECK_A =

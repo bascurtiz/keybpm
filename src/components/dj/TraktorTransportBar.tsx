@@ -4,7 +4,7 @@ import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { Fader } from './Fader'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 import { useViewportMode } from '@/lib/use-viewport'
-import { CONTROL_W, CONTROL_FRAME_W, CONTROL_H, CONTROL_STACK_H } from '@/lib/dj/control-size'
+import { CONTROL_W, CONTROL_H } from '@/lib/dj/control-size'
 import { ACTIVE_KEY, ACTIVE_LOOP_COUNT, ACTIVE_PLAY, ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
 
 interface TraktorTransportBarProps {
@@ -65,7 +65,7 @@ const BASS_SWAP_TO = 0.75
  * between its three groups (each side group grows by 30, the centre stays put) rather
  * than out of the neighbouring switches.
  */
-const LOOP_CLUSTER_W = 84
+const LOOP_CLUSTER_W = 96
 
 /** The two arrows flanking the loop count: `22 + 38 + 22 + 2` frame borders = `LOOP_CLUSTER_W`. */
 const LOOP_CLUSTER_ARROW_W = 22
@@ -355,7 +355,14 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
   )
 }
 
-const LOOP_BEAT_SIZES = [1, 2, 4, 8, 16, 32]
+const LOOP_BEAT_SIZES = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64]
+
+function formatLoopBeats(beats: number): string {
+  if (beats === 0.25) return '1/4'
+  if (beats === 0.5) return '1/2'
+  if (beats === 0.125) return '1/8'
+  return String(beats)
+}
 
 /**
  * Press feedback for the loop cluster's triangles, the same idea as the − / + under the pitch
@@ -382,7 +389,7 @@ function DeckTransport({
   otherDeck: DeckEngine
   deckId: 'A' | 'B'
 }) {
-  const [selectedLoopIdx, setSelectedLoopIdx] = useState(2) // Default 4 beats
+  const [selectedLoopIdx, setSelectedLoopIdx] = useState(4) // Default 4 beats
   // What the < number > cluster under the switch does: size and toggle a loop, or beat-jump the
   // playhead. Kept per deck, like the size, so the two transports can be set up differently.
   // MOVE is a toggle of its own rather than a mode: on makes the arrows jump the playhead, off
@@ -449,7 +456,19 @@ function DeckTransport({
     } else {
       // Local beat length at the loop start, so loops stay beat-accurate on a
       // variable-tempo grid instead of assuming one global tempo.
-      const start = deck.snapMode ? deck.snapToBeat(deck.position) : deck.position
+      let start = deck.position
+      const beatLen = deck.beatLengthAt(start)
+      if (deck.snapMode && beatLen > 0) {
+        if (currentBeats < 1) {
+          // Snap to the nearest fractional sub-beat subdivision (e.g. 1/2 or 1/4 beat)
+          const beatGridStart = deck.snapToBeat(start)
+          const offsetBeats = (start - beatGridStart) / beatLen
+          const snappedFractionalBeats = Math.round(offsetBeats / currentBeats) * currentBeats
+          start = beatGridStart + snappedFractionalBeats * beatLen
+        } else {
+          start = deck.snapToBeat(start)
+        }
+      }
       const loopLenSeconds = currentBeats * deck.beatLengthAt(start)
       deck.setLoop(start, start + loopLenSeconds)
     }
@@ -598,16 +617,16 @@ function DeckTransport({
     >
       {/* Left Cluster: Play/Cue + Sync/Tap */}
       <div className={`flex items-center shrink-0 ${kiosk ? 'gap-1.5' : 'gap-[14px]'}`}>
-        {/* Play / CUE unified container matching mockup */}
-        <div className="flex h-11 w-[88px] shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]">
+        {/* Play & CUE standalone rounded buttons */}
+        <div className="flex h-11 w-[100px] shrink-0 items-stretch gap-1">
           <button
             type="button"
             onClick={handleTogglePlay}
             disabled={!isDeckReady}
-            className={`w-12 ${CELL} rounded-l-[2px] flex items-center justify-center transition-all select-none ${
+            className={`w-12 h-full rounded-[3px] border flex items-center justify-center transition-all select-none ${
               isPlayingActive
                 ? ACTIVE_PLAY
-                : 'bg-[#141414] text-[#777777] border-r-[#282828] hover:text-[#d4d4d4] hover:border-r-[#444444]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={`Deck ${deckId} Play / Pause (Space / Click)`}
           >
@@ -624,10 +643,10 @@ function DeckTransport({
             onClick={e => e.preventDefault()}
             onContextMenu={e => e.preventDefault()}
             disabled={!isDeckReady}
-            className={`flex-1 ${CELL} rounded-r-[2px] flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
+            className={`flex-1 h-full rounded-[3px] border flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
               deck.cuePreviewing
                 ? ACTIVE_KEY
-                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={`Deck ${deckId} Cue (Hold to preview, release to snap back)`}
           >
@@ -635,20 +654,19 @@ function DeckTransport({
           </button>
         </div>
 
-        {/* SYNC / TAP dual stacked switch. */}
+        {/* SYNC / TAP dual stacked standalone buttons */}
         <div
-          style={{ width: CONTROL_FRAME_W, height: CONTROL_STACK_H }}
-          className="flex flex-col shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]"
+          style={{ width: CONTROL_W }}
+          className="flex flex-col shrink-0 h-11 gap-1"
         >
           <button
             type="button"
             onClick={() => deck.syncTo(otherDeck)}
             disabled={!deck.track || !otherDeck?.track}
-            style={{ height: CONTROL_H }}
-            className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            className={`w-full flex-1 rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
               deck.syncLocked
                 ? ACTIVE_KEY
-                : 'bg-[#141414] text-[#777777] border-b-[#282828] enabled:hover:text-[#d4d4d4] enabled:hover:border-b-[#444444] disabled:cursor-not-allowed'
+                : 'bg-[#141414] text-[#777777] border-[#282828] enabled:hover:text-[#d4d4d4] enabled:hover:border-[#444444] disabled:cursor-not-allowed'
             }`}
             title={`Deck ${deckId} Sync — lock tempo and phase to other deck`}
           >
@@ -658,11 +676,10 @@ function DeckTransport({
             type="button"
             onClick={handleTapTempo}
             disabled={!deck.track}
-            style={{ height: CONTROL_H }}
-            className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            className={`w-full flex-1 rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
               tapCount > 0
                 ? ACTIVE_KEY
-                : 'bg-[#141414] text-[#777777] enabled:hover:text-[#d4d4d4] disabled:cursor-not-allowed'
+                : 'bg-[#141414] text-[#777777] border-[#282828] enabled:hover:text-[#d4d4d4] enabled:hover:border-[#444444] disabled:cursor-not-allowed'
             }`}
             title={`Deck ${deckId} Tap Tempo — Tap 4 times in rhythm to set BPM`}
           >
@@ -682,25 +699,25 @@ function DeckTransport({
 
       {/* Right Cluster: Loop cluster + Loop/Move */}
       <div className={`flex items-center shrink-0 ${kiosk ? 'gap-1.5' : 'gap-[14px]'}`}>
-        {/* Loop Beat Length Cluster: < 4 >. */}
+        {/* Loop Beat Length Cluster: < 4 > standalone elements matching - and + buttons */}
         <div
           style={{ width: LOOP_CLUSTER_W }}
-          className="flex h-11 shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]"
+          className="flex h-11 shrink-0 items-stretch gap-1"
         >
           <button
             type="button"
             onClick={moveOn ? () => beatJump(-1) : loopHalf}
             disabled={moveOn ? !deck.track : !deck.track || selectedLoopIdx === 0}
             style={{ width: LOOP_CLUSTER_ARROW_W }}
-            className="shrink-0 flex items-center justify-center bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white transition-colors"
+            className="shrink-0 flex items-center justify-center rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] transition-all select-none disabled:opacity-20"
             aria-label={
               moveOn
-                ? `Jump the playhead back ${currentBeats} beats`
+                ? `Jump the playhead back ${formatLoopBeats(currentBeats)} beats`
                 : 'Half loop length'
             }
             title={
               moveOn
-                ? `Jump the playhead back ${currentBeats} beats (a running loop comes with it)`
+                ? `Jump the playhead back ${formatLoopBeats(currentBeats)} beats (a running loop comes with it)`
                 : 'Half loop length (÷2)'
             }
           >
@@ -711,21 +728,21 @@ function DeckTransport({
             type="button"
             onClick={moveOn ? cycleBeats : toggleLoop}
             disabled={!deck.track}
-            className={`flex-1 ${CELL} flex items-center justify-center transition-all text-[11px] font-mono font-bold leading-none select-none ${
+            className={`flex-1 rounded-[3px] border flex items-center justify-center transition-all text-[11px] font-mono font-bold leading-none select-none ${
               isLoopActive
                 ? ACTIVE_LOOP_COUNT
-                : 'bg-[#101010] text-[#dcdcdc] border-x-[#282828] hover:text-white hover:border-x-[#444444]'
+                : 'bg-[#101010] text-[#dcdcdc] border-[#282828] hover:text-white hover:border-[#444444]'
             }`}
             aria-label={
-              moveOn ? `${currentBeats}-beat jump step` : `Loop ${currentBeats} beats`
+              moveOn ? `${formatLoopBeats(currentBeats)}-beat jump step` : `Loop ${formatLoopBeats(currentBeats)} beats`
             }
             title={
               moveOn
-                ? `${currentBeats}-beat jump step — click to cycle the size`
-                : `Loop ${currentBeats} beats (Click to toggle)`
+                ? `${formatLoopBeats(currentBeats)}-beat jump step — click to cycle the size`
+                : `Loop ${formatLoopBeats(currentBeats)} beats (Click to toggle)`
             }
           >
-            {currentBeats}
+            {formatLoopBeats(currentBeats)}
           </button>
 
           <button
@@ -735,15 +752,15 @@ function DeckTransport({
               moveOn ? !deck.track : !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
             }
             style={{ width: LOOP_CLUSTER_ARROW_W }}
-            className="shrink-0 flex items-center justify-center bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white transition-colors"
+            className="shrink-0 flex items-center justify-center rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] transition-all select-none disabled:opacity-20"
             aria-label={
               moveOn
-                ? `Jump the playhead forward ${currentBeats} beats`
+                ? `Jump the playhead forward ${formatLoopBeats(currentBeats)} beats`
                 : 'Double loop length'
             }
             title={
               moveOn
-                ? `Jump the playhead forward ${currentBeats} beats (a running loop comes with it)`
+                ? `Jump the playhead forward ${formatLoopBeats(currentBeats)} beats (a running loop comes with it)`
                 : 'Double loop length (×2)'
             }
           >
@@ -751,25 +768,24 @@ function DeckTransport({
           </button>
         </div>
 
-        {/* Loop / Move switches stacked on the right of loop length */}
+        {/* Loop / Move standalone stacked buttons */}
         <div
-          style={{ width: CONTROL_FRAME_W, height: CONTROL_STACK_H }}
-          className="flex flex-col shrink-0 items-stretch overflow-hidden rounded-[3px] border border-[#282828] bg-[#141414]"
+          style={{ width: CONTROL_W }}
+          className="flex flex-col shrink-0 h-11 gap-1"
         >
           <button
             type="button"
             onClick={toggleLoop}
             aria-pressed={isLoopActive}
-            style={{ height: CONTROL_H }}
-            className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            className={`w-full flex-1 rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
               isLoopActive
                 ? ACTIVE_SWITCH
-                : 'bg-[#141414] text-[#777777] border-b-[#282828] hover:text-[#d4d4d4] hover:border-b-[#444444]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={
               isLoopActive
-                ? `LOOP running (${currentBeats} beats) — click to release it`
-                : `LOOP: arm a ${currentBeats}-beat loop at the playhead`
+                ? `LOOP running (${formatLoopBeats(currentBeats)} beats) — click to release it`
+                : `LOOP: arm a ${formatLoopBeats(currentBeats)}-beat loop at the playhead`
             }
           >
             LOOP
@@ -778,11 +794,10 @@ function DeckTransport({
             type="button"
             onClick={toggleMove}
             aria-pressed={moveOn}
-            style={{ height: CONTROL_H }}
-            className={`w-full ${CELL} text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
+            className={`w-full flex-1 rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider leading-none transition-all flex items-center justify-center select-none ${
               moveOn
                 ? ACTIVE_KEY
-                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4]'
+                : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
             }`}
             title={
               moveOn

@@ -2294,12 +2294,41 @@ export class DeckEngine {
 
   setLoop(start: number, end: number) {
     if (!this.track) return
-    const snappedStart = this.snapMode ? this.snapToBeat(start) : start
-    const snappedEnd = this.snapMode ? this.snapToBeat(end) : end
-    const s = Math.max(0, Math.min(snappedStart, this.duration))
-    const e = Math.max(s + 0.05, Math.min(snappedEnd > s ? snappedEnd : end, this.duration))
+    const rawLen = Math.max(0.01, end - start)
+    const beatLen = this.beatLengthAt(start)
+    const isSubBeat = beatLen > 0 && rawLen < beatLen * 0.95
+
+    // For whole-beat loops, snap start to the nearest beatgrid line if snapMode is on.
+    // For sub-beat loops (1/4, 1/2 beat), preserve fractional alignment so the loop
+    // is not forced onto integer beat boundaries.
+    const s =
+      this.snapMode && !isSubBeat
+        ? Math.max(0, Math.min(this.snapToBeat(start), this.duration))
+        : Math.max(0, Math.min(start, this.duration))
+
+    let e: number
+    if (isSubBeat) {
+      e = Math.min(s + rawLen, this.duration)
+    } else if (this.snapMode) {
+      const snappedEnd = this.snapToBeat(s + rawLen)
+      e = Math.max(s + 0.05, Math.min(snappedEnd > s ? snappedEnd : s + rawLen, this.duration))
+    } else {
+      e = Math.max(s + 0.05, Math.min(s + rawLen, this.duration))
+    }
+
     this.loop = { start: s, end: e, bars: 0 }
     this.post({ t: 'loop', loop: this.loop })
+
+    // If playhead is currently outside the newly armed loop, wrap or jump into it
+    if (this.position >= e || this.position < s) {
+      const loopDuration = e - s
+      if (loopDuration > 0.02) {
+        const offset = Math.max(0, this.position - s)
+        const wrapped = s + (offset % loopDuration)
+        this.seek(wrapped)
+      }
+    }
+
     this.emit()
   }
 
