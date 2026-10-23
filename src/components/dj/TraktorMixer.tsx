@@ -18,9 +18,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const deckB = engine.decks.B
   const [, setVer] = useState(0)
 
-  const knobSize = kiosk ? 38 : 42
-  const filterSize = kiosk ? 38 : 42
-  const faderClass = kiosk ? 'w-6 h-[140px]' : 'w-6 h-[155px]'
+  const knobSize = kiosk ? 40 : 42
+  const filterSize = kiosk ? 40 : 42
+  const faderClass = kiosk ? 'w-6 h-[148px]' : 'w-6 h-[155px]'
 
   useEffect(() => {
     const unE = engine.subscribe(() => setVer(v => v + 1))
@@ -138,10 +138,9 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       {/* Column widths are the console's width budget: on a desktop the outer fader columns
           are 44 (was 36), the EQ columns 52 (was 40) and the filter/FX panel 186 (was 136),
           which is the mixer's share of the deck row's 150 px widening — 428 in total. Kiosk
-          has its own, smaller set (40 / 44 / 142, 360 in total): the phone's console is too
-          short to bind on width, so its columns can grow with the design without costing
-          anything, and a phone's knobs are reached by a thumb that benefits from the room. */}
-      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-10' : 'w-11'}`}>
+          has its own set (36 / 44 / 142, 350 in total) with the faders drawn inward toward
+          the EQ columns, giving larger platters on mobile. */}
+      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-9' : 'w-11'}`}>
         <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-wider mb-1 leading-none">
           A
         </span>
@@ -162,27 +161,29 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         </div>
       </div>
 
-      {/* ================= 2. DECK A EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
+      {/* ================= 2. DECK A EQ COLUMN (HI, MID, LOW) ================= */}
       <div
-        className={`flex flex-col justify-between items-center py-0.5 shrink-0 ${
-          kiosk ? 'w-11' : 'w-[52px]'
-        }`}
+        className={`flex flex-col justify-between items-center ${
+          kiosk ? 'py-1 w-11' : 'py-0.5 w-[52px]'
+        } shrink-0`}
       >
-        <EqKnobItem
-          label="GAIN"
-          knob={
-            <Knob
-              size={knobSize}
-              min={0}
-              max={2}
-              defaultValue={1}
-              bipolar
-              value={deckA.gain}
-              onValueChange={v => deckA.setGain(v)}
-              accentColor="#34d399"
-            />
-          }
-        />
+        {!kiosk && (
+          <EqKnobItem
+            label="GAIN"
+            knob={
+              <Knob
+                size={knobSize}
+                min={0}
+                max={2}
+                defaultValue={1}
+                bipolar
+                value={deckA.gain}
+                onValueChange={v => deckA.setGain(v)}
+                accentColor="#34d399"
+              />
+            }
+          />
+        )}
         <EqKnobItem
           label="HI"
           knob={
@@ -374,27 +375,29 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
 
       </div>
 
-      {/* ================= 4. DECK B EQ COLUMN (GAIN, HI, MID, LOW) ================= */}
+      {/* ================= 4. DECK B EQ COLUMN (HI, MID, LOW) ================= */}
       <div
-        className={`flex flex-col justify-between items-center py-0.5 shrink-0 ${
-          kiosk ? 'w-11' : 'w-[52px]'
-        }`}
+        className={`flex flex-col justify-between items-center ${
+          kiosk ? 'py-1 w-11' : 'py-0.5 w-[52px]'
+        } shrink-0`}
       >
-        <EqKnobItem
-          label="GAIN"
-          knob={
-            <Knob
-              size={knobSize}
-              min={0}
-              max={2}
-              defaultValue={1}
-              bipolar
-              value={deckB.gain}
-              onValueChange={v => deckB.setGain(v)}
-              accentColor="#a855f7"
-            />
-          }
-        />
+        {!kiosk && (
+          <EqKnobItem
+            label="GAIN"
+            knob={
+              <Knob
+                size={knobSize}
+                min={0}
+                max={2}
+                defaultValue={1}
+                bipolar
+                value={deckB.gain}
+                onValueChange={v => deckB.setGain(v)}
+                accentColor="#a855f7"
+              />
+            }
+          />
+        )}
         <EqKnobItem
           label="HI"
           knob={
@@ -443,7 +446,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       </div>
 
       {/* ================= 5. DECK B CHANNEL FADER ================= */}
-      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-10' : 'w-11'}`}>
+      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-9' : 'w-11'}`}>
         <span className="text-[12px] font-bold text-purple-400 uppercase tracking-wider mb-1 leading-none">
           B
         </span>

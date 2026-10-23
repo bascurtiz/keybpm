@@ -151,8 +151,8 @@ export function TraktorMiddleStrip({
             glance at, while snap / bar / quantise are controls you hit. Stacking them
             keeps the module roughly square instead of a wide strip that squeezed both
             deck headers into a third of the console each. */}
-        <div className="flex shrink-0 flex-col items-center justify-center gap-1.5 px-4 py-1">
-          <div className="flex items-center gap-4">
+        <div className={`flex shrink-0 flex-col items-center justify-center gap-1.5 ${showFx === false ? 'px-2' : 'px-4'} py-1`}>
+          <div className={`flex items-center ${showFx === false ? 'gap-2.5' : 'gap-4'}`}>
             <div className="flex flex-col items-center">
               <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider">
                 MASTER BPM
@@ -208,7 +208,7 @@ export function TraktorMiddleStrip({
               </div>
             </div>
 
-            <div className="h-8 w-px bg-[#252525]" />
+            {showFx !== false && <div className="h-8 w-px bg-[#252525]" />}
 
             <div className="flex flex-col items-center">
               <span className="text-[8.5px] font-semibold text-[#888888] uppercase tracking-wider">

@@ -596,6 +596,7 @@ export function MixIt() {
                 setActiveFxDeck(current => (current === deckId ? null : deckId))
               }}
               activeFxDeck={activeFxDeck}
+              showFx={!kiosk}
             />
 
             {/* 2. OPTIONAL FX DRAWER. It floats over the metadata strip rather than taking
@@ -645,7 +646,7 @@ export function MixIt() {
                 // The wide layout is the roomier of the two: the components' desktop
                 // variants are sized for this padding, and swapping it for the phone's
                 // tighter one would leave them short of the chassis width.
-                kiosk ? 'px-2.5 py-2.5 gap-2.5' : 'px-[14px] py-2 gap-[24px]'
+                kiosk ? 'px-2 py-1 gap-2' : 'px-[14px] py-2 gap-[24px]'
               }`}
               style={{ height: kiosk ? KIOSK_DECK_ROW_H : DESKTOP_DECK_ROW_H }}
             >

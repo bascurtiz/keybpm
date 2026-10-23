@@ -35,9 +35,9 @@ export const CONSOLE_WIDTH = 1190
  * limited by width instead and fills it either way.
  *
  * This width is the design of the phone console, so it is coupled to the kiosk layout: the deck
- * is 358 (62 pitch + 10 + 212 jog + 10 + 64 keys) and the mixer 360 (40 / 44 / 142 / 44 / 40
- * plus 32 of gaps, 16 of padding and 2 of border), which with the row's own 10 px gaps and 10 px
- * padding comes to the chassis' 1116 px content box. Change a kiosk column and this follows.
+ * is 364 (54 pitch + 8 + 236 jog + 8 + 58 keys) and the mixer 350 (36 / 44 / 142 / 44 / 36
+ * plus 32 of gaps, 16 of padding and 2 of border), which with the row's own 8 px gaps and 16 px
+ * padding comes to the chassis' 1114 px content box. Change a kiosk column and this follows.
  */
 export const KIOSK_CONSOLE_WIDTH = 1118
 

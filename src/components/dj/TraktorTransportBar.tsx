@@ -252,12 +252,12 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       } flex items-center select-none ${className}`}
     >
       {/* ================= DECK A TRANSPORT (LEFT) ================= */}
-      <div className={`flex items-center shrink-0 ${kiosk ? '' : 'w-[362px]'}`}>
+      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[364px]' : 'w-[362px]'}`}>
         <DeckTransport deck={deckA} otherDeck={deckB} deckId="A" />
       </div>
 
       {/* ================= CENTER: AUTO | CROSSFADER | FADE LENGTH ================= */}
-      <div className={`flex items-center justify-center shrink-0 ${kiosk ? 'gap-1.5' : 'w-[384px] gap-1.5'}`}>
+      <div className={`flex items-center justify-center shrink-0 ${kiosk ? 'w-[350px] gap-1.5' : 'w-[384px] gap-1.5'}`}>
         <button
           type="button"
           onClick={toggleAuto}
@@ -277,7 +277,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
           AUTO
         </button>
 
-        <div className="w-[200px] h-11 flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]">
+        <div className={`${kiosk ? 'w-[188px]' : 'w-[200px]'} h-11 flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]`}>
           <button
             type="button"
             onClick={() => pressCrossfadeArrow('left')}
@@ -312,7 +312,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
               engine.setCrossfade(v)
             }}
             label="Crossfader"
-            className="h-6 w-[136px] max-w-[136px]"
+            className={`h-6 ${kiosk ? 'w-[124px] max-w-[124px]' : 'w-[136px] max-w-[136px]'}`}
           />
 
           <button
@@ -348,7 +348,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       </div>
 
       {/* ================= DECK B TRANSPORT (RIGHT) ================= */}
-      <div className={`flex items-center shrink-0 ${kiosk ? '' : 'w-[362px]'}`}>
+      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[364px]' : 'w-[362px]'}`}>
         <DeckTransport deck={deckB} otherDeck={deckA} deckId="B" />
       </div>
     </div>
@@ -612,7 +612,7 @@ function DeckTransport({
   return (
     <div
       className={`flex items-center ${
-        kiosk ? 'gap-1.5' : `w-[362px] ${deckId === 'A' ? 'pr-[5px]' : 'pr-[6px]'}`
+        kiosk ? 'w-[364px] gap-1.5' : `w-[362px] ${deckId === 'A' ? 'pr-[5px]' : 'pr-[6px]'}`
       }`}
     >
       {/* Left Cluster: Play/Cue + Sync/Tap */}

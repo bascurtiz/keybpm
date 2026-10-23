@@ -131,15 +131,15 @@ export function TraktorDeck({
   return (
     <div
       className={`flex items-center ${
-        kiosk ? 'gap-2.5' : 'gap-[24px]'
+        kiosk ? 'gap-2' : 'gap-[24px]'
       } h-full select-none shrink-0 ${isOuterLeft ? 'flex-row' : 'flex-row-reverse'}`}
     >
       {/* ================= 1. OUTER EDGE: PITCH FADER SECTION ================= */}
       {/* 66 px on a desktop, 4 px of it side padding: the readout and the − / + strip are 58 px
-          wide in that well. Kiosk keeps 62. */}
+          wide in that well. Kiosk keeps a sleeker 54 px to allow larger platters. */}
       <div
         className={`flex flex-col items-center justify-between h-full py-2 px-1 shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none ${
-          kiosk ? 'w-[62px]' : 'w-[66px]'
+          kiosk ? 'w-[54px]' : 'w-[66px]'
         }`}
       >
         {/* Pitch Rate Readout & Reset to 0%. */}
@@ -173,7 +173,7 @@ export function TraktorDeck({
               youtubeBridge.setPlaybackRate(deckId, r)
             }}
             accentColor={accentColor}
-            className={`w-6 ${kiosk ? 'h-[140px]' : 'h-[155px]'}`}
+            className={`w-6 ${kiosk ? 'h-[148px]' : 'h-[155px]'}`}
           />
         </div>
 
@@ -227,7 +227,7 @@ export function TraktorDeck({
         <JogWheel
           deck={deck}
           deckId={deckId}
-          size={kiosk ? 212 : 184}
+          size={kiosk ? 236 : 184}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />
@@ -268,12 +268,11 @@ export function TraktorDeck({
       </div>
 
       {/* ================= 3. INNER EDGE: KEY ADJUST & HOT CUES ================= */}
-      {/* 64 px, not 62: its 52 px buttons sit in 54 px frames (see control-size.ts), and
-          the extra 2 px of column is what lets a 54 px frame hold a 52 px face without
-          pressing against the column's own border. That is the width SLIP, SYNC, TAP,
-          LOOP and MOVE now all measure. */}
+      {/* 64 px on desktop (52 px buttons in 54 px frames). Kiosk keeps 58 px. */}
       <div
-        className="flex flex-col items-center h-full py-2 px-1 w-[64px] shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none"
+        className={`flex flex-col items-center h-full py-2 px-1 ${
+          kiosk ? 'w-[58px]' : 'w-[64px]'
+        } shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none`}
         title={`Deck ${deckId} Controls`}
       >
         {/* Top: Key Transpose Stepper [- 0 +] */}
@@ -344,7 +343,7 @@ export function TraktorDeck({
           type="button"
           onClick={handleKeySync}
           disabled={!deck.track || !otherDeck?.track}
-          style={{ width: CONTROL_W }}
+          style={{ width: kiosk ? 48 : CONTROL_W }}
           className={`h-6 mt-1.5 rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
             isKeySynced
               ? ACTIVE_KEY
@@ -360,7 +359,7 @@ export function TraktorDeck({
           <button
             type="button"
             onClick={() => deck.toggleFluxMode()}
-            style={{ width: CONTROL_W }}
+            style={{ width: kiosk ? 48 : CONTROL_W }}
             className={`h-6 rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
               deck.fluxMode
                 ? ACTIVE_KEY
@@ -385,7 +384,7 @@ export function TraktorDeck({
               return (
                 <div
                   key={i}
-                  style={{ width: CONTROL_W, height: kiosk ? 20 : CONTROL_H }}
+                  style={{ width: kiosk ? 48 : CONTROL_W, height: kiosk ? 20 : CONTROL_H }}
                   className="relative group/cue shrink-0"
                 >
                   <button
