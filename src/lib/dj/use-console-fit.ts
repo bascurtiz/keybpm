@@ -25,7 +25,7 @@ export const CONSOLE_WIDTH = 1190
  * rather than for the desktop window, and it lays its deck row out with 2.5 px gaps and a much
  * narrower mixer panel (see the kiosk branches in `TraktorDeck` / `TraktorMixer`).
  *
- * 1156 is the width at which the console's proportions match a landscape phone's. A phone screen
+ * 1116 is the width at which the console's proportions match a landscape phone's. A phone screen
  * is wider than the console is tall-relative-to-wide (a 900×412 window is ~2.2:1, the console at
  * 1040 × 582 is ~1.8:1), so the fit is limited by *height*: the console filled the screen top to
  * bottom and stopped at about 82 % of its width, leaving dark bands either side — width the phone
@@ -35,11 +35,11 @@ export const CONSOLE_WIDTH = 1190
  * limited by width instead and fills it either way.
  *
  * This width is the design of the phone console, so it is coupled to the kiosk layout: the deck
- * is 358 (64 pitch + 8 + 220 jog + 8 + 58 keys) and the mixer 402 (36 / 54 / 172 / 54 / 36
+ * is 360 (64 pitch + 16 + 200 jog + 16 + 64 keys) and the mixer 402 (48 / 54 / 148 / 54 / 48
  * plus 32 of gaps, 16 of padding and 2 of border), which with the row's own 8 px gaps and 16 px
- * padding comes to the chassis' 1150 px content box. Change a kiosk column and this follows.
+ * padding comes to the chassis' 1138 px content box. Change a kiosk column and this follows.
  */
-export const KIOSK_CONSOLE_WIDTH = 1156
+export const KIOSK_CONSOLE_WIDTH = 1160
 
 interface ConsoleFitResult {
   /** Attach to the element that defines the available space. */

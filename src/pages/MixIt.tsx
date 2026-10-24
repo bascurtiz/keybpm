@@ -506,8 +506,11 @@ export function MixIt() {
     // console takes everything below it; on a phone the bar is hidden and the console
     // starts at the top edge. `bottom-0` rather than a height, so the row the header
     // takes is whatever it actually measured.
+    // `dj-console` scopes the console's type: `index.css` sets every `.font-mono` inside it to
+    // Inter, so the instrument reads as one typeface from the deck headers down to the
+    // crossfader. The rest of the site keeps its monospace readouts.
     <div
-      className="fixed inset-x-0 top-0 bottom-0 z-30 flex flex-col overflow-hidden bg-bg select-none text-text lg:top-[var(--header-h,64px)]"
+      className="dj-console fixed inset-x-0 top-0 bottom-0 z-30 flex flex-col overflow-hidden bg-bg select-none text-text lg:top-[var(--header-h,64px)]"
       style={{
         // A wide screen has the site header and no rail, so the console goes right to
         // the window edge; the band is only there to park the rail buttons in.

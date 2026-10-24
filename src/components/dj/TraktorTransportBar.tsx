@@ -4,7 +4,7 @@ import type { DeckEngine } from '@/lib/dj/deck-engine'
 import { Fader } from './Fader'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 import { useViewportMode } from '@/lib/use-viewport'
-import { CONTROL_W, CONTROL_H } from '@/lib/dj/control-size'
+import { CONTROL_W, CONTROL_H, FADER_CAP_W, KIOSK_FADER_CAP_W } from '@/lib/dj/control-size'
 import { ACTIVE_KEY, ACTIVE_LOOP_COUNT, ACTIVE_PLAY, ACTIVE_SWITCH, CELL } from '@/lib/dj/control-state'
 
 interface TraktorTransportBarProps {
@@ -79,6 +79,16 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
   const { kiosk } = useViewportMode()
   const deckA = engine.decks.A
   const deckB = engine.decks.B
+
+  /**
+   * Height of AUTO and the auto-fade length chip, in design px.
+   *
+   * 24 on a phone: the height the transport's stacked LOOP / MOVE keys get from its 52 px key
+   * row, so the centre cluster's two switches are the same size as the deck's. They were 22 —
+   * `CONTROL_H` — which sat 2 px short of the LOOP / MOVE box next to them and read as a
+   * different, smaller family of switch.
+   */
+  const centreKeyH = kiosk ? 24 : CONTROL_H
 
   const [, setVer] = useState(0)
   useEffect(() => {
@@ -248,23 +258,37 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
         // (82 px = 1 px divider + 12 px top air + 52 px keys + 16 px bottom padding). The keys
         // are 52 — CONTROL_W — because a phone's transport is tapped blind, and at 46 px the
         // play button was the smallest thing a thumb had to find on the row.
+        // 11 px of side padding on a phone, not the row's old 10: the deck row above pads itself
+        // 11, so at 10 every transport group sat 1 px inside its deck and the LOOP / MOVE stack —
+        // inset 6 px so it centres on the pads above it — landed 1 px off centre. Matching the
+        // padding makes the bar's 1106 px content box exactly the deck row's.
         kiosk
-          ? 'px-2.5 h-[82px] pt-3 pb-4 justify-between gap-1.5'
+          ? 'px-[11px] h-[82px] pt-3 pb-4 justify-between gap-1.5'
           : 'px-[14px] h-[77px] pt-4 pb-4 justify-center gap-[24px]'
       } flex items-center select-none ${className}`}
     >
       {/* ================= DECK A TRANSPORT (LEFT) ================= */}
-      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[358px]' : 'w-[362px]'}`}>
+      {/* 360 px on a phone — the width of the deck above it (64 pitch + 16 + 200 jog + 16 + 64
+          keys), so each transport group covers exactly its own deck and the row is centred on the
+          chassis: 360 + 402 + 360 plus the row's 22 px padding leaves 16 px of slack for
+          `justify-between` to split, 8 either side of the crossfader. Matching the deck width is
+          what lets PLAY sit under the deck's outer column on A and its inner one on B. */}
+      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[360px]' : 'w-[362px]'}`}>
         <DeckTransport deck={deckA} otherDeck={deckB} deckId="A" />
       </div>
 
       {/* ================= CENTER: AUTO | CROSSFADER | FADE LENGTH ================= */}
+      {/* The crossfader's slot is 104 px in kiosk, centred on the chassis like the mixer's
+          filter/FX panel above it and 22 px inside the panel's edges either side. The slot is the
+          fader's travel: the panel is a section, the crossfader is a control, and at the panel's
+          full 148 (then 132) the cap's run read as the widest thing between the decks. The cluster
+          around it — AUTO, the two arrows, the beat count — travels with it. */}
       <div className={`flex items-center justify-center shrink-0 ${kiosk ? 'w-[402px] gap-1.5' : 'w-[384px] gap-1.5'}`}>
         <button
           type="button"
           onClick={toggleAuto}
           aria-pressed={autoArmed}
-          style={{ width: CONTROL_W, height: CONTROL_H }}
+          style={{ width: CONTROL_W, height: centreKeyH }}
           className={`rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider flex items-center justify-center transition-all select-none ${
             autoArmed
               ? ACTIVE_KEY
@@ -279,7 +303,12 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
           AUTO
         </button>
 
-        <div className={`${kiosk ? 'w-[224px] h-[52px]' : 'w-[200px] h-11'} flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]`}>
+        {/* The crossfader's own framed section. Its width is the one that reads: the slot inside
+            can shrink all it likes, but the border is what the eye measures the control by. On a
+            phone it is 184 px — the 104 px slot, the two 24 px arrows, 8 px either side and 8 px
+            between them — so the section still reads narrower than the filter/FX panel above it
+            while both arrows keep a full cell. 224 was the width the slot filled at 152. */}
+        <div className={`${kiosk ? 'w-[184px] h-[52px]' : 'w-[200px] h-11'} flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]`}>
           <button
             type="button"
             onClick={() => pressCrossfadeArrow('left')}
@@ -314,7 +343,8 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
               engine.setCrossfade(v)
             }}
             label="Crossfader"
-            className={kiosk ? 'h-8 w-[152px] max-w-[152px]' : 'h-6 w-[136px] max-w-[136px]'}
+            capWidth={kiosk ? KIOSK_FADER_CAP_W : FADER_CAP_W}
+            className={kiosk ? 'h-8 w-[104px] max-w-[104px]' : 'h-6 w-[136px] max-w-[136px]'}
           />
 
           <button
@@ -341,7 +371,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
           type="button"
           onClick={cycleFadeBeats}
           aria-label={`Auto-fade length: ${fadeBeats} beats`}
-          style={{ width: CONTROL_W, height: CONTROL_H }}
+          style={{ width: CONTROL_W, height: centreKeyH }}
           className="rounded-[5px] border border-[#282828] bg-[#101010] text-[#dcdcdc] hover:text-white hover:border-[#444444] font-mono text-[10.5px] font-bold leading-none flex items-center justify-center transition-all select-none"
           title={`Auto-fade length: ${fadeBeats} beats — click to cycle 4 / 8 / 16 / 32 / 64`}
         >
@@ -350,7 +380,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       </div>
 
       {/* ================= DECK B TRANSPORT (RIGHT) ================= */}
-      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[358px]' : 'w-[362px]'}`}>
+      <div className={`flex items-center shrink-0 ${kiosk ? 'w-[360px]' : 'w-[362px]'}`}>
         <DeckTransport deck={deckB} otherDeck={deckA} deckId="B" />
       </div>
     </div>
@@ -616,16 +646,19 @@ function DeckTransport({
   return (
     <div
       className={`flex items-center ${
-        kiosk ? 'w-[358px] gap-1.5' : `w-[362px] ${deckId === 'A' ? 'pr-[5px]' : 'pr-[6px]'}`
+        kiosk ? 'w-[360px] pl-[4px] gap-1.5' : `w-[362px] ${deckId === 'A' ? 'pr-[5px]' : 'pr-[6px]'}`
       }`}
     >
-      {/* Left Cluster: Play/Cue + Sync/Tap */}
-      <div className={`flex items-center shrink-0 ${kiosk ? 'gap-1.5' : 'gap-[14px]'}`}>
+      {/* Left Cluster: Play/Cue + Sync/Tap. Kiosk leaves 16 px between CUE and the SYNC stack:
+          CUE is half-width now, and at 6 px the slim key read as part of the play/CUE pair rather
+          than as the switch before SYNC. Desktop keeps its 14. */}
+      <div className={`flex items-center shrink-0 ${kiosk ? 'gap-[16px]' : 'gap-[14px]'}`}>
         {/* Play & CUE standalone rounded buttons. Kiosk runs them side by side at the key row's
-            height: play grows to 56 px, and CUE becomes a full-height key the width of SYNC
-            with its label turned 90° — the two keys a thumb hits while cueing, made tall enough
-            to find without looking. */}
-        <div className={`flex shrink-0 items-stretch gap-1 ${keyH} ${kiosk ? 'w-[112px]' : 'w-[100px]'}`}>
+            height: play grows to 56 px, and CUE becomes a half-width full-height key — 26 px of
+            edge to hit, the same height as play — with its label turned 90°. The two keys a thumb
+            hits while cueing stay tall enough to find without looking, while CUE gives back the
+            width a half-size key should not be holding. */}
+        <div className={`flex shrink-0 items-stretch gap-1 ${keyH} ${kiosk ? 'w-[86px]' : 'w-[100px]'}`}>
           <button
             type="button"
             onClick={handleTogglePlay}
@@ -651,7 +684,7 @@ function DeckTransport({
             onContextMenu={e => e.preventDefault()}
             disabled={!isDeckReady}
             className={`${
-              kiosk ? 'w-[52px] shrink-0 [writing-mode:vertical-rl] rotate-180' : 'flex-1'
+              kiosk ? 'w-[26px] shrink-0 [writing-mode:vertical-rl] rotate-180' : 'flex-1'
             } h-full rounded-[3px] border flex items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-all select-none ${
               deck.cuePreviewing
                 ? ACTIVE_KEY
@@ -703,11 +736,21 @@ function DeckTransport({
         </div>
       </div>
 
-      {/* Slack between Sync/Tap and Loop cluster */}
-      {!kiosk && <div className="flex-1" aria-hidden="true" />}
+      {/* Slack between Sync/Tap and Loop cluster. Kiosk gets it too: CUE is now half-width and the
+          deck's keys are left-packed, so without this the loop cluster floated mid-deck and its
+          right edge no longer sat under the deck's own. */}
+      <div className="flex-1" aria-hidden="true" />
 
       {/* Right Cluster: Loop cluster + Loop/Move */}
-      <div className={`flex items-center shrink-0 ${kiosk ? 'gap-1.5' : 'gap-[14px]'}`}>
+      {/* 6 px of right inset on a phone, so the LOOP / MOVE stack's centre lines up with the hot cue
+          pads above it: those sit in the deck's 64 px key column, 6 px in from the column's edge
+          (2 px padding plus the 1 px border, either side of a 52 px face). Without it the stack sat
+          flush at the deck's edge and read 14 px off the pads it belongs to. */}
+      <div
+        className={`flex items-center shrink-0 ${
+          kiosk ? 'gap-1.5 pr-[6px]' : 'gap-[14px]'
+        }`}
+      >
         {/* Loop Beat Length Cluster: < 4 > standalone elements matching - and + buttons */}
         <div
           style={{ width: kiosk ? 104 : LOOP_CLUSTER_W }}

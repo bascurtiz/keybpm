@@ -4,7 +4,7 @@ import { Knob } from './Knob'
 import { FilterKnob } from './FilterKnob'
 import { Fader } from './Fader'
 import { useViewportMode } from '@/lib/use-viewport'
-import { CONTROL_H } from '@/lib/dj/control-size'
+import { CONTROL_H, CONTROL_W, FADER_CAP_W, KIOSK_FADER_CAP_W } from '@/lib/dj/control-size'
 import { ACTIVE_KEY } from '@/lib/dj/control-state'
 
 interface TraktorMixerProps {
@@ -25,6 +25,12 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
   const knobSize = kiosk ? 50 : 42
   const filterSize = kiosk ? 50 : 42
   const faderClass = kiosk ? 'w-6 h-[148px]' : 'w-6 h-[155px]'
+
+  // The performance FX keys sit in the same switch family as the transport's LOOP / MOVE keys:
+  // 52 px wide and 24 px tall on a phone (the height the transport's stacked pair gets from its
+  // 52 px key row), with the same 8.5 px bold capitals. They were 7.5 px type in a 22 px box, so
+  // the four effects read as a finer-grained grid than the console's other switches.
+  const fxKeyH = kiosk ? 24 : CONTROL_H
 
   useEffect(() => {
     const unE = engine.subscribe(() => setVer(v => v + 1))
@@ -142,10 +148,14 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       {/* Column widths are the console's width budget: on a desktop the outer fader columns
           are 44 (was 36), the EQ columns 52 (was 40) and the filter/FX panel 186 (was 136),
           which is the mixer's share of the deck row's 150 px widening — 428 in total. Kiosk
-          has its own set (36 / 54 / 172, 402 in total) with the faders drawn inward toward
-          the EQ columns: the phone's width goes to the 50 px knobs in the middle, which is
-          where the mix happens, and to the wider filter/FX panel between them. */}
-      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-9' : 'w-11'}`}>
+          has its own set (48 / 54 / 148, 402 in total): 48 is the phone's channel-fader column,
+          wide enough that the 40 px cap — the same cap every fader on the console wears — has a
+          thumb's 4 px either side instead of spilling into the gaps. The phone's width goes
+          to the 50 px knobs in the middle, which is
+          where the mix happens. 148 is the panel's floor: its two 50 px filters plus their 24 px
+          gap and the row's 16 px padding need 140, and 8 px of slack keeps the knobs off the
+          panel's border while leaving the 108 px FX grid 20 px either side. */}
+      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-12' : 'w-11'}`}>
         <span className="text-[12px] font-bold text-emerald-400 uppercase tracking-wider mb-1 leading-none">
           A
         </span>
@@ -161,6 +171,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             onValueChange={v => deckA.setVolume(v)}
             accentColor="#34d399"
             analyser={deckA.analyser}
+            capWidth={kiosk ? KIOSK_FADER_CAP_W : FADER_CAP_W}
             className={faderClass}
           />
         </div>
@@ -239,7 +250,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       {/* ================= 3. CENTER PANEL (FILTERS + FX) ================= */}
       <div
         className={`relative flex flex-col items-center py-2 bg-[#161616] rounded-md border border-[#282828] shrink-0 h-full ${
-          kiosk ? 'w-[172px]' : 'w-[142px]'
+          kiosk ? 'w-[148px]' : 'w-[142px]'
         }`}
       >
         {/* Top: Filter Knobs A & B */}
@@ -330,13 +341,21 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <line x1="52" y1="1" x2="52" y2="10" stroke="#4a4a4a" strokeWidth="1" shapeRendering="crispEdges" />
           </svg>
 
-          {/* Performance FX 2x2 Grid: Standalone rounded buttons matching A/MST/B */}
-          <div className="grid grid-cols-2 gap-1 w-full" style={{ maxWidth: kiosk ? 116 : 104 }}>
+          {/* Performance FX 2x2 Grid: Standalone rounded buttons matching A/MST/B. Dropped 8 px on
+              both layouts: the module is centred in the space under the filters, and the grid sat
+              high enough to read as part of the routing bracket above it rather than as the
+              panel's bottom row. The shift costs nothing — 10 px of panel still sits under the keys
+              on a phone and 30 on a desktop — and a transform leaves the module's centring alone,
+              so the caption and the A / MST / B row do not move up to pay for it. */}
+          <div
+            className="grid grid-cols-2 gap-1 w-full translate-y-2"
+            style={{ maxWidth: kiosk ? CONTROL_W * 2 + 4 : 104 }}
+          >
             <button
               type="button"
               onClick={toggleEcho}
-              style={{ height: CONTROL_H }}
-              className={`rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
+              style={{ height: fxKeyH }}
+              className={`rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
                 isEchoActive
                   ? ACTIVE_KEY
                   : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -348,8 +367,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <button
               type="button"
               onClick={toggleReverb}
-              style={{ height: CONTROL_H }}
-              className={`rounded-[3px] border text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
+              style={{ height: fxKeyH }}
+              className={`rounded-[3px] border text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none ${
                 isReverbActive
                   ? ACTIVE_KEY
                   : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'
@@ -361,8 +380,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <button
               type="button"
               onClick={triggerBrake}
-              style={{ height: CONTROL_H }}
-              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+              style={{ height: fxKeyH }}
+              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
               title="Vinyl Brake stop effect"
             >
               BRK
@@ -370,8 +389,8 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             <button
               type="button"
               onClick={triggerCutter}
-              style={{ height: CONTROL_H }}
-              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[7.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+              style={{ height: fxKeyH }}
+              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
               title="SCR — forward cutter: plays the chop sample at this deck's tempo"
             >
               SCR
@@ -453,7 +472,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
       </div>
 
       {/* ================= 5. DECK B CHANNEL FADER ================= */}
-      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-9' : 'w-11'}`}>
+      <div className={`flex flex-col items-center justify-between py-1 shrink-0 ${kiosk ? 'w-12' : 'w-11'}`}>
         <span className="text-[12px] font-bold text-purple-400 uppercase tracking-wider mb-1 leading-none">
           B
         </span>
@@ -469,6 +488,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
             onValueChange={v => deckB.setVolume(v)}
             accentColor="#a855f7"
             analyser={deckB.analyser}
+            capWidth={kiosk ? KIOSK_FADER_CAP_W : FADER_CAP_W}
             className={faderClass}
           />
         </div>

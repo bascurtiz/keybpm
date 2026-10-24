@@ -57,6 +57,8 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        // Console-only override: `src/index.css` sets `.font-mono` to Inter inside `.dj-console`,
+        // so the DJ instrument is one typeface while the rest of the site keeps this stack.
         mono: ['Consolas', 'Liberation Mono', 'Menlo', 'Courier New', 'monospace'],
       },
       fontSize: {

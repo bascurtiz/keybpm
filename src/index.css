@@ -649,4 +649,18 @@
   .page-fade {
     animation: page-fade-in 180ms ease-out both;
   }
+
+  /*
+   * The DJ console's readouts are Inter, not the site's monospace.
+   *
+   * Every number on the instrument — BPM, key, timers, beat counts, loop lengths — was set in
+   * Consolas so the digits lined up, which made the console two typefaces: a monospace readout
+   * inside Inter labels. Inter draws the same figures at `tabular-nums`, which the readouts
+   * already apply, so the columns still line up and the instrument reads as one font. Scoped to
+   * `.dj-console` (set on the mix-it page root): the browse tables, the key wheel and the rest
+   * of the site keep their monospace numbers.
+   */
+  .dj-console .font-mono {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
 }

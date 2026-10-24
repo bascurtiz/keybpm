@@ -5,7 +5,7 @@ import { Fader } from './Fader'
 import { shiftCamelot, findKeySyncShift, areKeysCompatible } from '@/lib/camelot'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 import { useViewportMode } from '@/lib/use-viewport'
-import { CONTROL_W, CONTROL_H } from '@/lib/dj/control-size'
+import { CONTROL_W, CONTROL_H, FADER_CAP_W, KIOSK_FADER_CAP_W } from '@/lib/dj/control-size'
 import { ACTIVE, ACTIVE_KEY } from '@/lib/dj/control-state'
 
 interface TraktorDeckProps {
@@ -29,6 +29,17 @@ interface TraktorDeckProps {
  * something without a label, and the space goes back to the − / + pair.
  */
 const PITCH_RANGE = 10
+
+/**
+ * Height of a hot cue pad on a phone, in design px.
+ *
+ * 24 is what the transport's stacked LOOP / MOVE keys get: its key row is 52 px with a 4 px gap,
+ * so each half is 24. The pads used to run 20 in a 48 px width, which set them apart from every
+ * other key on the instrument; they now share the LOOP / MOVE box so the deck's whole right-hand
+ * column reads as one set of pads. Desktop keeps `CONTROL_H`, where there is no 52 px key row
+ * next to it to match.
+ */
+const CUE_PAD_H = 24
 
 export function TraktorDeck({
   deck,
@@ -131,7 +142,10 @@ export function TraktorDeck({
   return (
     <div
       className={`flex items-center ${
-        kiosk ? 'gap-2' : 'gap-[24px]'
+        // 16 px either side of the platter on a phone (was 8): the jog is the one control a
+        // thumb lands on without looking, and at 8 it read as wedged between the pitch well and
+        // the cue keys. Desktop's 24 already has the air.
+        kiosk ? 'gap-4' : 'gap-[24px]'
       } h-full select-none shrink-0 ${isOuterLeft ? 'flex-row' : 'flex-row-reverse'}`}
     >
       {/* ================= 1. OUTER EDGE: PITCH FADER SECTION ================= */}
@@ -174,7 +188,7 @@ export function TraktorDeck({
               youtubeBridge.setPlaybackRate(deckId, r)
             }}
             accentColor={accentColor}
-            capWidth={kiosk ? 40 : 34}
+            capWidth={kiosk ? KIOSK_FADER_CAP_W : FADER_CAP_W}
             className={`w-6 ${kiosk ? 'h-[148px]' : 'h-[155px]'}`}
           />
         </div>
@@ -226,14 +240,15 @@ export function TraktorDeck({
 
       {/* ================= 2. CENTER: JOG WHEEL & NUDGE BUTTONS ================= */}
       {/* The platter is the console's largest single shape, and on a phone it used to fill the
-          deck row: 236 of its 250 design px. Kiosk draws it at 220, so it sits inside the row
-          with real air around it, and its share of the widened console goes to the pitch well
-          on one side and to the mixer's 50 px knobs on the other. */}
+          deck row: 236 of its 250 design px. Kiosk draws it at 200, so it sits inside the row
+          with 25 px of air above and below — the instrument's controls, not its biggest circle,
+          are what a thumb reaches for — and the width it gives back goes to the pitch well on
+          one side and the mixer's 50 px knobs on the other. */}
       <div className="relative flex items-center justify-center shrink-0">
         <JogWheel
           deck={deck}
           deckId={deckId}
-          size={kiosk ? 220 : 184}
+          size={kiosk ? 200 : 184}
           accentColor={accentColor}
           className="border-[#282828] shadow-xl"
         />
@@ -274,11 +289,17 @@ export function TraktorDeck({
       </div>
 
       {/* ================= 3. INNER EDGE: KEY ADJUST & HOT CUES ================= */}
-      {/* 64 px on desktop (52 px buttons in 54 px frames). Kiosk keeps 58 px. */}
+      {/* One switch family: KEY, SLIP and the four cue pads are `CONTROL_W` wide, the same face
+          the transport's LOOP / MOVE keys carry, so the whole right-hand column is a stack of
+          identical keys rather than 48 px buttons next to 52 px ones.
+
+          The column is 64 px wide on both layouts, the same as the pitch well on the outer edge:
+          the deck then has one width for its two vertical strips whatever it is drawn on, and
+          the 52 px faces sit with 2 px either side of the 56 px they are given. Kiosk used to
+          run 58 to buy the platter a few pixels; that was a phone-only width the platter no
+          longer needs, and two different strips flanking one jog read as a mistake. */}
       <div
-        className={`flex flex-col items-center h-full py-2 px-1 ${
-          kiosk ? 'w-[58px]' : 'w-[64px]'
-        } shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none`}
+        className="flex flex-col items-center h-full py-2 px-1 w-[64px] shrink-0 bg-[#161616] rounded-md border border-[#282828] select-none"
         title={`Deck ${deckId} Controls`}
       >
         {/* Top: Key Transpose Stepper [- 0 +] */}
@@ -349,7 +370,7 @@ export function TraktorDeck({
           type="button"
           onClick={handleKeySync}
           disabled={!deck.track || !otherDeck?.track}
-          style={{ width: kiosk ? 48 : CONTROL_W }}
+          style={{ width: CONTROL_W }}
           className={`h-6 mt-1.5 rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
             isKeySynced
               ? ACTIVE_KEY
@@ -365,7 +386,7 @@ export function TraktorDeck({
           <button
             type="button"
             onClick={() => deck.toggleFluxMode()}
-            style={{ width: kiosk ? 48 : CONTROL_W }}
+            style={{ width: CONTROL_W }}
             className={`h-6 rounded-[3px] border text-[8.5px] font-bold tracking-wider uppercase flex items-center justify-center transition-all select-none ${
               deck.fluxMode
                 ? ACTIVE_KEY
@@ -390,7 +411,7 @@ export function TraktorDeck({
               return (
                 <div
                   key={i}
-                  style={{ width: kiosk ? 48 : CONTROL_W, height: kiosk ? 20 : CONTROL_H }}
+                  style={{ width: CONTROL_W, height: kiosk ? CUE_PAD_H : CONTROL_H }}
                   className="relative group/cue shrink-0"
                 >
                   <button
@@ -414,7 +435,7 @@ export function TraktorDeck({
                       e.preventDefault()
                       if (hasCue) deck.clearHotCue(i)
                     }}
-                    className={`w-full h-full rounded-[3px] border font-mono text-[10px] font-bold flex items-center justify-center transition-all select-none ${
+                    className={`w-full h-full rounded-[3px] border font-mono text-[8.5px] font-bold flex items-center justify-center transition-all select-none ${
                       isWaiting
                         ? 'border-white bg-[#141414] text-white animate-pulse'
                         : hasCue

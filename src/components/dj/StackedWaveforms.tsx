@@ -1198,7 +1198,7 @@ function renderDeckLane({
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(x - 1, topY, 2, laneH)
     ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 9px Consolas, monospace'
+    ctx.font = 'bold 9px Inter, sans-serif'
     ctx.fillText(`${i + 1}`, x + 3, topY + 12)
   })
 }

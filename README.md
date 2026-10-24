@@ -372,11 +372,11 @@ The stretch/build/render logic is `src/lib/dj/mix-timeline.ts`, `offline-stretch
 ### The phone console
 
 Below 1024 px the console replaces the page and is fitted to the viewport by
-`use-console-fit.ts`: the chassis keeps its 1156 px hardware geometry and a transform scales
+`use-console-fit.ts`: the chassis keeps its 1128 px hardware geometry and a transform scales
 it, because reflowing a two-deck controller for a 360 px phone shrinks every control below
 a tappable size. The layout is then arranged so that scale is as large as the screen allows.
 On a landscape phone the fit is **width-bound**, so the console is given the height that makes
-1156 design px fill the box — it fills the screen edge to edge. That height is clamped
+1128 design px fill the box — it fills the screen edge to edge. That height is clamped
 (`KIOSK_MIN_CONSOLE_H`..`KIOSK_MAX_CONSOLE_H`), and it is spent by one row: everything but the
 waveform band is a fixed height, so the band takes the remainder. Making the *band* the flexible
 row is what bought the controls their size — the deck row used to be the flexible one, and on
@@ -384,11 +384,19 @@ a 19.5:9 phone it took 312 design px for a 196 px jog wheel. A few things differ
 desktop and phone arrangements:
 
 - The **phone's controls are sized for a thumb, not scaled down from the desktop's.** The deck
-  grows a 64 px pitch well with a 40 px fader cap, and its platter shrinks from 236 to 220 of
-  the row's 250 — so the jog sits *inside* the row with air around it rather than filling it.
-  The mixer's own columns widen to 36 / 54 / 172 / 54 / 36 (402 px in all) to carry 50 px EQ
+  grows a 64 px pitch well with a 40 px fader cap, and its platter shrinks from 236 to 200 of
+  the row's 250 — so the jog sits *inside* the row with 25 px of air above and below it and 16 px
+  either side (the deck's column gaps, up from 8), rather than filling it. Both of the deck's vertical strips are 64 px wide, so KEY / SLIP / CUES match the
+  pitch well, and every switch in them is the transport's 52 px LOOP / MOVE face. All five
+  faders — two pitch, two channel, one crossfader — carry that same 40 px cap
+  (`KIOSK_FADER_CAP_W`, 34 on desktop), which the mixer's 36 px columns accept as a 2 px
+  overhang into the gaps rather than by widening.
+  The mixer's own columns widen to 48 / 54 / 148 / 54 / 48 (402 px in all) to carry 50 px EQ
   and filter knobs, and the transport bar is 82 px tall for a 52 px key row: play is 56 px, and
-  CUE is a full-height key the width of SYNC with its label turned 90°, reading bottom to top.
+  CUE is a half-width 26 px key at the row's full height with its label turned 90° (reading
+  bottom to top), 16 px clear of the SYNC stack. Each deck's transport group is as wide as the
+  deck above it (344 px) and the bar pads itself the same 11 px, so the LOOP / MOVE stack —
+  inset 6 px from the deck's edge — centres on deck A's hot cue pads and on deck B's pitch well.
 - The **waveform band absorbs the leftover height**, between a floor of
   `KIOSK_LANE_BAND_FLOOR_H` (two 72 px lanes) and a ceiling of
   `KIOSK_LANE_BAND_MAX_H` (two 125 px lanes). It keeps the full width and every

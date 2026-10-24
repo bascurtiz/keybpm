@@ -26,3 +26,15 @@ export const CONTROL_FRAME_W = CONTROL_W + 2
 
 /** Two cells stacked inside one frame, plus the frame's own top and bottom border. */
 export const CONTROL_STACK_H = CONTROL_H * 2 + 2
+
+/**
+ * Width of a fader's cap, in design px.
+ *
+ * One number for every fader on the instrument — the pitch faders in the deck's outer wells and
+ * the channel faders in the mixer — so the console has one size of grip rather than a chunky
+ * one next to a slim one. The pitch well at 64 has room for a wider cap on a phone; the mixer's
+ * 36 px columns take the same 40 and let it overhang 2 px into the gaps either side, which is
+ * how the hardware reads: the cap is wider than the slot it runs in.
+ */
+export const FADER_CAP_W = 34
+export const KIOSK_FADER_CAP_W = 40
