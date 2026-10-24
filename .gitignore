@@ -18,3 +18,11 @@ research/
 
 # Scratch output from analysis runs (audio A/B renders, reports) — never commit.
 outputs/
+
+# Beat benchmark: corpora and audio are never committed, and neither is the
+# Python environment or the trackers' .beats cache (both are regenerable).
+bench/corpus/*
+!bench/corpus/.gitkeep
+bench/.venv/
+bench/trackers/out/
+bench/pip-install.log

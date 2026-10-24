@@ -391,7 +391,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               type="button"
               onClick={triggerBrake}
               style={{ height: fxKeyH }}
-              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
               title="Vinyl Brake stop effect"
             >
               BRK
@@ -400,7 +400,7 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
               type="button"
               onClick={triggerCutter}
               style={{ height: fxKeyH }}
-              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
+              className="rounded-[3px] border border-[#282828] bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center select-none"
               title="SCR — forward cutter: plays the chop sample at this deck's tempo"
             >
               SCR

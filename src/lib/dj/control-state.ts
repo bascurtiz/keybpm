@@ -13,7 +13,7 @@
  *
  * The recipe is a *recessed* key, not a lit one: the surface drops to the console's darkest
  * step (`#101010`, one level below the #141414 a control rests on) and the label goes white.
- * No outline, no glow. A ring around every active switch turned the console into a grid of
+ * No glow beyond a whisper. A ring around every active switch turned the console into a grid of
  * white boxes that competed with the music data in the lane above, and it made two lit
  * neighbours (LOOP over MOVE) draw a double line at the seam. Dropping the surface instead
  * reads as a key that has travelled down, which is what a physical console does.
@@ -50,22 +50,41 @@
  * Deck identity is the other colour axis: the beatgrid buttons that belong to a deck light up in
  * that deck's colour, and the loop-length readout uses the same legend green as `ACTIVE_SWITCH`.
  */
-export const ACTIVE = 'bg-[#101010] text-white !border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+/**
+ * The highlight colour a control wears when it is lit or pressed: `zinc-500` (#71717a), the
+ * same value the platters' hover outline uses.
+ *
+ * It was pure white. On a console this dark a 1 px white edge is the brightest thing in the
+ * chassis — harder than any label, and it drew a hairline box around every switch that was
+ * on. The platter's hover ring was already the console's own answer to "this control is
+ * live": a light grey that reads as a highlight without becoming the brightest pixel on the
+ * screen. The labels stay white (that is what carries the state at a glance); only the edge
+ * and its halo use the softer grey.
+ */
+export const ACTIVE_OUTLINE = '!border-zinc-500 shadow-[0_0_8px_rgba(113,113,122,0.35)]'
+
+/**
+ * The console's lit key: recessed surface, white label, and the soft grey edge above.
+ *
+ * Used by the keys that actuate something directly — the hot cue pads, the play key, the nudge
+ * pair, the crossfade arrows.
+ */
+export const ACTIVE = `bg-[#101010] text-white ${ACTIVE_OUTLINE}`
 
 /**
  * Active play button state: matching the console's darker recessed background (#101010)
- * with crisp white play glyph, solid white border outline, and subtle soft glow.
+ * with crisp white play glyph and the soft grey outline, rather than a hard white ring.
  */
-export const ACTIVE_PLAY = 'bg-[#101010] text-white !border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+export const ACTIVE_PLAY = `bg-[#101010] text-white ${ACTIVE_OUTLINE}`
 
 /**
  * The white active state:
  * KEY, CUE, SLIP, SYNC, TAP, MOVE, AUTO, LOOP, and FX controls.
  *
- * Crisp pure white text, solid white outline border, darker recessed background (#101010)
- * and subtle soft glow fx.
+ * Crisp pure white text, the quieter grey outline and a matching soft glow, on the darker
+ * recessed background (#101010).
  */
-export const ACTIVE_KEY = 'bg-[#101010] text-white !border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+export const ACTIVE_KEY = `bg-[#101010] text-white ${ACTIVE_OUTLINE}`
 
 /**
  * The performance switch state (e.g. LOOP).

@@ -1,4 +1,27 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
+
+/**
+ * Pixels of vertical drag for the knob's full −1 … +1 sweep.
+ *
+ * 150, not the 120 this knob used to take: 120 made the filter 25 % twitchier than the EQ
+ * knobs around it, which cover their own sweep in 150 px (`Knob`'s `dy / 150`). Two knobs of
+ * the same size, one row apart, dialing at different speeds is what made the filter read as
+ * jumpy rather than just quick.
+ */
+const DRAG_RANGE_PX = 150
+
+/** Shift multiplies the drag by this while held — the same 4× fine mode the EQ knobs have. */
+const FINE_DRAG = 0.25
+
+/**
+ * Half-width of the bypass notch at 12 o'clock, in knob units.
+ *
+ * Matches `DeckEngine.setFilter`'s own allpass threshold (|norm| < 0.02): inside this the knob
+ * parks on 0 exactly, so "filter off" is a place the detent holds rather than a value the hand
+ * has to catch. It used to be 0.03, which at this knob's old speed was a 3.6 px wall in the
+ * middle of the sweep — the knob visibly stuck when dialed slowly through centre.
+ */
+const CENTRE_DETENT = 0.02
 
 interface FilterKnobProps {
   value: number // -1 (LPF) to +1 (HPF), 0 is bypass
@@ -13,54 +36,57 @@ export function FilterKnob({
   accentColor = '#10b981',
   size = 42,
 }: FilterKnobProps) {
-  const [isDragging, setIsDragging] = useState(false)
-  const startY = useRef(0)
-  const startVal = useRef(value)
+  /**
+   * The drag's origin, held in a ref rather than in state.
+   *
+   * A ref is read synchronously, so the first `pointermove` after `pointerdown` already has the
+   * value to work from. This used to be an `isDragging` state flag, and a move that arrived
+   * before that render landed was dropped — the knob's first pixel of travel went nowhere on
+   * every grab, which reads as a sticky start.
+   */
+  const drag = useRef<{ startY: number; startVal: number } | null>(null)
 
   // Map value (-1 to +1) to angle (-135° to +135°)
   const angle = Math.max(-135, Math.min(135, value * 135))
 
   const clamp = useCallback((raw: number) => {
     const clamped = Math.max(-1, Math.min(1, raw))
-    // Snap to 0 if within +/-0.03
-    return Math.abs(clamped) < 0.03 ? 0 : Math.round(clamped * 100) / 100
+    // Bypass notch: park on 0 rather than leaving 0.004 behind, which is still a filter on.
+    return Math.abs(clamped) < CENTRE_DETENT ? 0 : clamped
   }, [])
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
-    setIsDragging(true)
-    startY.current = e.clientY
-    startVal.current = value
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
     } catch {
       // ignore
     }
+    drag.current = { startY: e.clientY, startVal: value }
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging) return
-    const deltaY = startY.current - e.clientY // dragging up increases value (HPF)
-    const pixelRange = 120
-    const valDelta = (deltaY / pixelRange) * 2
-    const next = clamp(startVal.current + valDelta)
+    if (!drag.current) return
+    const deltaY = drag.current.startY - e.clientY // dragging up increases value (HPF)
+    const fine = e.shiftKey ? FINE_DRAG : 1
+    const next = clamp(drag.current.startVal + (deltaY / DRAG_RANGE_PX) * 2 * fine)
     if (next !== value) onChange(next)
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDragging) {
-      setIsDragging(false)
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId)
-      } catch {
-        // ignore
-      }
+    if (!drag.current) return
+    drag.current = null
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
     }
   }
 
   const handleWheel = (e: React.WheelEvent) => {
-    const delta = e.deltaY < 0 ? 0.05 : -0.05
-    onChange(clamp(value + delta))
+    // Same two speeds as the EQ knobs' wheel: one notch of coarse, a quarter of that with Shift.
+    const step = e.shiftKey ? 0.0125 : 0.05
+    onChange(clamp(value + (e.deltaY < 0 ? step : -step)))
   }
 
   // Geometry: cx = 25, cy = 25, r = 18.5
@@ -87,7 +113,7 @@ export function FilterKnob({
       ? `M ${cx} ${cy - r} A ${r} ${r} 0 0 ${angle > 0 ? 1 : 0} ${pCurrent.x.toFixed(2)} ${pCurrent.y.toFixed(2)}`
       : ''
 
-  const isEngaged = Math.abs(value) >= 0.03
+  const isEngaged = Math.abs(value) >= CENTRE_DETENT
   const tooltipText =
     !isEngaged
       ? 'Filter: FLAT (Double-click to reset)'
@@ -98,7 +124,7 @@ export function FilterKnob({
   return (
     <div className="flex flex-col items-center select-none group">
       <div
-        className="relative flex items-center justify-center cursor-ns-resize focus:outline-none"
+        className="relative flex items-center justify-center cursor-ns-resize focus:outline-none touch-none"
         style={{ width: size, height: size }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -111,7 +137,7 @@ export function FilterKnob({
         aria-label="Color Filter"
         aria-valuemin={-1}
         aria-valuemax={1}
-        aria-valuenow={value}
+        aria-valuenow={Math.round(value * 100) / 100}
         title={tooltipText}
       >
         <svg

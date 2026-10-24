@@ -319,7 +319,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             className={`flex items-center justify-center w-6 h-7 rounded transition-all select-none ${CELL} ${
               isFading === 'left'
                 ? `${ACTIVE_KEY} animate-pulse`
-                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white'
+                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500'
             }`}
             title={
               isFading === 'left'
@@ -357,7 +357,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             className={`flex items-center justify-center w-6 h-7 rounded transition-all select-none ${CELL} ${
               isFading === 'right'
                 ? `${ACTIVE_KEY} animate-pulse`
-                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white'
+                : 'bg-[#141414] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500'
             }`}
             title={
               isFading === 'right'
@@ -393,6 +393,11 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
 const LOOP_BEAT_SIZES = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64]
 
+/** `a` or `an` for the loop sizes the cluster can land on — only the 8 needs the second form. */
+function beatArticle(beats: number): string {
+  return formatLoopBeats(beats) === '8' ? 'an' : 'a'
+}
+
 function formatLoopBeats(beats: number): string {
   if (beats === 0.25) return '1/4'
   if (beats === 0.5) return '1/2'
@@ -425,9 +430,9 @@ function DeckTransport({
   otherDeck: DeckEngine
   deckId: 'A' | 'B'
 }) {
-  // Opens on 16 beats: a bar-and-a-half phrase is the default loop in a DJ set far more
-  // often than the four-beat bar, and the cluster steps down to it in two clicks.
-  const [selectedLoopIdx, setSelectedLoopIdx] = useState(LOOP_BEAT_SIZES.indexOf(16))
+  // Opens on 8 beats — a two-bar phrase, the length a loop is usually left running at. The
+  // cluster steps down to the one-bar 4 and up to the long 16 and 32 from here.
+  const [selectedLoopIdx, setSelectedLoopIdx] = useState(LOOP_BEAT_SIZES.indexOf(8))
   // What the < number > cluster under the switch does: size and toggle a loop, or beat-jump the
   // playhead. Kept per deck, like the size, so the two transports can be set up differently.
   // MOVE is a toggle of its own rather than a mode: on makes the arrows jump the playhead, off
@@ -752,9 +757,15 @@ function DeckTransport({
           pads above it: those sit in the deck's 64 px key column, 6 px in from the column's edge
           (2 px padding plus the 1 px border, either side of a 52 px face). Without it the stack sat
           flush at the deck's edge and read 14 px off the pads it belongs to. */}
+      {/* The gap inside this cluster is 16 px on a phone, the same as the CUE → SYNC / TAP gap on the
+          left: it is the one break between the two halves of the deck's right side, and the cluster's
+          `>` is a 22 px cell that at 6 px read as the first key of the LOOP / MOVE switch rather than
+          as the end of the loop cluster. The cluster is packed against the deck's right edge, so the
+          extra 10 px comes out of the flex-1 slack before it — the LOOP / MOVE stack, which is the
+          half that lines up with the pads above, does not move. A desktop keeps its 14. */}
       <div
         className={`flex items-center shrink-0 ${
-          kiosk ? 'gap-1.5 pr-[6px]' : 'gap-[14px]'
+          kiosk ? 'gap-[16px] pr-[6px]' : 'gap-[14px]'
         }`}
       >
         {/* Loop Beat Length Cluster: < 4 > standalone elements matching - and + buttons */}
@@ -767,7 +778,7 @@ function DeckTransport({
             onClick={moveOn ? () => beatJump(-1) : loopHalf}
             disabled={moveOn ? !deck.track : !deck.track || selectedLoopIdx === 0}
             style={{ width: LOOP_CLUSTER_ARROW_W }}
-            className="shrink-0 flex items-center justify-center rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] transition-all select-none disabled:opacity-20"
+            className="shrink-0 flex items-center justify-center rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 active:bg-[#101010] active:shadow-[0_0_8px_rgba(113,113,122,0.35)] transition-all select-none disabled:opacity-20"
             aria-label={
               moveOn
                 ? `Jump the playhead back ${formatLoopBeats(currentBeats)} beats`
@@ -810,7 +821,7 @@ function DeckTransport({
               moveOn ? !deck.track : !deck.track || selectedLoopIdx === LOOP_BEAT_SIZES.length - 1
             }
             style={{ width: LOOP_CLUSTER_ARROW_W }}
-            className="shrink-0 flex items-center justify-center rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] transition-all select-none disabled:opacity-20"
+            className="shrink-0 flex items-center justify-center rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 active:bg-[#101010] active:shadow-[0_0_8px_rgba(113,113,122,0.35)] transition-all select-none disabled:opacity-20"
             aria-label={
               moveOn
                 ? `Jump the playhead forward ${formatLoopBeats(currentBeats)} beats`
@@ -843,7 +854,7 @@ function DeckTransport({
             title={
               isLoopActive
                 ? `LOOP running (${formatLoopBeats(currentBeats)} beats) — click to release it`
-                : `LOOP: arm a ${formatLoopBeats(currentBeats)}-beat loop at the playhead`
+                : `LOOP: arm ${beatArticle(currentBeats)} ${formatLoopBeats(currentBeats)}-beat loop at the playhead`
             }
           >
             LOOP

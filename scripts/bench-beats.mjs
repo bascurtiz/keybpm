@@ -27,15 +27,32 @@
  *                  support an accuracy claim; see bench/README.md for the layout
  *                  and for where to get Ballroom / SMC / Harmonix.
  *
+ * Other analyzers are scored the same way, through the same metrics:
+ *
+ *   --trackers DIR reads `<DIR>/<tracker>/<track>.beats` — the cache that
+ *                  bench/trackers/run_trackers.py writes for Beat This!, librosa
+ *                  and anything else that emits beat times. Each one is turned
+ *                  into the grid a DJ would get and scored exactly like ours, so
+ *                  "which tracker is more accurate here" is one table.
+ *                  Requires --corpus; external trackers are never gated.
+ *
  * Usage:
- *   node scripts/bench-beats.mjs [--corpus DIR] [--paths pcm,primary] [--only substr]
- *                               [--json out.json] [--tolerance 0.07] [--no-gate] [--quiet]
+ *   node scripts/bench-beats.mjs [--corpus DIR] [--trackers DIR] [--paths pcm,primary]
+ *                               [--only substr] [--json out.json] [--tolerance 0.07]
+ *                               [--no-gate] [--quiet] [--emit DIR]
  */
 
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join, basename } from 'node:path'
 import { syntheticCorpus } from './lib/beat-corpus.mjs'
-import { readWav, parseBeatAnnotation, pairCorpusFiles } from './lib/beat-annotation.mjs'
+import { readWav, writeWav, parseBeatAnnotation, pairCorpusFiles } from './lib/beat-annotation.mjs'
+import {
+  listTrackers,
+  loadTrackerBeats,
+  loadTrackerTimings,
+  parseTrackerBeats,
+  gridFromTrackedBeats,
+} from './lib/tracker-beats.mjs'
 import { analyzeBeatGrid, analyzeBeatGridFromPcm } from '../src/lib/dj/beatgrid.ts'
 import { pcmFromChannels } from '../src/lib/dj/pcm.ts'
 import {
@@ -106,8 +123,10 @@ const PATHS = {
 function parseArgs(argv) {
   const args = {
     corpus: null,
+    trackers: null,
     only: null,
     json: null,
+    emit: null,
     tolerance: BEAT_TOLERANCE_SECONDS,
     paths: ['pcm', 'primary'],
     gate: true,
@@ -116,6 +135,8 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--corpus') args.corpus = argv[++i]
+    else if (arg === '--trackers') args.trackers = argv[++i]
+    else if (arg === '--emit') args.emit = argv[++i]
     else if (arg === '--only') args.only = argv[++i]
     else if (arg === '--json') args.json = argv[++i]
     else if (arg === '--tolerance') args.tolerance = Number(argv[++i])
@@ -135,7 +156,52 @@ function parseArgs(argv) {
     console.error(`unknown path(s) ${unknown.join(', ')}; known: ${Object.keys(PATHS).join(', ')}`)
     process.exit(2)
   }
+  if (args.trackers && !args.corpus) {
+    console.error('--trackers reads a cache keyed by corpus audio files; it needs --corpus DIR')
+    process.exit(2)
+  }
   return args
+}
+
+/**
+ * The paths to score: ours from {@link PATHS}, plus one per external tracker.
+ *
+ * An external tracker has no analyzer to call — its cache already holds the beat
+ * times — so its `score` only converts those times into the same `BeatGrid` ours
+ * produces. Everything downstream (F-measure, continuity, drift, the bar report)
+ * is then literally the same code, which is the entire point of putting them in
+ * one table.
+ */
+function pathsFor(args) {
+  const paths = {}
+  for (const name of args.paths) paths[name] = PATHS[name]
+  if (args.trackers) {
+    const trackers = listTrackers(args.trackers)
+    if (trackers.length === 0) {
+      console.error(
+        `no tracker output under ${args.trackers} (expected <tracker>/<track>.beats; run bench/trackers/run_trackers.py first)`
+      )
+      process.exit(2)
+    }
+    for (const tracker of trackers) {
+      if (PATHS[tracker]) {
+        console.error(`tracker directory "${tracker}" collides with a built-in path name; rename it`)
+        process.exit(2)
+      }
+      paths[tracker] = {
+        label: `${tracker} (external .beats)`,
+        gated: false,
+        external: tracker,
+        timings: loadTrackerTimings(args.trackers, tracker),
+        score: (source, track) => {
+          const tracked = loadTrackerBeats(args.trackers, tracker, track.name)
+          if (!tracked) return null
+          return gridFromTrackedBeats(tracked, track.mono.length / track.sampleRate)
+        },
+      }
+    }
+  }
+  return paths
 }
 
 /** Recursive file listing, relative to `root`. */
@@ -175,14 +241,32 @@ function realCorpus(root) {
   }
   return pairs.map(({ base, audio, annotation, downbeats }) => {
     const wav = readWav(new Uint8Array(readFileSync(join(root, audio))))
-    const beats = parseBeatAnnotation(readFileSync(join(root, annotation), 'utf8'))
+    const annotationText = readFileSync(join(root, annotation), 'utf8')
+    const beats = parseBeatAnnotation(annotationText)
+    // A `.beats` file that numbers each beat in its bar *is* a bar annotation:
+    // GTZAN, Ballroom and the Beat This! annotation set all ship `time<TAB>number`
+    // with `1` on the downbeat. Reading only the first column would throw that
+    // away and leave the bar unscored on exactly the corpora worth scoring it on,
+    // so the downbeats are derived from the same file when there is no separate
+    // `.downbeats` file. A one-column annotation has no bar and stays absent.
+    let barFromBeatNumbers
+    if (!downbeats) {
+      const tracked = parseTrackerBeats(annotationText)
+      if (tracked.positions) {
+        barFromBeatNumbers = tracked.beats.filter((_, index) => tracked.positions[index] === 1)
+      }
+    }
     return {
       name: base,
       sampleRate: wav.sampleRate,
       mono: monoOf(wav.channels, wav.length),
       beats,
       // Optional: scored when present, absent rather than invented when not.
-      downbeats: downbeats ? parseBeatAnnotation(readFileSync(join(root, downbeats), 'utf8')) : undefined,
+      downbeats: downbeats
+        ? parseBeatAnnotation(readFileSync(join(root, downbeats), 'utf8'))
+        : barFromBeatNumbers && barFromBeatNumbers.length > 1
+          ? barFromBeatNumbers
+          : undefined,
       notes: basename(annotation),
     }
   })
@@ -201,10 +285,15 @@ function answeredBy(grid) {
 async function scoreTrack(track, tolerance, path) {
   const source = pcmFromChannels([track.mono], track.sampleRate)
   const started = performance.now()
-  const grid = await PATHS[path].score(source, track)
+  const grid = await path.score(source, track)
   const elapsedMs = Math.round(performance.now() - started)
   if (!grid) {
-    return { name: track.name, failed: 'analyzer returned no grid', annotations: track.beats.length, elapsedMs }
+    return {
+      name: track.name,
+      failed: path.external ? `no beats for this track in the ${path.external} cache` : 'analyzer returned no grid',
+      annotations: track.beats.length,
+      elapsedMs,
+    }
   }
   const estimated = gridBeatsAcross(grid, track.beats)
   const f = beatFMeasure(track.beats, estimated, tolerance)
@@ -219,7 +308,8 @@ async function scoreTrack(track, tolerance, path) {
   return {
     name: track.name,
     notes: track.notes,
-    answeredBy: answeredBy(grid),
+    answeredBy: path.external ?? answeredBy(grid),
+    external: path.external ?? null,
     annotations: track.beats.length,
     gridBeats: estimated.length,
     f: f.f,
@@ -233,11 +323,14 @@ async function scoreTrack(track, tolerance, path) {
     variable: drift.variableGrid,
     drift,
     // Bar-level scoring. `downbeat` is null when the corpus carries no bar
-    // annotation (real corpora without a downbeat file); the drop report is always
-    // produced, because "the analyzer invented a drop" is checkable everywhere.
-    downbeat: Array.isArray(track.downbeats) && track.downbeats.length > 0
-      ? downbeatReport(grid, track.downbeats, tolerance)
-      : null,
+    // annotation (real corpora without a downbeat file) and when the tracker has
+    // no bar model at all (an external tracker writing one column); the drop
+    // report is always produced, because "the analyzer invented a drop" is
+    // checkable everywhere.
+    downbeat:
+      (grid.barModel !== false) && Array.isArray(track.downbeats) && track.downbeats.length > 0
+        ? downbeatReport(grid, track.downbeats, tolerance)
+        : null,
     drop: dropReport(grid, Array.isArray(track.drops) ? track.drops : [], tolerance, Array.isArray(track.drops)),
     rotationDecidable: Boolean(track.rotationDecidable),
     truthRotation: typeof track.rotation === 'number' ? track.rotation : null,
@@ -264,10 +357,16 @@ function aggregate(results) {
     variableGrids: scored.filter(r => r.variable).length,
     octaveErrors: scored.filter(r => r.octave !== 1).length,
     answeredByEssentia: scored.filter(r => r.answeredBy === 'essentia').length,
-    meanDownbeatMatch:
-      scored.length > 0
-        ? scored.reduce((a, r) => a + (r.downbeat ? r.downbeat.matchRate : 1), 0) / scored.length
-        : 0,
+    // Averaged over the tracks that were actually scored for the bar: a corpus
+    // with no bar annotation, or a tracker with no bar output, must not read as a
+    // perfect bar — that would make absence look like accuracy.
+    meanDownbeatMatch: (() => {
+      const barScored = scored.filter(r => r.downbeat)
+      return barScored.length > 0
+        ? barScored.reduce((a, r) => a + r.downbeat.matchRate, 0) / barScored.length
+        : 0
+    })(),
+    barScoredTracks: scored.filter(r => r.downbeat).length,
     // A whole-beat bar error: every beat in place, every bar line on the wrong
     // beat. Counted separately from the match rate because it is the failure a
     // DJ hears and a match rate alone hides.
@@ -285,15 +384,18 @@ function aggregate(results) {
 function formatBar(result) {
   if (!result.downbeat) return result.drop.detected > 0 ? `— /${result.drop.extra}x` : '—'
   const offset = result.downbeat.offsetBeats === 0 ? '0' : `${result.downbeat.offsetBeats > 0 ? '+' : ''}${result.downbeat.offsetBeats}`
-  const claim = result.downbeat.decided ? 'dec' : 'amb'
-  const wrong = result.downbeat.offsetBeats !== 0 && result.downbeat.decided ? '!' : ''
+  // An external tracker that emits a bar number is *claiming* that bar, so `dec`
+  // is the honest reading; the `ext` marker is there so a reader can tell a model's
+  // claim from our analyzer's measured one at a glance.
+  const claim = result.external ? 'ext' : result.downbeat.decided ? 'dec' : 'amb'
+  const wrong = result.downbeat.offsetBeats !== 0 && (result.external || result.downbeat.decided) ? '!' : ''
   return `${offset}${wrong} ${claim}  ${result.drop.matched}/${result.drop.matched + result.drop.missing}${
     result.drop.extra > 0 ? `+${result.drop.extra}` : ''
   }`
 }
 
 function printSection(path, summary) {
-  console.log(`\n[${PATHS[path].label}]${PATHS[path].gated ? '  — gated' : '  — reported, not gated'}`)
+  console.log(`\n[${path.label}]${path.gated ? '  — gated' : '  — reported, not gated'}`)
   console.log('track                          F      P      R     CMLt   AMLt   tempo        grid    answered-by   bar(offset claim drops)  drift')
   for (const r of summary.results) {
     if (r.failed) {
@@ -311,7 +413,7 @@ function printSection(path, summary) {
         r.amlt.toFixed(3).padStart(6),
         tempo.padEnd(12),
         (r.variable ? 'map' : 'const').padEnd(6),
-        r.answeredBy === 'essentia' ? 'essentia   ' : 'measurement',
+        (r.answeredBy === 'essentia' ? 'essentia' : r.external ? r.external : 'measurement').padEnd(11),
         formatBar(r).padEnd(22),
         formatDrift(r.drift),
       ].join('  ')
@@ -329,11 +431,53 @@ function printSection(path, summary) {
       `   drops ${summary.dropsMissing} missed / ${summary.dropsExtra} extra` +
       `   ${summary.totalMs}ms total`
   )
+  if (summary.barScoredTracks === 0) {
+    console.log('   bar: not scored (no downbeat annotation, or this tracker emits no bar model)')
+  }
+  if (path.timings) {
+    console.log(
+      `   inference: ${path.timings.seconds.toFixed(1)}s over ${path.timings.tracks} track(s)` +
+        ' (from the tracker runner; the ms above is only reading its cache)'
+    )
+  }
+}
+
+/**
+ * Write the synthetic corpus as WAV + annotations so an external tracker can run
+ * on the one corpus this repository can ship.
+ *
+ * Without it, `--trackers` has nothing to read unless a real annotated corpus has
+ * been downloaded, and the wiring between the two halves of the benchmark would
+ * be untested until someone did. The audio is synthesised, so this adds no data
+ * to the repository: it is regenerated on demand.
+ */
+function emitSyntheticCorpus(corpus, dir) {
+  mkdirSync(dir, { recursive: true })
+  for (const track of corpus) {
+    writeFileSync(join(dir, `${track.name}.wav`), writeWav([track.mono], track.sampleRate))
+    writeFileSync(join(dir, `${track.name}.beats`), track.beats.map(time => `${time.toFixed(6)}\n`).join(''))
+    if (Array.isArray(track.downbeats) && track.downbeats.length > 0) {
+      writeFileSync(
+        join(dir, `${track.name}.downbeats`),
+        track.downbeats.map(time => `${time.toFixed(6)}\n`).join('')
+      )
+    }
+  }
+  console.log(`wrote ${corpus.length} synthetic track(s) to ${dir}`)
 }
 
 const args = parseArgs(process.argv.slice(2))
 const tolerance = args.tolerance
-let tracks = args.corpus ? realCorpus(args.corpus) : syntheticCorpus()
+const corpus = args.corpus ? realCorpus(args.corpus) : syntheticCorpus()
+if (args.emit) {
+  if (args.corpus) {
+    console.error('--emit writes the synthetic corpus; it cannot be combined with --corpus')
+    process.exit(2)
+  }
+  emitSyntheticCorpus(corpus, args.emit)
+  process.exit(0)
+}
+let tracks = corpus
 if (args.only) tracks = tracks.filter(track => track.name.includes(args.only))
 tracks = tracks.filter(track => track.beats.length >= 8)
 if (tracks.length === 0) {
@@ -341,20 +485,24 @@ if (tracks.length === 0) {
   process.exit(2)
 }
 
+const paths = pathsFor(args)
+
 const label = args.corpus
   ? `real corpus ${args.corpus}`
   : 'synthetic corpus (click-accurate annotations, regression gate only — not an accuracy claim)'
 if (!args.quiet) {
   console.log(`\nKeyBPM beat-grid benchmark — ${label}`)
-  console.log(`tolerance: ${(tolerance * 1000).toFixed(0)} ms    tracks: ${tracks.length}    paths: ${args.paths.join(', ')}`)
+  console.log(
+    `tolerance: ${(tolerance * 1000).toFixed(0)} ms    tracks: ${tracks.length}    paths: ${Object.keys(paths).join(', ')}`
+  )
 }
 
 const summaries = {}
-for (const path of args.paths) {
+for (const path of Object.keys(paths)) {
   const results = []
-  for (const track of tracks) results.push(await scoreTrack(track, tolerance, path))
+  for (const track of tracks) results.push(await scoreTrack(track, tolerance, paths[path]))
   summaries[path] = aggregate(results)
-  if (!args.quiet) printSection(path, summaries[path])
+  if (!args.quiet) printSection(paths[path], summaries[path])
 }
 
 const summary = {
@@ -364,7 +512,7 @@ const summary = {
   paths: Object.fromEntries(
     Object.entries(summaries).map(([path, value]) => [
       path,
-      { ...value, label: PATHS[path].label, gated: PATHS[path].gated },
+      { ...value, label: paths[path].label, gated: paths[path].gated },
     ])
   ),
   gates: { pcm: GATES, primary: PRIMARY_GATES },

@@ -207,6 +207,18 @@ on a drop that is missed or invented — the last two in both directions, becaus
 is worse than an honest "unknown" and a marker that sends a mix looking for a change that is
 not there is worse than no marker.
 
+**Comparing other analyzers.** The same harness scores an outside beat tracker on the same
+audio with the same metrics: `bench/trackers/run_trackers.py` runs Beat This! and librosa over
+a corpus and caches their beats as MIR-standard `.beats` files, and
+`node scripts/bench-beats.mjs --corpus DIR --trackers bench/trackers/out` prints them in the
+same table as both of our paths. Each tracker's beats are stored verbatim as a variable-tempo
+map rather than fitted to a tempo, and its bar is scored only when it actually claims one — so
+"this model has no downbeats" reads as absent, not as wrong. Mind the leakage rule: Beat
+This!'s published checkpoints were trained on Ballroom, SMC and Harmonix, so GTZAN
+(`npm run bench:corpus:gtzan`) is the corpus that gives an honest number. The synthetic corpus
+can exercise the whole chain without a download (`npm run bench:beats:emit`), but it is a smoke
+test, not a comparison — see [bench/README.md](bench/README.md).
+
 Those are synthetic tracks with click-accurate annotations, so they gate regressions and
 cannot substitute for an annotated corpus — the harness reports the corpus it used and which
 path it scored. Grid confidence is still a *derived* score rather than a probability

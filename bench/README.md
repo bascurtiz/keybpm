@@ -1,7 +1,10 @@
 # Beat-grid benchmark
 
 `npm run bench:beats` scores the analyzer against known beat times and known bar
-lines, using the metrics in [src/lib/dj/beat-metrics.ts](../src/lib/dj/beat-metrics.ts):
+lines — and can score a different analyzer on the same audio, same metrics, same
+table, which is how "should we use Beat This!" gets answered ([Scoring another
+analyzer](#scoring-another-analyzer)) — using the metrics in
+[src/lib/dj/beat-metrics.ts](../src/lib/dj/beat-metrics.ts):
 F-measure at 70 ms (mir_eval's `beat.f_measure` tolerance), continuity (CMLt/AMLt),
 grid drift, and — for the bar — a downbeat match rate, the whole-beat offset of
 the bar lattice, and drop markers against annotated section changes. It runs in
@@ -63,8 +66,11 @@ corpus/
 ```
 
 `.beats` files are one time in seconds per line (comments and the two-column
-`time beat` variant are tolerated). Where to get them (audio must be downloaded
-separately; none of it is in this repo):
+`time beat` variant are tolerated). A two-column file **is** a bar annotation: the
+second column is the beat's number inside its bar, `1` on the downbeat, so GTZAN
+and the Beat This! annotation set get their bar scored without a separate
+`.downbeats` file. Where to get them (audio must be downloaded separately; none of
+it is in this repo):
 
 - **Ballroom** — 698 ballroom dance tracks with beat and downbeat annotations.
 - **SMC MIR** — 217 tracks, beat and downbeat.
@@ -77,6 +83,89 @@ npm run bench:beats:corpus     # expects bench/corpus/, writes bench/last-run.js
 
 The JSON report is intended for trend tracking: keep it as a CI artifact and the
 question "did this change help?" stops being an opinion.
+
+## Scoring another analyzer
+
+The analyzer above is not the only candidate. `--trackers DIR` puts an outside beat
+tracker in the same table, scored by the same metrics, so "is this one better on
+real music" is a measurement rather than an opinion:
+
+```
+$ python bench/trackers/run_trackers.py --corpus bench/corpus      # where the trackers run
+$ node scripts/bench-beats.mjs --corpus bench/corpus --trackers bench/trackers/out --no-gate
+```
+
+The Python runner writes one MIR-standard `.beats` file per track per tracker
+(`<out>/<tracker>/<track>.beats`: `time`, then a beat number where `1` is the
+downbeat — the format the corpora ship and the one Beat This! writes). The Node
+side reads that cache, turns the beat times into the grid a DJ would get, and
+scores it with `beat-metrics.ts` like any other grid. External trackers are
+reported, never gated: the gates are regression floors for code we own.
+
+Three things to know about how the comparison is set up:
+
+- **No hint BPM, and no fitting.** The tracker's own beats are stored verbatim as
+a variable-tempo map. Fitting a single tempo over them would erase the exact
+difference we want to see — a tracker that follows a drifting track and one that
+does not would score the same.
+- **The bar is only scored when the tracker claims one.** librosa writes one
+column and has no downbeat concept, so its bar column reads `—`; its `first beat
+is beat 1` is not a phase error, it is an absence of evidence. A two-column file
+is a claim, and it is scored like our analyzer's (`ext` in the claim column, so a
+model's claim is not mistaken for ours).
+- **Speed is part of the answer.** The runner records seconds per track in
+`timings.json` and the report prints the total, because a model that is a point
+better and twenty times slower is a different decision for an app that analyses
+in a browser.
+
+Which trackers are wired up: `beat_this` (CPJKU Beat This!, MIT, transformer on
+log-mel, beats + downbeats, `final0` checkpoint), `librosa-beat`
+(`librosa.beat.beat_track`, global tempo, beats only) and `librosa-plp`
+(framewise pulse, beats only). Adding one is a function in
+[run_trackers.py](trackers/run_trackers.py) plus a `TRACKERS` entry.
+
+```
+python -m venv bench/.venv
+bench/.venv/Scripts/python.exe -m pip install -r bench/trackers/requirements.txt   # Windows
+bench/.venv/bin/python -m pip install -r bench/trackers/requirements.txt           # macOS/Linux
+```
+
+Beat This! pulls in torch and torchaudio (the bulk of the install) and downloads
+its checkpoint (~78 MB) on first run; everything is cached outside this
+repository.
+
+### The leakage rule
+
+The published Beat This! checkpoints (`final0`, `final1`, `small*`) were trained
+on all of the project's data **except GTZAN**. Scoring them on Ballroom, SMC or
+Harmonix is measuring memorisation, not tracking — those are that model's
+training set. Two honest options:
+
+- **GTZAN** (`npm run bench:corpus:gtzan`), the authors' held-out set. It fetches
+the annotations from CPJKU's `beat_this_annotations`; the audio is no longer
+distributed by GTZAN's authors, so `--audio DIR` points at a copy you have and
+the script links it into `bench/corpus/gtzan/` next to the annotations.
+- **A `fold*` checkpoint** on its own held-out fold, for any of the other
+corpora. `--model fold0` on the corpus's fold-0 test split is a fair number;
+`--model final0` on all of it is not.
+
+### The synthetic corpus is a smoke test, not a comparison
+
+The repository cannot ship real music, so `--emit DIR` writes the synthetic
+corpus to disk as WAV + annotations and the whole chain can be exercised without
+a download:
+
+```
+npm run bench:beats:emit
+python bench/trackers/run_trackers.py --corpus bench/corpus/synthetic
+npm run bench:beats:trackers
+```
+
+Those numbers say the wiring works. They say almost nothing about real music:
+click-accurate synthetic tracks are out of distribution for a model trained on
+recordings, which is why Beat This! reads a half-time reading on the trap case and
+loses the phase on the jittered one there. An accuracy claim needs annotated real
+audio.
 
 ## Gates
 
@@ -145,14 +234,24 @@ and in the metrics themselves:
 
 ## What is still not scored
 
-Real music. The synthetic corpus has click-accurate annotations, so it gates
-regressions and cannot support an accuracy claim; `--corpus DIR` against
-Ballroom/SMC/Harmonix annotations is the answer and has not been run yet — there is
-no real annotated corpus in this repository, and inventing one would be the same
-mistake in a different costume. When a real corpus does carry bar ground truth
-(Harmonix and Ballroom ship downbeats) the same columns and gates apply; the
-annotation reader takes a `name.downbeats` file next to `name.beats`, and the bar
-gates are simply not applied to a corpus that does not have one.
+Real music — because no real annotated corpus is in this repository, and inventing
+one would be the synthetic corpus in a different costume. `npm run bench:corpus:gtzan`
+now fetches the annotations and lays out the directory; the audio still has to come
+from a copy you already have, since GTZAN's authors no longer distribute it. Two
+facts about that corpus worth knowing before reading a number off it:
+
+- **GTZAN clips are 30 seconds.** Long enough to score phase, downbeat and bar
+  rotation — the first-downbeat complaint this benchmark exists to answer — but
+  short for drift. Ballroom or Harmonix with a `fold*` checkpoint are the long-form
+  check, and they ship downbeats.
+- **It is one corpus.** Ten genres of 20th-century popular music is not a DJ
+  library. A number that reads well there is evidence, not a conclusion, and the
+  tracks you actually mix are the set that matters — a hand-checked export of them
+  is the most useful corpus of all.
+
+When a real corpus does carry bar ground truth the same columns apply; the bar
+gates stay off for it, because the gates are regression floors for code we own and
+these floors were measured on the synthetic set.
 
 What the bar gates cannot cover is the ambiguous case: with no recoverable cue the
 analyzer keeps the anchor, and if the anchor's beat happens not to be a downbeat

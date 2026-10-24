@@ -42,7 +42,10 @@ interface ConsoleChromeProps {
 const BUTTON_CLASS =
   'pointer-events-auto absolute z-40 flex items-center justify-center rounded-[6px] border border-[#2e2e2e] ' +
   'bg-[#1c1c1c] text-[#9a9a9a] shadow-[0_1px_4px_rgba(0,0,0,0.7)] transition-colors touch-manipulation ' +
-  'hover:border-[#4a4a4a] hover:text-white active:bg-white active:text-black ' +
+  // The press flash is the console's highlight grey (zinc-500, the platters' hover ring) rather
+  // than a white fill: on this dark chrome a white flash is the brightest thing on screen for
+  // the instant it lasts, and the rail is meant to sit quieter than the instrument it frames.
+  'hover:border-[#4a4a4a] hover:text-white active:bg-zinc-500 active:text-[#101010] ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
 
 export function ConsoleChrome({ scale, top, menuLeft, fullscreenLeft, fullscreen }: ConsoleChromeProps) {

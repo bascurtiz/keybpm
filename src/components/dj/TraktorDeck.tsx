@@ -199,7 +199,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => stepPitchBpm(-0.1)}
             disabled={!deck.track}
-            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 active:bg-[#101010] active:shadow-[0_0_8px_rgba(113,113,122,0.35)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Tempo down (-0.1 BPM)"
             aria-label="Tempo down"
           >
@@ -219,7 +219,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => stepPitchBpm(0.1)}
             disabled={!deck.track}
-            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[22px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 active:bg-[#101010] active:shadow-[0_0_8px_rgba(113,113,122,0.35)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Tempo up (+0.1 BPM)"
             aria-label="Tempo up"
           >
@@ -308,7 +308,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => deck.setKeyShift(Math.max(-6, deck.keyShift - 1))}
             disabled={!deck.track || deck.keyShift <= -6}
-            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 active:bg-[#101010] active:shadow-[0_0_8px_rgba(113,113,122,0.35)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Transpose Key -1 semitone"
             aria-label="Transpose Key down"
           >
@@ -347,7 +347,7 @@ export function TraktorDeck({
             type="button"
             onClick={() => deck.setKeyShift(Math.min(6, deck.keyShift + 1))}
             disabled={!deck.track || deck.keyShift >= 6}
-            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-white active:bg-[#101010] active:shadow-[0_0_8px_rgba(255,255,255,0.25)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
+            className="w-[18px] h-[22px] rounded-[3px] bg-[#141414] border border-[#282828] hover:border-[#444444] text-[#777777] hover:text-[#d4d4d4] active:text-white active:border-zinc-500 active:bg-[#101010] active:shadow-[0_0_8px_rgba(113,113,122,0.35)] flex items-center justify-center transition-all shadow-sm select-none disabled:opacity-20 shrink-0"
             title="Transpose Key +1 semitone"
             aria-label="Transpose Key up"
           >
@@ -439,7 +439,7 @@ export function TraktorDeck({
                     }}
                     className={`w-full h-full rounded-[3px] border font-mono text-[8.5px] font-bold flex items-center justify-center transition-all select-none ${
                       isWaiting
-                        ? 'border-white bg-[#141414] text-white animate-pulse'
+                        ? 'border-zinc-500 bg-[#141414] text-white animate-pulse'
                         : hasCue
                         ? ACTIVE
                         : 'bg-[#141414] text-[#777777] border-[#282828] hover:text-[#d4d4d4] hover:border-[#444444]'

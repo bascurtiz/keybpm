@@ -1,0 +1,12 @@
+# Trackers scored by the beat benchmark, outside the app's own analyzer.
+#
+#   python -m venv bench/.venv
+#   bench/.venv/Scripts/python.exe -m pip install -r bench/trackers/requirements.txt   # Windows
+#   bench/.venv/bin/python -m pip install -r bench/trackers/requirements.txt           # macOS / Linux
+#
+# Beat This! brings torch + torchaudio, which is most of the download (~2 GB with
+# the CPU wheel). Its default `final0` checkpoint (~78 MB) is fetched from the
+# CPJKU server on first use and cached in the user's torch hub directory.
+beat-this>=1.0
+librosa>=0.10
+soundfile>=0.12

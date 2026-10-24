@@ -81,6 +81,47 @@ export function readWav(bytes) {
 }
 
 /**
+ * Encodes planar Float32 channels as a 16-bit PCM RIFF/WAVE file.
+ *
+ * Used by `bench-beats.mjs --emit`, which writes the synthetic corpus to disk so
+ * that external trackers — anything that runs outside Node — can be scored on the
+ * same material. 16-bit is deliberate: it is what the corpora this reader targets
+ * ship, so an emit/scoring round trip exercises the same decode path.
+ */
+export function writeWav(channels, sampleRate) {
+  const channelCount = channels.length
+  const frames = channels[0].length
+  const dataBytes = frames * channelCount * 2
+  const bytes = new Uint8Array(44 + dataBytes)
+  const view = new DataView(bytes.buffer)
+  const ascii = (offset, text) => {
+    for (let i = 0; i < text.length; i++) bytes[offset + i] = text.charCodeAt(i)
+  }
+  ascii(0, 'RIFF')
+  view.setUint32(4, 36 + dataBytes, true)
+  ascii(8, 'WAVE')
+  ascii(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, channelCount, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * channelCount * 2, true)
+  view.setUint16(32, channelCount * 2, true)
+  view.setUint16(34, 16, true)
+  ascii(36, 'data')
+  view.setUint32(40, dataBytes, true)
+  let at = 44
+  for (let frame = 0; frame < frames; frame++) {
+    for (let channel = 0; channel < channelCount; channel++) {
+      const sample = Math.max(-1, Math.min(1, channels[channel][frame]))
+      view.setInt16(at, Math.round(sample * 32767), true)
+      at += 2
+    }
+  }
+  return bytes
+}
+
+/**
  * Beat (or downbeat) times from an annotation file, in seconds, ascending.
  *
  * Accepts the plain "one time per line" layout (Ballroom `.beats`, mir_eval
