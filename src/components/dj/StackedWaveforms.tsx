@@ -487,17 +487,18 @@ export function StackedWaveforms({
           the control that rescales both decks sits between them rather than in Deck A's
           corner. Translucent, because the playhead needle runs underneath it.
 
-          The 112px between − and + is the whole point of this row: the needle crosses the
+          The gap between − and + is the whole point of this row: the needle crosses the
           pill at its centre, and the gap is the only part of it that stays clear of a
           control, so it is both where the playhead is read and the space that keeps a
-          thumb off the wrong end. At the phone fit the pair lands ~75 CSS px apart — the
-          two zoom steps are the one pair of controls on the console a slip between is
-          most annoying, and there is nothing else on the seam to crowd. The buttons
+          thumb off the wrong end. The pair is held 126px apart (the 170px box less the two
+          22px keys) — which is ~88 CSS px of clear seam at the phone fit — because the two
+          zoom steps are the one pair of controls on the console a slip between is most
+          annoying, and there is nothing else on the seam to crowd. The buttons
           themselves stay 24px and carry a wider invisible tap pad, so the visible pair
           does not grow into the waveform while the hit areas do — and their marks are drawn
           at the two `|◀` buttons' 12 px, so the lane's controls read as one set. */}
       {/* Waveform Zoom Controls (− and + flanking the red playhead needle with fair spacing) */}
-      <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-[146px] flex items-center justify-between z-20 pointer-events-none">
+      <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-[170px] flex items-center justify-between z-20 pointer-events-none">
         {/* Zoom Out (−) on left of playhead */}
         <button
           type="button"
@@ -738,6 +739,11 @@ export function StackedWaveforms({
             activeGridDeckId === 'A' ? 'top-9 right-2' : 'top-[calc(50%+34px)] right-2'
           }`}
         >
+          {/* The panel holds the grid's coarse controls only: the lane already carries Set Downbeat
+              and the ±10 ms nudges beside the waveform, so repeating them here made the dropdown a
+              second copy of the tools a hand's width away. What is left is what the lane does not
+              have — bar phase, BPM stretch — plus the deck badge, the VAR marker and the close key. */}
+
           {/* Deck Badge */}
           <div className="flex items-center rounded bg-[#101010] px-2 py-0.5 border border-[#262626]">
             <span
@@ -764,21 +770,6 @@ export function StackedWaveforms({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => activeGridDeck.setBeat1AtPosition()}
-            disabled={!activeGridDeck.track}
-            className="h-5 px-2 rounded bg-[#202020] border border-[#333333] hover:border-[#666666] text-white hover:text-white text-[10px] font-bold uppercase disabled:opacity-30 transition-colors flex items-center gap-1"
-            title="Set Downbeat (Beat 1) at the red playhead needle"
-          >
-            {/* The same bar the lane's downbeat button uses, at the same size — the two
-                buttons set the same thing, so they are marked with the same sign. In the
-                button's own white, which is the colour the canvas paints its downbeat
-                stripes. */}
-            <span aria-hidden="true" className="block h-[11px] w-[2px] shrink-0 rounded-full bg-current" />
-            <span>SET DOWNBEAT</span>
-          </button>
-
           {/* Shift Bar by ±1 Beat */}
           <div className="flex items-center gap-0.5">
             <span className="text-[9px] uppercase tracking-wider text-[#666666] mr-0.5 font-bold">Bar</span>
@@ -799,31 +790,6 @@ export function StackedWaveforms({
               title="Shift Bar (downbeat white stripes) 1 beat later"
             >
               &gt;
-            </button>
-          </div>
-
-          <div className="h-4 w-[1px] bg-[#2a2a2a]" />
-
-          {/* Shift / Nudge Grid Offset */}
-          <div className="flex items-center gap-0.5">
-            <span className="text-[9px] uppercase tracking-wider text-[#666666] mr-0.5 font-bold">Shift</span>
-            <button
-              type="button"
-              onClick={e => activeGridDeck.nudgeBeatGrid(e.shiftKey ? -0.002 : -0.01)}
-              disabled={!activeGridDeck.track}
-              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white active:text-white active:border-white active:bg-[#101010] font-mono text-[10px] font-bold disabled:opacity-30"
-              title="Shift beatgrid left 10ms (Shift-click for 2ms fine step)"
-            >
-              ◀ 10ms
-            </button>
-            <button
-              type="button"
-              onClick={e => activeGridDeck.nudgeBeatGrid(e.shiftKey ? 0.002 : 0.01)}
-              disabled={!activeGridDeck.track}
-              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white active:text-white active:border-white active:bg-[#101010] font-mono text-[10px] font-bold disabled:opacity-30"
-              title="Shift beatgrid right 10ms (Shift-click for 2ms fine step)"
-            >
-              10ms ▶
             </button>
           </div>
 
@@ -850,11 +816,14 @@ export function StackedWaveforms({
             >
               +
             </button>
+            {/* 4 px on top of the group's 2 px gap: the two stretch keys ( − + ) and the two
+                halve/double keys are separate pairs, and at a uniform 2 px they read as one run
+                of four. */}
             <button
               type="button"
               onClick={() => activeGridDeck.multiplyGridBpm(0.5)}
               disabled={!activeGridDeck.track}
-              className="h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
+              className="ml-1 h-5 px-1.5 rounded bg-[#202020] border border-[#333333] hover:border-[#555] text-[#cccccc] hover:text-white font-mono text-[10px] font-bold disabled:opacity-30"
               title="Halve grid BPM (/2)"
             >
               /2

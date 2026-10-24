@@ -12,7 +12,6 @@ import { Knob } from './Knob'
 import { youtubeBridge } from '@/lib/dj/youtube-bridge'
 // import { MixRenderButton } from './MixRenderButton'
 import { useCoverArt } from '@/lib/dj/cover-art'
-import { useViewportMode } from '@/lib/use-viewport'
 import { ACTIVE, ACTIVE_KEY } from '@/lib/dj/control-state'
 
 interface TraktorMiddleStripProps {
@@ -55,7 +54,6 @@ export function TraktorMiddleStrip({
   activeFxDeck,
   showFx = true,
 }: TraktorMiddleStripProps) {
-  const { kiosk } = useViewportMode()
   const deckA = engine.decks.A
   const deckB = engine.decks.B
   const [isEditingMasterBpm, setIsEditingMasterBpm] = useState(false)
@@ -188,12 +186,13 @@ export function TraktorMiddleStrip({
                     className="w-16 bg-black border border-white text-white font-mono text-[14px] font-bold text-center rounded px-0.5 outline-none"
                   />
                 ) : (
-                  /* 14 px on a phone, 16 on a desktop: the value is read at a glance from a screen
-                     held at arm's length, and at 16 it out-shouted every other readout in the
-                     strip — including the deck's own BPM, which is the one being matched. */
+                  /* 14 px on both layouts: at 16 the value out-shouted every other readout in
+                     the strip — including the deck's own BPM, which is the one being matched —
+                     and it also shrank to 14 the moment it was clicked for editing. One size
+                     now, and the one the edit field already uses. */
                   <span
                     onClick={() => setIsEditingMasterBpm(true)}
-                    className={`${kiosk ? 'text-[14px]' : 'text-[16px]'} font-mono font-bold leading-none text-[#dcdcdc] hover:text-white hover:underline cursor-pointer tabular-nums`}
+                    className="text-[14px] font-mono font-bold leading-none text-[#dcdcdc] hover:text-white hover:underline cursor-pointer tabular-nums"
                     title="Click to overrule Master BPM"
                   >
                     {masterBpm.toFixed(2)}

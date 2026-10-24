@@ -277,14 +277,24 @@ export function TraktorMixer({ engine, className = '' }: TraktorMixerProps) {
         {/* FX module: target assignment, routing bracket and the four performance buttons. */}
         <div className="flex flex-1 min-h-0 w-full items-center justify-center">
         <div className={`flex flex-col items-center w-full mt-2 ${kiosk ? 'max-w-[120px]' : 'max-w-[109px]'}`}>
-          {/* Same caption as the deck's CUES label: 8.5 px, #888888, tracking-wider. The
-              FX group is the second labelled cluster on the console, and at 7 px with
-              wider tracking it read as a smaller, different class of heading. */}
-          {/* Same 8 px caption gap as the deck's CUES label, for the same reason: at 4 px the
-              word was nearer the A / MST / B row than the row is to the panel's border. The
-              module is centred in the space under the filters, so the extra 4 px comes out
-              of that centring, not out of the FX buttons. */}
-          <span className="text-[8.5px] font-semibold text-[#777777] uppercase tracking-wider mb-2 leading-none select-none">
+          {/* The console's caption style, matching the FILTER labels the knobs wear: 7.5 px,
+              bold, #777777, tracking-wider. CUES uses the same one, so every group heading on
+              the mixer and the decks reads as the same class of type. */}
+          {/* 8 px caption gap: at 4 px the word sat nearer the A / MST / B row than the row is to
+              the panel's border. The module is centred in the space under the filters, so the
+              extra 4 px comes out of that centring, not out of the FX buttons. */}
+          {/* The module is centred in the space under the filters, which left this caption
+              ~10 px below the HI / MID / LOW labels either side of the panel: captions that read
+              as one row sat on two different lines. On a phone the lift is 9 px, which lands the
+              caption on the MID line; a desktop has less headroom under its filters, so it takes
+              a 4 px lift — enough to clear the A / MST / B row the way the filters' own captions
+              sit above their knobs, without pulling the module itself off centre. A transform
+              leaves the layout alone, so the row and the FX keys do not move. */}
+          <span
+            className={`font-sans text-[7.5px] font-bold text-[#777777] uppercase tracking-wider mb-2 leading-none select-none ${
+              kiosk ? '-translate-y-[9px]' : '-translate-y-[4px]'
+            }`}
+          >
             FX
           </span>
           <div className="grid grid-cols-3 gap-1 w-full">

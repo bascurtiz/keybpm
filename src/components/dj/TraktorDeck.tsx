@@ -399,8 +399,10 @@ export function TraktorDeck({
         </div>
 
         {/* Bottom: CUES label + 4 HOT CUE PADS bottom-aligned */}
+        {/* Caption style shared with the mixer's FX heading and the FILTER labels: 7.5 px, bold,
+            #777777, tracking-wider. */}
         <div className="flex flex-col items-center w-full mt-auto shrink-0">
-          <span className="text-[8.5px] font-semibold text-[#777777] uppercase tracking-wider mb-1.5 leading-none select-none">
+          <span className="font-sans text-[7.5px] font-bold text-[#777777] uppercase tracking-wider mb-1.5 leading-none select-none">
             CUES
           </span>
           <div className="flex flex-col gap-1 w-full shrink-0 items-center">

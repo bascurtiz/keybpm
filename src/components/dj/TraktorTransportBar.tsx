@@ -108,7 +108,9 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
   }, [engine, deckA, deckB])
 
   // Default 4 beats matching the console layout and mockup
-  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(0)
+  // Opens on the longest fade in the cycle, 64 beats: an auto-crossfade is armed for the
+  // long blend a set is built on, and the shorter lengths are one click away.
+  const [fadeBeatsIdx, setFadeBeatsIdx] = useState(FADE_BEAT_STEPS.indexOf(64))
   const fadeBeats = FADE_BEAT_STEPS[fadeBeatsIdx]
   const cycleFadeBeats = () => setFadeBeatsIdx(i => (i + 1) % FADE_BEAT_STEPS.length)
 
@@ -278,11 +280,12 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
       </div>
 
       {/* ================= CENTER: AUTO | CROSSFADER | FADE LENGTH ================= */}
-      {/* The crossfader's slot is 104 px in kiosk, centred on the chassis like the mixer's
-          filter/FX panel above it and 22 px inside the panel's edges either side. The slot is the
-          fader's travel: the panel is a section, the crossfader is a control, and at the panel's
-          full 148 (then 132) the cap's run read as the widest thing between the decks. The cluster
-          around it — AUTO, the two arrows, the beat count — travels with it. */}
+      {/* The crossfader's slot is 120 px on a phone, centred on the chassis like the mixer's
+          filter/FX panel above it; a desktop asks for 136 and the frame squeezes it to what the
+          arrows and padding leave. The slot is the fader's travel: the panel is a section, the
+          crossfader is a control, and at the panel's full 148 (then 132) the cap's run read as the
+          widest thing between the decks. The cluster around it — AUTO, the two arrows, the beat
+          count — travels with it. */}
       <div className={`flex items-center justify-center shrink-0 ${kiosk ? 'w-[402px] gap-1.5' : 'w-[384px] gap-1.5'}`}>
         <button
           type="button"
@@ -305,10 +308,11 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
 
         {/* The crossfader's own framed section. Its width is the one that reads: the slot inside
             can shrink all it likes, but the border is what the eye measures the control by. On a
-            phone it is 184 px — the 104 px slot, the two 24 px arrows, 8 px either side and 8 px
-            between them — so the section still reads narrower than the filter/FX panel above it
-            while both arrows keep a full cell. 224 was the width the slot filled at 152. */}
-        <div className={`${kiosk ? 'w-[184px] h-[52px]' : 'w-[200px] h-11'} flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]`}>
+            phone it is 200 px — the 120 px slot, the two 24 px arrows, 8 px either side and 8 px
+            between them — with both arrows keeping a full cell. The middle cluster is 402 wide
+            and its AUTO / count keys are 52 each, so those 100 px of travel are free: the section
+            grows into slack the cluster already had, not into the decks. */}
+        <div className={`w-[200px] ${kiosk ? 'h-[52px]' : 'h-11'} flex items-center justify-between gap-1 px-2 bg-[#141414] rounded-[3px] border border-[#282828]`}>
           <button
             type="button"
             onClick={() => pressCrossfadeArrow('left')}
@@ -344,7 +348,7 @@ export function TraktorTransportBar({ engine, className = '' }: TraktorTransport
             }}
             label="Crossfader"
             capWidth={kiosk ? KIOSK_FADER_CAP_W : FADER_CAP_W}
-            className={kiosk ? 'h-8 w-[104px] max-w-[104px]' : 'h-6 w-[136px] max-w-[136px]'}
+            className={kiosk ? 'h-8 w-[120px] max-w-[120px]' : 'h-6 w-[136px] max-w-[136px]'}
           />
 
           <button
@@ -421,7 +425,9 @@ function DeckTransport({
   otherDeck: DeckEngine
   deckId: 'A' | 'B'
 }) {
-  const [selectedLoopIdx, setSelectedLoopIdx] = useState(4) // Default 4 beats
+  // Opens on 16 beats: a bar-and-a-half phrase is the default loop in a DJ set far more
+  // often than the four-beat bar, and the cluster steps down to it in two clicks.
+  const [selectedLoopIdx, setSelectedLoopIdx] = useState(LOOP_BEAT_SIZES.indexOf(16))
   // What the < number > cluster under the switch does: size and toggle a loop, or beat-jump the
   // playhead. Kept per deck, like the size, so the two transports can be set up differently.
   // MOVE is a toggle of its own rather than a mode: on makes the arrows jump the playhead, off
