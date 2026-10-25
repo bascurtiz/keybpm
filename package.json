@@ -8,7 +8,11 @@
     "build": "tsc -b && vite build",
     "prepare": "node scripts/install-git-hooks.mjs",
     "preview": "vite preview",
-    "test": "node scripts/test-queue-merge.mjs && node scripts/test-consensus-sources.mjs && node scripts/test-source-keys.mjs && node scripts/test-activity-order.mjs && node scripts/test-bpm-detector.mjs && node scripts/test-grid.mjs && node scripts/test-loop-move.mjs && node scripts/test-bar-structure.mjs && node scripts/test-beat-tracker.mjs && node scripts/test-onset-latency.mjs && node scripts/test-vinyl-declick.mjs && node scripts/test-device-profile.mjs && node scripts/test-build-version.mjs && node scripts/test-lane-badge.mjs && node scripts/test-cue-flag.mjs && node scripts/test-mix-render.mjs && node scripts/test-browser-detect.mjs && npm run bench:beats",
+    "test": "node scripts/test-roman.mjs && node scripts/test-queue-merge.mjs && node scripts/test-consensus-sources.mjs && node scripts/test-source-keys.mjs && node scripts/test-activity-order.mjs && node scripts/test-bpm-detector.mjs && node scripts/test-grid.mjs && node scripts/test-loop-move.mjs && node scripts/test-bar-structure.mjs && node scripts/test-beat-tracker.mjs && node scripts/test-onset-latency.mjs && node scripts/test-vinyl-declick.mjs && node scripts/test-device-profile.mjs && node scripts/test-build-version.mjs && node scripts/test-lane-badge.mjs && node scripts/test-cue-flag.mjs && node scripts/test-mix-render.mjs && node scripts/test-browser-detect.mjs && npm run bench:beats",
+    "data:chords": "node scripts/lookup_chord_progressions.mjs",
+    "data:chords:all": "node scripts/match-all-progressions.mjs",
+    "data:chords:ug": "node scripts/enrich_remaining_chords.mjs",
+    "data:chords:apply": "node scripts/apply_chords_to_tracks.mjs",
     "bench:beats": "node scripts/bench-beats.mjs",
     "bench:beats:corpus": "node scripts/bench-beats.mjs --corpus bench/corpus --no-gate --json bench/last-run.json",
     "bench:beats:emit": "node scripts/bench-beats.mjs --emit bench/corpus/synthetic",
@@ -32,7 +36,8 @@
     "data:youtube:gathered": "node scripts/import_soundiiz.mjs --gathered --dir=data/export-soundiiz && node scripts/export_csv.mjs",
     "data:apply-queue": "node scripts/apply_submissions.mjs",
     "api:dev": "npm run dev --prefix workers/api",
-    "api:deploy": "npm run deploy --prefix workers/api"
+    "api:deploy": "npm run deploy --prefix workers/api",
+    "data:chords:chordify": "node scripts/enrich_chordify.mjs"
   },
   "keywords": [
     "music",
@@ -64,6 +69,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.45",
+    "puppeteer-core": "^25.16.0",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
     "vite": "^5.4.3",

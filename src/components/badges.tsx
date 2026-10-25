@@ -51,6 +51,13 @@ export function KeyBadge({
  * decorative; the code, the tooltip and the aria-label all carry the meaning
  * (§25). `stopPropagation` keeps a chip click from also opening the
  * surrounding (clickable) table row.
+ *
+ * The chip rests dimmed and comes to full strength when hovered or focused: a
+ * dense row can hold a dozen chips, and a wall of saturated hues competes with
+ * the musical data it sits next to, while the brand colour still tells the
+ * sources apart at a glance. It must not scale or move on hover — the table
+ * cell clips its children, so a grown chip was cut off exactly where a reader
+ * was pointing.
  */
 export function SourceBadge({
   source,
@@ -65,7 +72,7 @@ export function SourceBadge({
   const label = sourceTooltip(source, track.camelot ?? null)
   const chip = (
     <span
-      className="inline-flex h-5 min-w-[1.75rem] items-center justify-center rounded border px-1 font-sans text-[11px] font-bold leading-none text-text"
+      className="inline-flex h-5 min-w-[1.75rem] items-center justify-center rounded border px-1 font-sans text-[11px] font-bold leading-none text-text opacity-70 transition duration-150 group-hover/chip:opacity-100 group-focus-visible/chip:opacity-100 motion-reduce:transition-none"
       style={{ backgroundColor: `${meta.color}26`, borderColor: meta.color }}
     >
       {meta.code}
@@ -74,7 +81,7 @@ export function SourceBadge({
   const href = sourceHref(source, track)
   if (!href) {
     return (
-      <span className={className} title={label} aria-label={label}>
+      <span className={`group/chip inline-flex ${className}`} title={label} aria-label={label}>
         {chip}
       </span>
     )
@@ -89,7 +96,7 @@ export function SourceBadge({
         title={listed}
         aria-label={listed}
         onClick={e => e.stopPropagation()}
-        className={`inline-flex transition-transform hover:scale-110 hover:brightness-125 ${className}`}
+        className={`group/chip inline-flex ${className}`}
       >
         {chip}
       </Link>
@@ -103,7 +110,7 @@ export function SourceBadge({
       title={label}
       aria-label={label}
       onClick={e => e.stopPropagation()}
-      className={`inline-flex transition-transform hover:scale-110 hover:brightness-125 ${className}`}
+      className={`group/chip inline-flex ${className}`}
     >
       {chip}
     </a>

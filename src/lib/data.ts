@@ -118,6 +118,12 @@ function normalizeTrack(raw: unknown): Track | null {
   if (verifiedAt) track.verifiedAt = verifiedAt
   const verifiedBy = str(r.verifiedBy)
   if (verifiedBy) track.verifiedBy = verifiedBy
+  if (Array.isArray(r.progressions)) {
+    const progs = (r.progressions as Record<string, unknown>[]).filter(
+      p => p && typeof p === 'object' && typeof p.roman === 'string'
+    )
+    if (progs.length) track.progressions = progs as unknown as Track['progressions']
+  }
   return track
 }
 

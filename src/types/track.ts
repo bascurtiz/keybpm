@@ -21,6 +21,13 @@ export interface TrackSource {
   keys?: string[]
 }
 
+export interface TrackProgression {
+  section?: string
+  roman: string
+  chords: string
+  sourceKey?: string
+}
+
 export interface Track {
   id: string
   artist: string
@@ -61,6 +68,8 @@ export interface Track {
   soundcloud?: string
   /** Per-source key reports from the multi-source consensus engine (AGENTS §4). */
   sources?: TrackSource[]
+  /** Chord progressions (Roman numerals & chords, from Hooktheory / Ultimate Guitar). */
+  progressions?: TrackProgression[]
   /** Discord display name of the member who contributed the track through the queue. */
   submittedBy?: string
   /** Discord snowflake of the submitter. */

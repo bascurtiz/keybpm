@@ -89,11 +89,9 @@ const KIOSK_MIN_CONSOLE_H = STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H
 const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK_LANE_BAND_FLOOR_H)
 
 /**
- * Bounds for the desktop chassis.
- * Desktop matches the waveform section and mixer row at 270 px each.
+ * Design height for the desktop chassis (717 px).
+ * Matches the strip (98 px), waveforms (270 px), mixer/decks (270 px), transport (77 px), and borders (2 px).
  */
-const DESKTOP_MIN_CONSOLE_H =
-  CHASSIS_BORDER_H + DESKTOP_STRIP_H + KIOSK_LANE_BAND_FLOOR_H + DESKTOP_DECK_ROW_H + DESKTOP_TRANSPORT_H
 const DESKTOP_MAX_CONSOLE_H =
   CHASSIS_BORDER_H + DESKTOP_STRIP_H + DESKTOP_WAVEFORM_H + DESKTOP_DECK_ROW_H + DESKTOP_TRANSPORT_H
 
@@ -153,10 +151,28 @@ const KIOSK_SIDE_BAND =
  */
 const MAX_CONSOLE_SCALE = 2
 
+type ZoomOption = '100%' | '125%' | 'Fit'
+const ZOOM_STORAGE_KEY = 'keybpm_dj_zoom'
+
 export function MixIt() {
   const engine = getAudioEngine()
   const deckA = engine.decks.A
   const deckB = engine.decks.B
+
+  const [zoomPref, setZoomPref] = useState<ZoomOption>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(ZOOM_STORAGE_KEY)
+      if (saved === '100%' || saved === '125%' || saved === 'Fit') return saved
+    }
+    return '125%'
+  })
+
+  const handleZoomChange = (option: ZoomOption) => {
+    setZoomPref(option)
+    try {
+      localStorage.setItem(ZOOM_STORAGE_KEY, option)
+    } catch {}
+  }
 
   const [analyzingDeck, setAnalyzingDeck] = useState<'A' | 'B' | null>(null)
   const [analysisProgress, setAnalysisProgress] = useState<AnalyzeProgress | null>(null)
@@ -186,20 +202,20 @@ export function MixIt() {
   useEffect(() => {
     if (!portraitPhone) setPortraitOptOut(false)
   }, [portraitPhone])
-  // A desktop draws the console at its own size: 1190 px is the instrument's design
-  // width, and scaling it up to fill a 1600 px window is what made the page read as a
-  // phone console blown up — every label, knob and jog 1.3–1.5× its intended size. A
-  // wide screen gets the console centred with margin around it instead; only kiosk
-  // (a phone, where the console *is* the page and there is no margin to speak of)
-  // still scales up past 1.
-  //
-  // Kiosk keeps its own design width: it fits the console to the phone's width, so the
-  // desktop's wider chassis would only shrink every control on a screen that cannot
-  // spare the pixels. See `KIOSK_CONSOLE_WIDTH`.
+  // Desktop console scaling: defaults to 1.25x on wide/ultrawide displays for a
+  // balanced hardware size, or adapts to user preference (100% compact, 125% standard, Fit).
   const consoleWidth = kiosk ? KIOSK_CONSOLE_WIDTH : CONSOLE_WIDTH
+  const maxScale = kiosk
+    ? MAX_CONSOLE_SCALE
+    : zoomPref === '100%'
+    ? 1.0
+    : zoomPref === '125%'
+    ? 1.25
+    : MAX_CONSOLE_SCALE
+
   const { setBoxRef, setChassisRef, box, chassis, scale } = useConsoleFit(
     consoleWidth,
-    kiosk ? MAX_CONSOLE_SCALE : 1
+    maxScale
   )
   // Fullscreen is how the console gets the address bar back: a fixed viewport never
   // scrolls, so the browser's own hide-on-scroll never fires here (see `fullscreen.ts`).
@@ -453,17 +469,12 @@ export function MixIt() {
    * Height the chassis is laid out at, in design px.
    *
    * Kiosk keeps `kioskDesignH`: there the fit is width-bound, so the height that makes the
-   * 1024 px console fill the screen is the one that matters. A desktop draws the console
-   * at 1× (see the `maxScale` argument), which means design px *are* CSS px — so filling
-   * the window vertically means taking the box height directly, and the flexible waveform
-   * band absorbs it up to `DESKTOP_MAX_CONSOLE_H`. Without this the desktop console stayed
-   * at its minimum height and floated in the middle of a 900 px window, and below that
-   * minimum the band was pushed past its floor and the transport clipped.
+   * 1160 px console fill the screen is the one that matters. On desktop, the chassis has a
+   * fixed design height of DESKTOP_MAX_CONSOLE_H (717 px, matching the sum of the strip,
+   * waveforms, mixer/decks, and transport bar). `useConsoleFit` scales the chassis smoothly
+   * via CSS transform to fit whatever viewport space is available.
    */
-  const designH =
-    kiosk || box.h <= 0
-      ? kioskDesignH
-      : Math.min(DESKTOP_MAX_CONSOLE_H, Math.max(DESKTOP_MIN_CONSOLE_H, Math.round(box.h)))
+  const designH = kiosk || box.h <= 0 ? kioskDesignH : DESKTOP_MAX_CONSOLE_H
 
   const chassisStyle = {
     width: consoleWidth,
@@ -537,7 +548,10 @@ export function MixIt() {
             baseline grid. A full-bleed title row put "Mix it!" 100 px to the left of
             every other page's heading. */}
         {!kiosk && (
-          <div className="mx-auto flex w-full max-w-[1400px] shrink-0 flex-wrap items-baseline justify-between gap-2 px-3 pt-6">
+          <div
+            className="mx-auto flex w-full shrink-0 flex-wrap items-baseline justify-between gap-2 px-3 pt-6"
+            style={{ maxWidth: Math.max(1400, Math.round(consoleWidth * scale)) }}
+          >
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-semibold text-white">Mix it!</h1>
               <span className="text-[10px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/30">
@@ -562,9 +576,40 @@ export function MixIt() {
                 v{__APP_VERSION__} · {BUILD_STAMP}
               </span>
             </div>
-            <p className="text-xs text-text-muted text-right">
-              Drop a track on each deck, and audition quickly in the mix.
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="hidden md:block text-xs text-text-muted text-right">
+                Drop a track on each deck, and audition quickly in the mix.
+              </p>
+              {/* Desktop Size / Zoom selector */}
+              <div
+                className="flex items-center rounded border border-[#282828] bg-[#141414] p-0.5 text-[10px] font-mono select-none shrink-0"
+                role="group"
+                aria-label="Console size"
+              >
+                <span className="px-1.5 text-text-muted text-[9px] uppercase tracking-wider">Size</span>
+                {(['100%', '125%', 'Fit'] as const).map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => handleZoomChange(option)}
+                    className={`px-1.5 py-0.5 rounded-[2px] transition-colors ${
+                      zoomPref === option
+                        ? 'bg-[#282828] text-white font-semibold'
+                        : 'text-text-muted hover:text-text'
+                    }`}
+                    title={
+                      option === '100%'
+                        ? 'Compact (100% design size)'
+                        : option === '125%'
+                        ? 'Standard (125% balanced scale)'
+                        : 'Fit (fill available screen height)'
+                    }
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -732,6 +777,9 @@ export function MixIt() {
             />
           )}
         </div>
+
+        {/* Space under the console before the viewport edge, desktop only */}
+        {!kiosk && <div aria-hidden className="h-4 shrink-0" />}
       </main>
 
       {/* Analysis Progress Modal */}

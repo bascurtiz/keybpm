@@ -18,6 +18,9 @@ research/
 
 # Scratch output from analysis runs (audio A/B renders, reports) — never commit.
 outputs/
+data/*.gz
+data/chord-checked-not-found.json
+data/chordify-checked-not-found.json
 
 # Beat benchmark: corpora and audio are never committed, and neither is the
 # Python environment or the trackers' .beats cache (both are regenerable).
