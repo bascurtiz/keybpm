@@ -1,5 +1,254 @@
 [
   {
+    "id": "depeche-mode-policy-of-truth",
+    "artist": "Depeche Mode",
+    "title": "Policy of Truth",
+    "bpm": 114,
+    "key": "C minor",
+    "camelot": "5A",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=M2VBmHOYpV8",
+    "submittedBy": "TheHolyT-Bo",
+    "submittedByDiscordId": "266802535837204480",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "sources": [
+      {
+        "id": "hooktheory",
+        "key": "5A",
+        "url": "https://www.hooktheory.com/theorytab/view/depeche-mode/policy-of-truth#Bridge"
+      },
+      {
+        "id": "isolated_tracks",
+        "key": "5A",
+        "url": "https://isolated-tracks.com/depeche-mode/policy-of-truth"
+      },
+      {
+        "id": "karaoke_version",
+        "key": "5A",
+        "url": "https://www.karaoke-version.com/mp3-backingtrack/depeche-mode/policy-of-truth.html"
+      },
+      {
+        "id": "musicnotes",
+        "key": "5A",
+        "url": null
+      },
+      {
+        "id": "songgalaxy",
+        "key": "5A",
+        "url": "https://songgalaxy.com/Multitrack/Depeche-Mode/Policy-of-Truth/RE20886.html"
+      }
+    ]
+  },
+  {
+    "id": "okgutta-i-read-psalms-before-i-killed-your-friend",
+    "artist": "okgutta",
+    "title": "I READ PSALMS BEFORE I KILLED YOUR FRIEND",
+    "bpm": 120,
+    "key": "G major",
+    "camelot": "9B",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=LFzoZzOIaZY",
+    "submittedBy": "SKVNKO",
+    "submittedByDiscordId": "998692173883125821",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
+  },
+  {
+    "id": "i-set-my-friends-on-fire-things-that-rhyme-with-orange",
+    "artist": "I Set My Friends on Fire",
+    "title": "Things That Rhyme With Orange",
+    "bpm": 168,
+    "key": "C major",
+    "camelot": "8B",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=_s0fVwILOgc",
+    "submittedBy": "SKVNKO",
+    "submittedByDiscordId": "998692173883125821",
+    "verifiedAt": "2026-10-11",
+    "verifiedBy": "Bas Curtiz"
+  },
+  {
+    "id": "2pac-hit-em-up",
+    "artist": "2Pac",
+    "title": "Hit 'Em Up",
+    "bpm": 95,
+    "bpmRaw": "~95",
+    "key": "A minor",
+    "camelot": "8A",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=ugD3_yt756w",
+    "submittedBy": "TheHolyT-Bo",
+    "submittedByDiscordId": "266802535837204480",
+    "verifiedAt": "2026-10-11",
+    "verifiedBy": "Bas Curtiz",
+    "sources": [
+      {
+        "id": "karaoke_version",
+        "key": "8A",
+        "url": "https://www.karaoke-version.com/mp3-backingtrack/2pac/hit-em-up.html"
+      }
+    ]
+  },
+  {
+    "id": "the-flaming-lips-all-we-have-is-now",
+    "artist": "The Flaming Lips",
+    "title": "All We Have Is Now",
+    "bpm": 82,
+    "bpmRaw": "~82",
+    "key": "E major",
+    "camelot": "12B",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "notes": "changes to ~97 BPM in the chorus",
+    "youtube": "https://www.youtube.com/watch?v=2rLWRiVETIw",
+    "submittedBy": "TheHolyT-Bo",
+    "submittedByDiscordId": "266802535837204480",
+    "verifiedAt": "2026-10-11",
+    "verifiedBy": "Bas Curtiz",
+    "sources": [
+      {
+        "id": "hooktheory",
+        "key": "12B",
+        "url": "https://www.hooktheory.com/theorytab/view/the-flaming-lips/all-we-have-is-now#Chorus"
+      }
+    ]
+  },
+  {
+    "id": "brad-paisley-behind-the-clouds",
+    "artist": "Brad Paisley",
+    "title": "Behind The Clouds",
+    "bpm": 127,
+    "key": "E major",
+    "camelot": "12B",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=24csCK7R66U",
+    "submittedBy": "TheHolyT-Bo",
+    "submittedByDiscordId": "266802535837204480",
+    "verifiedAt": "2026-10-11",
+    "verifiedBy": "Bas Curtiz",
+    "sources": [
+      {
+        "id": "musicnotes",
+        "key": "12B",
+        "url": null
+      }
+    ]
+  },
+  {
+    "id": "inabakumori-rainy-boots",
+    "artist": "Inabakumori",
+    "title": "Rainy Boots",
+    "bpm": 144,
+    "key": "D major",
+    "camelot": "10B",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=G5hScSFkib4",
+    "submittedBy": "Lumi",
+    "submittedByDiscordId": "427267035324481558",
+    "verifiedAt": "2026-10-11",
+    "verifiedBy": "Bas Curtiz"
+  },
+  {
+    "id": "inabakumori-float-play",
+    "artist": "Inabakumori",
+    "title": "Float Play",
+    "bpm": 167,
+    "key": "G# minor",
+    "camelot": "1A",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=NRQRC_0ZQ00",
+    "submittedBy": "Lumi",
+    "submittedByDiscordId": "427267035324481558",
+    "verifiedAt": "2026-10-12",
+    "verifiedBy": "Bas Curtiz"
+  },
+  {
+    "id": "shoko-nakagawa-sorairo-days",
+    "artist": "Shoko Nakagawa",
+    "title": "Sorairo Days",
+    "bpm": 116,
+    "key": "B minor",
+    "camelot": "10A",
+    "genre": null,
+    "label": null,
+    "release": null,
+    "year": null,
+    "duration": null,
+    "source": "Community",
+    "confidence": null,
+    "lastVerified": null,
+    "youtube": "https://www.youtube.com/watch?v=vVGa8I0Atcg",
+    "submittedBy": "Lumi",
+    "submittedByDiscordId": "427267035324481558",
+    "verifiedAt": "2026-10-13",
+    "verifiedBy": "Bas Curtiz",
+    "sources": [
+      {
+        "id": "hooktheory",
+        "key": "10A",
+        "url": "https://www.hooktheory.com/theorytab/view/shoko-nakagawa/sorairo-days#Chorus"
+      }
+    ]
+  },
+  {
     "id": "four-tet",
     "artist": "⣎⡇ꉺლ༽இ•̛)ྀ◞ ༎ຶ ༽ৣৢ؞ৢ؞ؖ ꉺლ (Four Tet)",
     "title": "̟̞̝̜̙̘̗̖҉̵̴̨̧̢̡̼̻̺̹̳̲̱̰̯̮̭̬̫̪̩̦̥̤̣̠҈͈͇͉͍͎͓͔͕͖͙͚͜͢͢͢͢͢͢͢͢͢͢͢͢͢͢ͅ ఠీੂ೧ູ࿃ूੂ✧ළʅ͡͡͡͡͡͡͡͡͡͡͡(ƪ❍⊁◞..◟⊀ ̟̞̝̜̙̘̗̖҉̵̴̨̧̢̡̼̻̺̹̳̲̱̰̯̮̭̬̫̪̩̦̥̤̣̠҈͈͇͉͍͎͓͔͕͖͙͚͜͢͢͢͢͢͢͢͢͢͢͢͢͢͢ͅ",
@@ -17,7 +266,12 @@
         "roman": "iv – vii7 – bII – VI",
         "chords": "Dm – Gm7 – Bb – F"
       }
-    ]
+    ],
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz",
+    "youtube": "https://www.youtube.com/watch?v=-kZkJxSFIEs"
   },
   {
     "id": "four-tet-vo-vo-i-ve-got-feelings",
@@ -35,7 +289,12 @@
         "chords": "A – Bm – D – A – Bm – A – Bm – D",
         "sourceKey": "A"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=zu4CJtkGR2U",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "100-gecs-geccraft",
@@ -72,7 +331,12 @@
         "roman": "bV – ii° – #VI – bII",
         "chords": "D#m – B – F# – A#"
       }
-    ]
+    ],
+    "soundcloud": "https://soundcloud.com/bruhmru/moneymachine",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-break-down-break-up",
@@ -7391,7 +7655,12 @@
         "key": "8A",
         "url": null
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=MRRmU_pOXnk",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-09",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "david-deejay-ft-dony-sexy-thing",
@@ -60357,7 +60626,12 @@
         "chords": "Abm – Bbm – Cm – Fm",
         "sourceKey": "A# minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=cxfN-dFyzEQ",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-i-shoulda-known",
@@ -136141,7 +136415,12 @@
         "chords": "Ab – Fm – Gm – Cm",
         "sourceKey": "C minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=QT3-T_-bMt4",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-ba-da-ba",
@@ -136160,7 +136439,12 @@
         "chords": "G7 – Cm – Fm – Abm",
         "sourceKey": "C minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=OSuOU5HDbxk",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-dance-with-u-long",
@@ -183189,7 +183473,12 @@
     "source": "duuzu's key & bpm database v10",
     "lastVerified": "2025-06-15",
     "mode": "dorian",
-    "keyRaw": "C#dr"
+    "keyRaw": "C#dr",
+    "youtube": "https://www.youtube.com/watch?v=70crnR6Xg-o",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "100-gecs-xxxi-wud-nvrst-p-uxxx-i-would-never-stop",
@@ -225142,7 +225431,12 @@
     "bpmRaw": "~86",
     "tags": [
       "instrumental"
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=qSjjfWjVMuA",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "100-gecs-dumbest-girl-alive",
@@ -225223,7 +225517,12 @@
         "chords": "Gb – Bbm – Ebm – Fm",
         "sourceKey": "D minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=6vKzZ5taMew",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-life-on-the-line",
@@ -255377,7 +255676,12 @@
     "lastVerified": "2025-06-15",
     "tags": [
       "instrumental"
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=32dSX1OjkVM",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "100-gecs-800db-cloud-can-of-bliss-remix",
@@ -270420,7 +270724,12 @@
     "keyRaw": "D#dr",
     "tags": [
       "instrumental"
-    ]
+    ],
+    "soundcloud": "https://soundcloud.com/x5g32/o-shh",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "009-sound-system-dreamscape",
@@ -270601,7 +270910,12 @@
         "chords": "Ebm – B – Abm – Eb",
         "sourceKey": "D# minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=Uk-PAb0b6jM",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-diggin-it-baby",
@@ -270638,7 +270952,12 @@
         "chords": "Ebm – B – Abm – Bb",
         "sourceKey": "D# minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=UE6iennwfzI",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-i-wanna-kno",
@@ -270860,7 +271179,12 @@
         "key": "2A",
         "url": "https://www.karaoke-version.com/mp3-backingtrack/50-cent/p-i-m-p.html"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=Jy1D6caG8nU",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "6ix9ine-ft-nicki-minaj-murda-beats-fefe",
@@ -304484,7 +304808,12 @@
         "chords": "D – Em – Bm – E",
         "sourceKey": "E minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=OrS_Ygv64do",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "four-tet-9a-5",
@@ -304505,7 +304834,12 @@
         "chords": "Bb – Bb – Db – Bbm",
         "sourceKey": "E minor"
       }
-    ]
+    ],
+    "soundcloud": "https://soundcloud.com/x5g32/o-2",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "four-tet-oooooooooooo-ooooooooo",
@@ -304519,7 +304853,12 @@
     "tags": [
       "instrumental"
     ],
-    "notes": "triplet"
+    "notes": "triplet",
+    "youtube": "https://www.youtube.com/watch?v=CEi7SRWU1lc",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "100-gecs-doritos-fritos",
@@ -304625,7 +304964,12 @@
         "chords": "Em – D – Cmaj7 – C",
         "sourceKey": "E minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=X5BRutwcgmw",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-midnight-in-tokyo-to",
@@ -304644,7 +304988,12 @@
         "chords": "Em – C – D – Am",
         "sourceKey": "E minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=MMy5FXN50T4",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-getaway",
@@ -304662,7 +305011,12 @@
         "chords": "Em – Bm – Em7 – C",
         "sourceKey": "E minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=_X-7yWo1vXE",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-noize-the-invasion",
@@ -319853,7 +320207,12 @@
         "chords": "C – Bm – Em – G",
         "sourceKey": "E minor"
       }
-    ]
+    ],
+    "notes": "0:00 - 3:29: E minor, 3:29 - 4:11: F minor",
+    "lastEditedBy": "Lumi",
+    "lastEditedByDiscordId": "427267035324481558",
+    "verifiedAt": "2026-10-11",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "incubus-a-certain-shade-of-green",
@@ -349453,7 +349812,12 @@
         "chords": "Am – Em – D – C",
         "sourceKey": "G major"
       }
-    ]
+    ],
+    "soundcloud": "https://soundcloud.com/m-matthieu-chedid/supercherie",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-09",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "macgyver-theme",
@@ -358589,7 +358953,12 @@
         "roman": "V – ii° – V – I – V – I – V – #VI",
         "chords": "C – G – C – F – C – F – C – D"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=ETe9TI2i70k",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-big-beast",
@@ -358608,7 +358977,12 @@
         "chords": "Ab – Db – Bbm – Fm",
         "sourceKey": "F minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=SW-fPm7bpUo",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-rave-shit",
@@ -394378,7 +394752,12 @@
         "chords": "C# – F#m – D – C#m",
         "sourceKey": "F# minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=m6TRHwD32lo",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-chainsaw-funk",
@@ -415888,8 +416267,8 @@
   },
   {
     "id": "four-tet-11b-6",
-    "artist": "⣎⡇ꉺლ༽இ•̛)ྀ◞ ༎ຶ ༽ৣৢ؞ৢ؞ؖ ꉺლ (Four Tet) -̸ ̡ ҉ ҉.·๑ඕั ҉ ̸ ̡ ҉ ҉.·๑ඕั ҉ ̸ ̡ ҉ ҉.·๑ඕั ҉ ̸ ̡ ҉...",
-    "title": "",
+    "artist": "⣎⡇ꉺლ༽இ•̛)ྀ◞ ༎ຶ ༽ৣৢ؞ৢ؞ؖ ꉺლ (Four Tet)",
+    "title": "-̸ ̡ ҉ ҉.·๑ඕั ҉ ̸ ̡ ҉ ҉.·๑ඕั ҉ ̸ ̡ ҉ ҉.·๑ඕั ҉ ̸ ̡ ҉...",
     "bpm": 122,
     "key": "A major",
     "camelot": "11B",
@@ -415897,7 +416276,12 @@
     "lastVerified": "2025-06-15",
     "tags": [
       "instrumental"
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=vZ9rSdiXeCA",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "four-tet-11b-7",
@@ -415908,7 +416292,12 @@
     "camelot": "11B",
     "source": "duuzu's key & bpm database v10",
     "lastVerified": "2025-06-15",
-    "notes": "Alyd, G#min intro"
+    "notes": "Alyd, G#min intro",
+    "youtube": "https://www.youtube.com/watch?v=kdvgoLqtWGs",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "four-tet-11b-8",
@@ -415927,7 +416316,12 @@
         "chords": "Am – Cm – Am – C",
         "sourceKey": "A major"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=VFiid-T7qDA",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "100-gecs-fuck-teeth",
@@ -415977,7 +416371,12 @@
         "chords": "Am – F – Em – G",
         "sourceKey": "A major"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=O4QN_4ssuLE",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "3ds-menu-theme",
@@ -436150,7 +436549,12 @@
     "lastVerified": "2025-06-15",
     "tags": [
       "instrumental"
-    ]
+    ],
+    "soundcloud": "https://soundcloud.com/x5g32/o-3",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "1tbsp-four-tet-is-my-godmother",
@@ -436187,7 +436591,12 @@
         "chords": "C – D – G7 – G",
         "sourceKey": "G minor"
       }
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=5P_S5xsGnRo",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-ft-tv-ma-rapid-crew-can-t-move-me-pt3",
@@ -466587,7 +466996,12 @@
     "bpmRaw": "~106",
     "tags": [
       "instrumental"
-    ]
+    ],
+    "youtube": "https://www.youtube.com/watch?v=gxCMYlenw9c",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-reach-out",
@@ -466597,7 +467011,12 @@
     "key": "G# minor",
     "camelot": "1A",
     "source": "duuzu's key & bpm database v10",
-    "lastVerified": "2025-06-15"
+    "lastVerified": "2025-06-15",
+    "youtube": "https://www.youtube.com/watch?v=vMBWN-gVeYs",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "2-mello-you-like-that",
@@ -466640,7 +467059,12 @@
     "key": "G# minor",
     "camelot": "1A",
     "source": "duuzu's key & bpm database v10",
-    "lastVerified": "2025-06-15"
+    "lastVerified": "2025-06-15",
+    "youtube": "https://www.youtube.com/watch?v=cxfN-dFyzEQ",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-10",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "21-savage-offset-metro-boomin-ric-flair-drip",
@@ -485432,7 +485856,11 @@
     "lastVerified": "2025-06-15",
     "keyRaw": "Bmaj+15",
     "tuning": 15,
-    "soundcloud": "https://soundcloud.com/iamonlytom/take-me-by-the-hand"
+    "soundcloud": "https://soundcloud.com/iamonlytom/take-me-by-the-hand",
+    "lastEditedBy": "Bas Curtiz",
+    "lastEditedByDiscordId": "390110399048974337",
+    "verifiedAt": "2026-10-09",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "olivia-rodrigo-brutal",
@@ -504788,7 +505216,7 @@
     "source": "key consensus engine",
     "confidence": 1,
     "lastVerified": "2026-10-11",
-    "notes": "Key agreed by 5 of 5 reporting sources.",
+    "notes": "but it changes keys as well? are we gonna put those? its not just d major it goes up?",
     "youtube": "https://www.youtube.com/watch?v=-FyjEnoIgTM",
     "sources": [
       {
@@ -504837,7 +505265,11 @@
         "chords": "G – A – Bm – A – D – F#m7 – Em7 – Asus4 – A – A#maj7 – A7 – A#7",
         "sourceKey": "D major"
       }
-    ]
+    ],
+    "lastEditedBy": "Benny (AKA Biggest Olivia Fan)",
+    "lastEditedByDiscordId": "873326995008782396",
+    "verifiedAt": "2026-10-13",
+    "verifiedBy": "Bas Curtiz"
   },
   {
     "id": "bruno-mars-talking-to-the-moon",
