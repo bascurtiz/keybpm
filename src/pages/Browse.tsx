@@ -95,8 +95,8 @@ export function Browse() {
     // 2. Facet filters & consensus toggle
     rows = rows.filter(t => {
       if (state.hideConsensus) {
-        // Exclude tracks derived from consensus / multi-source engine
-        if (t.source === 'key consensus engine' || (t.sources && t.sources.length > 0)) {
+        // Exclude tracks derived from consensus engine (keep manually curated tracks)
+        if (t.source === 'key consensus engine') {
           return false
         }
       }
