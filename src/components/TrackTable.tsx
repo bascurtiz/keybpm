@@ -228,8 +228,8 @@ function Cell({ col, t, keyNotation }: { col: Column; t: Track; keyNotation: Whe
       return (
         <td className="px-3 py-1.5">
           <span className="flex min-w-0 items-center gap-1 overflow-hidden">
-            <SourceBadges sources={sources} track={t} max={contributor ? 3 : 4} />
             {contributor && <ContributorBadge name={contributor} verifiedBy={t.verifiedBy} />}
+            <SourceBadges sources={sources} track={t} max={contributor ? 3 : 4} />
           </span>
         </td>
       )
@@ -292,10 +292,10 @@ function MobileList({
                   {t.label && <span className="truncate">· {t.label}</span>}
                   {(sources.length > 0 || contributor) && (
                     <span className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
+                      {contributor && <ContributorBadge name={contributor} verifiedBy={t.verifiedBy} />}
                       {sources.length > 0 && (
                         <SourceBadges sources={sources} track={t} max={contributor ? 3 : 4} />
                       )}
-                      {contributor && <ContributorBadge name={contributor} verifiedBy={t.verifiedBy} />}
                     </span>
                   )}
                 </div>
