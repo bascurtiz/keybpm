@@ -36,5 +36,5 @@ export const CONTROL_STACK_H = CONTROL_H * 2 + 2
  * 36 px columns take the same 40 and let it overhang 2 px into the gaps either side, which is
  * how the hardware reads: the cap is wider than the slot it runs in.
  */
-export const FADER_CAP_W = 34
-export const KIOSK_FADER_CAP_W = 40
+export const FADER_CAP_W = 44
+export const KIOSK_FADER_CAP_W = 48

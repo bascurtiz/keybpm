@@ -4,6 +4,7 @@ interface KnobProps {
   value: number
   min?: number
   max?: number
+  step?: number
   defaultValue?: number
   onValueChange: (value: number) => void
   label?: string
@@ -19,6 +20,8 @@ interface KnobProps {
   isDotActive?: boolean
   dotActiveColor?: string
   variant?: 'slate' | 'dark'
+  pointerColor?: string
+  valueDisplay?: string
 }
 
 const START_ANGLE = -135
@@ -83,6 +86,7 @@ export function Knob({
   value,
   min = 0,
   max = 1,
+  step,
   defaultValue,
   onValueChange,
   label,
@@ -98,6 +102,8 @@ export function Knob({
   isDotActive = false,
   dotActiveColor,
   variant = 'slate',
+  pointerColor,
+  valueDisplay,
 }: KnobProps) {
   const angle = valueToAngle(value, min, max, bipolar)
   const dragState = useRef<{ startY: number; startAngle: number } | null>(null)
@@ -138,6 +144,11 @@ export function Knob({
 
   const handleWheel = (e: React.WheelEvent) => {
     if (disabled) return
+    if (step) {
+      const dir = e.deltaY < 0 ? 1 : -1
+      onValueChange(clamp(value + dir * step))
+      return
+    }
     const dAngle = (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 2 : 6)
     const nextVal = angleToValue(angle + dAngle, min, max, bipolar)
     onValueChange(clamp(nextVal))
@@ -149,7 +160,7 @@ export function Knob({
   }
 
   const c = 50
-  const r = 37
+  const r = 38
   const arcPath = getArcPath(angle, bipolar, c, r)
   const isTurned = Math.abs(angle) > 2
   const isRow = labelPlacement === 'left' || labelPlacement === 'right'
@@ -185,16 +196,12 @@ export function Knob({
         style={{ width: size, height: size }}
       >
         <svg viewBox="0 0 100 100" className="h-full w-full overflow-visible">
-          {/* Strokes below are in CSS pixels, not viewBox units — every stroked
-              element sets vectorEffect="non-scaling-stroke". The SVG draws in a
-              100-unit space and is rendered at `size` (20–40px), so a width of 1.8
-              became 0.72px on screen: thinner than one device pixel, which is what
-              made the body edge and the track ring read as soft. */}
+          {/* Outer track ring */}
           <path
-            d="M 23.84 76.16 A 37 37 0 1 1 76.16 76.16"
+            d="M 23.14 76.86 A 38 38 0 1 1 76.86 76.86"
             fill="none"
-            stroke={variant === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.1)'}
-            strokeWidth={2}
+            stroke={variant === 'dark' ? 'rgba(255, 255, 255, 0.16)' : 'rgba(255, 255, 255, 0.12)'}
+            strokeWidth={2.2}
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
           />
@@ -205,7 +212,7 @@ export function Knob({
               d={arcPath}
               fill="none"
               stroke={accentColor}
-              strokeWidth={2.5}
+              strokeWidth={3}
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
             />
@@ -214,24 +221,24 @@ export function Knob({
           {/* Top 12 o'clock zero tick mark */}
           <line
             x1={c}
-            y1={2}
+            y1={1}
             x2={c}
-            y2={9}
+            y2={8}
             stroke={variant === 'dark' ? (!isTurned ? accentColor : '#64748b') : '#ffffff'}
-            strokeWidth={1.5}
+            strokeWidth={1.8}
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
-            opacity={variant === 'dark' ? 1 : 0.75}
+            opacity={variant === 'dark' ? 1 : 0.8}
           />
 
-          {/* Knob body (r=27 matches FilterKnob r=13.5 in 50x50 viewBox) */}
+          {/* Knob body */}
           <circle
             cx={c}
             cy={c}
-            r={27}
-            fill={variant === 'dark' ? '#1e2025' : '#505050'}
+            r={29}
+            fill={variant === 'dark' ? '#1e2025' : '#3e3e3e'}
             stroke={variant === 'dark' ? (isTurned ? '#474a56' : '#363842') : '#383838'}
-            strokeWidth={1}
+            strokeWidth={1.2}
             vectorEffect="non-scaling-stroke"
           />
 
@@ -240,20 +247,20 @@ export function Knob({
             <circle
               cx={c}
               cy={c}
-              r={21}
+              r={23}
               fill="#282a32"
               opacity={0.55}
             />
           )}
 
-          {/* White indicator pointer notch */}
+          {/* Indicator pointer notch */}
           <line
             x1={c}
             y1={c - 10}
             x2={c}
-            y2={c - 22}
-            stroke="#ffffff"
-            strokeWidth={2.5}
+            y2={c - 24}
+            stroke={pointerColor || '#ffffff'}
+            strokeWidth={3.2}
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
             transform={`rotate(${angle} ${c} ${c})`}
@@ -263,11 +270,20 @@ export function Knob({
 
       {label && (
         <span
-          className={`font-sans text-[7.5px] font-bold tracking-wider text-[#777777] uppercase select-none flex items-center justify-center gap-1 leading-none ${
-            isRow ? '' : 'mt-0.5'
+          className={`font-sans text-[8.5px] font-bold tracking-wider text-[#777777] uppercase select-none flex items-center justify-center gap-1 leading-none ${
+            isRow ? '' : 'mt-1'
           }`}
         >
-          {onDotClick ? (
+          <span>{label}</span>
+          {valueDisplay && (
+            <span
+              className="font-mono text-[8.5px] font-extrabold leading-none px-0.5"
+              style={{ color: accentColor }}
+            >
+              {valueDisplay}
+            </span>
+          )}
+          {onDotClick && (
             <button
               type="button"
               onClick={e => {
@@ -282,21 +298,11 @@ export function Knob({
                 style={{
                   backgroundColor: isDotActive
                     ? (dotActiveColor || accentColor)
-                    : (isTurned ? accentColor : '#373739'),
+                    : (isTurned ? accentColor : '#ffffff'),
                 }}
               />
             </button>
-          ) : (
-            <span
-              className="w-1.5 h-1.5 rounded-full shrink-0 transition-colors"
-              style={{
-                backgroundColor: isDotActive
-                  ? (dotActiveColor || accentColor)
-                  : (isTurned ? accentColor : '#373739'),
-              }}
-            />
           )}
-          <span>{label}</span>
         </span>
       )}
     </div>

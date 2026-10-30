@@ -62,7 +62,7 @@ const KIOSK_DECK_ROW_H = 250
  * is scaled down to fit instead of clipping a row.
  */
 /** Height of the metadata strip at the top of the chassis, in design px (content-sized). */
-const DESKTOP_STRIP_H = 98
+const DESKTOP_STRIP_H = 99
 const STRIP_H = 99
 
 /** The chassis' own top and bottom border, in design px (1 px each). */
@@ -72,25 +72,23 @@ const CHASSIS_BORDER_H = 2
 const DESKTOP_WAVEFORM_H = 270
 
 /**
- * `TraktorTransportBar`'s height in design px on a desktop: the 1 px divider, 16 px of air
- * above the keys, the 44 px keys, and 16 px of air below them (77 px total).
- * Kiosk is 82 px: 12 px of top air, the 52 px keys, and 16 px of bottom air matching the top
- * header's breathing room.
+ * `TraktorTransportBar`'s height in design px on a desktop: the 1 px divider, 16 px py-2,
+ * 32 px Row 1, 8 px gap-2, and 42 px Row 2 (99 px total).
  */
-const DESKTOP_TRANSPORT_H = 77
+const DESKTOP_TRANSPORT_H = 99
 /**
- * The phone's transport bar, in design px: 1 px divider + 12 px air + 52 px keys + 16 px air
- * (see `TraktorTransportBar`). Must stay in step with the bar's own `h-[82px]`, since this
- * constant is what the chassis adds up when it decides how much height the band gets.
+ * The phone's transport bar, in design px: matches the 2-row layout (99 px).
+ * Must stay in step with the bar's actual height, since this constant is what the
+ * chassis adds up when it decides how much height the band gets.
  */
-const KIOSK_TRANSPORT_H = 82
+const KIOSK_TRANSPORT_H = 99
 
 const KIOSK_MIN_CONSOLE_H = STRIP_H + KIOSK_LANE_BAND_FLOOR_H + KIOSK_DECK_ROW_H + KIOSK_TRANSPORT_H
 const KIOSK_MAX_CONSOLE_H = KIOSK_MIN_CONSOLE_H + (KIOSK_LANE_BAND_MAX_H - KIOSK_LANE_BAND_FLOOR_H)
 
 /**
- * Design height for the desktop chassis (717 px).
- * Matches the strip (98 px), waveforms (270 px), mixer/decks (270 px), transport (77 px), and borders (2 px).
+ * Design height for the desktop chassis (740 px).
+ * Matches the strip (99 px), waveforms (270 px), mixer/decks (270 px), transport (99 px), and borders (2 px).
  */
 const DESKTOP_MAX_CONSOLE_H =
   CHASSIS_BORDER_H + DESKTOP_STRIP_H + DESKTOP_WAVEFORM_H + DESKTOP_DECK_ROW_H + DESKTOP_TRANSPORT_H
@@ -470,7 +468,7 @@ export function MixIt() {
    *
    * Kiosk keeps `kioskDesignH`: there the fit is width-bound, so the height that makes the
    * 1160 px console fill the screen is the one that matters. On desktop, the chassis has a
-   * fixed design height of DESKTOP_MAX_CONSOLE_H (717 px, matching the sum of the strip,
+   * fixed design height of DESKTOP_MAX_CONSOLE_H (740 px, matching the sum of the strip,
    * waveforms, mixer/decks, and transport bar). `useConsoleFit` scales the chassis smoothly
    * via CSS transform to fit whatever viewport space is available.
    */

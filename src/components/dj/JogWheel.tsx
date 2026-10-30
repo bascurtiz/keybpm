@@ -187,13 +187,13 @@ export function JogWheel({
         className="absolute inset-0 rounded-full will-change-transform pointer-events-none"
       >
         {/* Outer Ring Vinyl Grooves */}
-        <div className="absolute inset-1 rounded-full border border-white/5 pointer-events-none" />
-        <div className="absolute inset-2.5 rounded-full border border-white/5 pointer-events-none" />
-        <div className="absolute inset-4 rounded-full border border-white/5 pointer-events-none" />
+        <div className="absolute inset-1.5 rounded-full border border-white/5 pointer-events-none" />
+        <div className="absolute inset-3 rounded-full border border-white/5 pointer-events-none" />
+        <div className="absolute inset-5 rounded-full border border-white/5 pointer-events-none" />
 
         {/* Vibrant colored radial needle matching Traktor DJ */}
         <div
-          className="absolute top-1 left-1/2 -translate-x-1/2 w-[3px] h-[22px] rounded-full pointer-events-none z-10 shadow-md"
+          className="absolute top-1.5 left-1/2 -translate-x-1/2 w-[3px] h-[26px] rounded-full pointer-events-none z-10 shadow-md"
           style={{
             backgroundColor: accentColor,
             boxShadow: `0 0 8px ${accentColor}`,

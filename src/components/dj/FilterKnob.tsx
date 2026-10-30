@@ -28,6 +28,8 @@ interface FilterKnobProps {
   onChange: (val: number) => void
   accentColor?: string
   size?: number
+  label?: string
+  pointerColor?: string
 }
 
 export function FilterKnob({
@@ -35,6 +37,8 @@ export function FilterKnob({
   onChange,
   accentColor = '#10b981',
   size = 42,
+  label = 'FLTR',
+  pointerColor,
 }: FilterKnobProps) {
   /**
    * The drag's origin, held in a ref rather than in state.
@@ -89,10 +93,10 @@ export function FilterKnob({
     onChange(clamp(value + (e.deltaY < 0 ? step : -step)))
   }
 
-  // Geometry: cx = 25, cy = 25, r = 18.5
+  // Geometry: cx = 25, cy = 25, r = 19
   const cx = 25
   const cy = 25
-  const r = 18.5
+  const r = 19
 
   const toRad = (deg: number) => (deg * Math.PI) / 180
   const getPoint = (deg: number) => ({
@@ -149,7 +153,7 @@ export function FilterKnob({
           <path
             d={bgTrackPath}
             fill="none"
-            stroke="rgba(255, 255, 255, 0.08)"
+            stroke="rgba(255, 255, 255, 0.12)"
             strokeWidth="2.4"
             strokeLinecap="round"
           />
@@ -168,23 +172,23 @@ export function FilterKnob({
           {/* Top 12 o'clock zero tick mark */}
           <line
             x1="25"
-            y1="2.2"
+            y1="1.5"
             x2="25"
-            y2="6"
+            y2="5.5"
             stroke="#ffffff"
             strokeWidth="1.8"
             strokeLinecap="round"
-            opacity="0.75"
+            opacity="0.8"
           />
 
-          {/* Inner Knob Body: Hardware gray #505050 */}
+          {/* Inner Knob Body: Hardware gray #3e3e3e */}
           <circle
             cx="25"
             cy="25"
-            r="13.5"
-            fill="#505050"
+            r="14.5"
+            fill="#3e3e3e"
             stroke="#383838"
-            strokeWidth="1.5"
+            strokeWidth="1.2"
             className="transition-colors"
           />
 
@@ -192,36 +196,20 @@ export function FilterKnob({
           <g transform={`rotate(${angle} 25 25)`}>
             <line
               x1="25"
-              y1="13.5"
+              y1="12"
               x2="25"
               y2="19.5"
-              stroke="#ffffff"
-              strokeWidth="2.6"
+              stroke={pointerColor || (isEngaged ? accentColor : '#ffffff')}
+              strokeWidth="3.2"
               strokeLinecap="round"
             />
           </g>
         </svg>
       </div>
 
-      {/* Label: ● FILTER matching capital Inter font */}
-      <span className="font-sans text-[7.5px] font-bold tracking-wider text-[#777777] uppercase select-none flex items-center justify-center gap-1 leading-none mt-0.5">
-        <button
-          type="button"
-          onClick={e => {
-            e.stopPropagation()
-            onChange(0)
-          }}
-          className="w-2.5 h-2.5 -m-0.5 flex items-center justify-center cursor-pointer group/dot focus:outline-none"
-          title="Filter reset — Click dot to jump back to center (0)"
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full shrink-0 transition-all group-hover/dot:scale-125"
-            style={{
-              backgroundColor: isEngaged ? accentColor : '#373739',
-            }}
-          />
-        </button>
-        <span>FILTER</span>
+      {/* Label: FLTR matching capital Inter font */}
+      <span className="font-sans text-[8.5px] font-bold tracking-wider text-[#777777] uppercase select-none flex items-center justify-center leading-none mt-1">
+        <span>{label}</span>
       </span>
     </div>
   )

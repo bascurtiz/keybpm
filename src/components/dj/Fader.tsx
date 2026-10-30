@@ -30,6 +30,10 @@ interface FaderProps {
    * given the same grip; `FADER_CAP_W` / `KIOSK_FADER_CAP_W` hold the console's two numbers.
    */
   capWidth?: number
+  /**
+   * Length of the fader's cap along its travel direction (e.g. horizontal width on crossfader).
+   */
+  capLength?: number
 }
 
 function clamp01(v: number): number {
@@ -55,9 +59,12 @@ export function Fader({
   accentColor,
   analyser,
   invert = false,
-  capWidth = 34,
+  capWidth = 44,
+  capLength,
 }: FaderProps) {
   const vertical = orientation === 'vertical'
+  const defaultCapLength = vertical ? 18 : 24
+  const actualCapLength = capLength ?? defaultCapLength
   const range = max - min
   const rawNorm = clamp01((value - min) / range)
   const norm = invert ? 1 - rawNorm : rawNorm
@@ -321,27 +328,27 @@ export function Fader({
         )}
       </div>
 
-      {/* Fader Handle / Cap (Hardware gray cap #505050 with bright white center indicator line) - scaled 25% bigger */}
+      {/* Fader Handle / Cap (Hardware gray cap #3e3e3e with bright white center indicator line) - chunky DJ grip */}
       <div
         ref={handleRef}
         aria-hidden
-        className={`absolute rounded-[2px] bg-[#505050] border border-[#383838] shadow-md flex items-center justify-center pointer-events-none z-20 ${
+        className={`absolute rounded-[2px] bg-[#3e3e3e] border border-[#383838] shadow-md flex items-center justify-center pointer-events-none z-20 ${
           vertical
-            ? 'left-1/2 h-[18px] -translate-x-1/2 translate-y-1/2'
-            : 'top-1/2 w-[18px] -translate-x-1/2 -translate-y-1/2'
+            ? 'left-1/2 -translate-x-1/2 translate-y-1/2'
+            : 'top-1/2 -translate-x-1/2 -translate-y-1/2'
         }`}
         style={
           vertical
-            ? { bottom: `${norm * 100}%`, width: capWidth }
-            : { left: `${norm * 100}%`, height: capWidth }
+            ? { bottom: `${norm * 100}%`, width: capWidth, height: actualCapLength }
+            : { left: `${norm * 100}%`, height: capWidth, width: actualCapLength }
         }
       >
         {/* White center indicator stripe */}
         <div
           className={`bg-white shadow-sm ${
             vertical
-              ? 'w-full h-[2px]'
-              : 'h-full w-[2px]'
+              ? 'w-full h-[2.5px]'
+              : 'h-full w-[2.5px]'
           }`}
         />
       </div>

@@ -16,7 +16,7 @@ import { useLayoutEffect, useState } from 'react'
  * every control stays the size it was designed at. Only the containers grew: the mixer's outer
  * columns and filter/FX panel, and the air on either side of each jog.
  */
-export const CONSOLE_WIDTH = 1190
+export const CONSOLE_WIDTH = 1280
 
 /**
  * Width the chassis is laid out at in kiosk (phone) mode, in CSS px.
@@ -39,7 +39,7 @@ export const CONSOLE_WIDTH = 1190
  * plus 32 of gaps, 16 of padding and 2 of border), which with the row's own 8 px gaps and 16 px
  * padding comes to the chassis' 1138 px content box. Change a kiosk column and this follows.
  */
-export const KIOSK_CONSOLE_WIDTH = 1160
+export const KIOSK_CONSOLE_WIDTH = 1180
 
 interface ConsoleFitResult {
   /** Attach to the element that defines the available space. */
